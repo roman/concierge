@@ -18,6 +18,8 @@ skills and lifecycle hooks supply the session instructions.
 | `concierge supervise` | Monitor a manual pane or supervise a task with inbox delivery and worker recovery. |
 | `concierge brief` | Show pending primary messages, queued work, workers, and unfinished completions. |
 | `concierge project show REPO` | Read operator-owned merge authority and delivery mode for a repository. |
+| `concierge project set REPO [--merge on\|off] [--delivery pr\|fast-forward]` | Atomically update approved repository settings. |
+| `concierge brief-include set --file FILE` / `clear` | Replace or clear approved standing worker instructions. |
 
 ## Supervisor delegation and settings
 
@@ -27,8 +29,10 @@ project work to workers. Scouts produce reports. A specific operator-approved
 operation grants authority only for that operation. The contract belongs to
 Concierge; adopting repositories need no AGENTS.md or CLAUDE.md changes.
 
-Initialize state before creating configuration. These optional files belong to
-the operator. Concierge reads them without creating or changing them.
+These optional files belong to the operator. The primary runs settings commands
+only after the operator approves the exact change. The commands create `config/`
+on demand and replace files atomically. Project updates preserve other repositories
+and unspecified fields. Invalid existing configuration stops an update.
 
 | Setting | Path under `$CONCIERGE_HOME` | Default |
 | --- | --- | --- |
@@ -36,7 +40,15 @@ the operator. Concierge reads them without creating or changing them.
 | Per-repository `delivery` | `config/projects.json` | `pr`: worker opens a PR. |
 | Standing worker instructions | `config/brief-include.md` | Absent: append no text. |
 
-For example, the operator can create `config/projects.json` containing:
+For example:
+
+```sh
+concierge project set my-project --merge on --delivery fast-forward
+concierge brief-include set --file ./worker-defaults.md
+concierge brief-include clear
+```
+
+The project settings file can also contain:
 
 ```json
 {

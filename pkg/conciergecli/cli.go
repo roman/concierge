@@ -20,7 +20,7 @@ import (
 
 const version = "0.1.0"
 
-const cliHelp = "commands: host serve|status, launch TASK_ID, project show REPO, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
+const cliHelp = "commands: host serve|status, launch TASK_ID, project show|set REPO, brief-include set --file FILE|clear, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
 type cli struct {
 	hostExpectations        hostservice.Expectations
@@ -36,17 +36,18 @@ type cli struct {
 			Timeout time.Duration `default:"1s" help:"Maximum time for the readiness request."`
 		} `cmd:"" help:"Inspect host readiness and verify package and configuration without primary ownership."`
 	} `cmd:"" help:"Run the host service for this state root."`
-	State       stateCommands       `cmd:"" help:"Initialize, back up, and migrate task state with all writers stopped."`
-	Launch      launchCommand       `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
-	Project     projectCommands     `cmd:"" help:"Inspect operator-owned repository settings."`
-	Supervise   supervisionCommands `cmd:"" help:"Monitor workers and recover missing agents."`
-	Control     controlCommands     `cmd:"" help:"Inspect and control live Herdr agents."`
-	Primary     primaryCommands     `cmd:"" help:"Manage the root session owner through native process lifecycle hooks."`
-	Root        string              `help:"Absolute Concierge state root; defaults to .concierge in the current directory." env:"CONCIERGE_HOME"`
-	MessageRoot string              `help:"Absolute message root; defaults to .tincan in the current directory." env:"TINCAN_HOME"`
-	Recipient   string              `help:"Primary inbox recipient." default:"${primaryRecipient}"`
-	Backlog     backlogCommands     `cmd:"" help:"Queue and inspect authoritative task records."`
-	Worker      struct {
+	State        stateCommands        `cmd:"" help:"Initialize, back up, and migrate task state with all writers stopped."`
+	Launch       launchCommand        `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
+	Project      projectCommands      `cmd:"" help:"Inspect and set operator-owned repository settings."`
+	BriefInclude briefIncludeCommands `cmd:"" help:"Set or clear operator-owned standing worker instructions."`
+	Supervise    supervisionCommands  `cmd:"" help:"Monitor workers and recover missing agents."`
+	Control      controlCommands      `cmd:"" help:"Inspect and control live Herdr agents."`
+	Primary      primaryCommands      `cmd:"" help:"Manage the root session owner through native process lifecycle hooks."`
+	Root         string               `help:"Absolute Concierge state root; defaults to .concierge in the current directory." env:"CONCIERGE_HOME"`
+	MessageRoot  string               `help:"Absolute message root; defaults to .tincan in the current directory." env:"TINCAN_HOME"`
+	Recipient    string               `help:"Primary inbox recipient." default:"${primaryRecipient}"`
+	Backlog      backlogCommands      `cmd:"" help:"Queue and inspect authoritative task records."`
+	Worker       struct {
 		List struct{} `cmd:"" help:"List confirmed workers and pending adoptions."`
 		Show struct {
 			TaskID string `arg:"" help:"Task ID."`
@@ -179,6 +180,10 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	switch selected.Command() {
 	case "project show <repo>":
 		return command.Project.show(root, stdout)
+	case "project set <repo>":
+		return command.Project.set(root, stdout)
+	case "brief-include set", "brief-include clear":
+		return command.BriefInclude.run(root, selected.Command(), stdout)
 	case "control interrupt <target>", "control start":
 		return command.Control.runMutation(
 			ctx,
