@@ -20,7 +20,7 @@ import (
 
 const version = "0.1.0"
 
-const cliHelp = "commands: host serve|status, launch TASK_ID, project show|set REPO, brief-include set --file FILE|clear, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
+const cliHelp = "commands: host serve|status, launch TASK_ID, land TASK_ID [--operator-approved], project show|set REPO, brief-include set --file FILE|clear, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
 type cli struct {
 	hostExpectations        hostservice.Expectations
@@ -38,6 +38,7 @@ type cli struct {
 	} `cmd:"" help:"Run the host service for this state root."`
 	State        stateCommands        `cmd:"" help:"Initialize, back up, and migrate task state with all writers stopped."`
 	Launch       launchCommand        `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
+	Land         landCommand          `cmd:"" help:"Land an accepted worker result using the repository settings."`
 	Project      projectCommands      `cmd:"" help:"Inspect and set operator-owned repository settings."`
 	BriefInclude briefIncludeCommands `cmd:"" help:"Set or clear operator-owned standing worker instructions."`
 	Supervise    supervisionCommands  `cmd:"" help:"Monitor workers and recover missing agents."`
@@ -178,6 +179,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return fail(stdout, 2, err, "use an absolute, clean --root path")
 	}
 	switch selected.Command() {
+	case "land <task-id>":
+		return command.Land.run(ctx, root, stdout)
 	case "project show <repo>":
 		return command.Project.show(root, stdout)
 	case "project set <repo>":

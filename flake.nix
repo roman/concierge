@@ -83,7 +83,7 @@
             '';
           conciergeRuntime = pkgs.symlinkJoin {
             name = "concierge-runtime";
-            paths = [ herdrPackage processTools pkgs.git transportPackage treehouse.packages.${system}.default ];
+            paths = [ herdrPackage processTools pkgs.git pkgs.gh transportPackage treehouse.packages.${system}.default ];
           };
           concierge = pkgs.runCommand "concierge-0.1.0" {
             nativeBuildInputs = [ pkgs.makeWrapper ];

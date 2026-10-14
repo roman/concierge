@@ -20,6 +20,7 @@ skills and lifecycle hooks supply the session instructions.
 | `concierge project show REPO` | Read operator-owned merge authority and delivery mode for a repository. |
 | `concierge project set REPO [--merge on\|off] [--delivery pr\|fast-forward]` | Atomically update approved repository settings. |
 | `concierge brief-include set --file FILE` / `clear` | Replace or clear approved standing worker instructions. |
+| `concierge land TASK_ID [--operator-approved]` | Land an accepted result with the configured delivery mode. |
 
 ## Supervisor delegation and settings
 
@@ -69,8 +70,27 @@ fast-forward of the default branch. `delivery: pr` has the worker open a PR.
 Neither mode authorizes red work, force pushes, or discarding unlanded work.
 Destructive, irreversible, or security-sensitive landings require separate
 operator approval even with merge on.
-The supervisor skill owns the landing procedure. These settings do not execute
-Git merges or replace CI checks.
+Accept the worker result, then run `concierge land TASK_ID` before worker cleanup.
+With merge off, pass `--operator-approved` only after the operator approves that
+exact landing. The command checks the recorded lease, branch, and clean worktree,
+including ignored files. It discovers the default branch from `origin` and
+requires the task branch to contain its fetched tip.
+
+Fast-forward delivery pushes the verified commit to the remote default branch.
+It deletes a matching remote task branch when present. An explicit lease makes
+that deletion conditional on the verified task commit. A concurrent update keeps
+the branch. Branch updates never use force. It advances the main
+checkout with `--ff-only` when that checkout is clean and on the default branch.
+A dirty, diverged, or differently checked-out main checkout stays unchanged.
+The result reports each skipped operation. The local task branch remains available.
+
+PR delivery requires one open, non-draft PR for the recorded branch and exact
+commit. It requires a ready merge state and passing required checks, then uses
+`gh pr merge --squash --match-head-commit`. It reports success only after a fresh
+read confirms the merge and its resulting commit. A queued merge remains
+unconfirmed. Neither delivery path force-pushes. Inspect the remote after any
+command failure before retrying. Local verification of fast-forward work remains
+the worker's responsibility.
 
 `concierge launch` appends the nonempty `config/brief-include.md` verbatim after
 a `Standing worker instructions` heading. It preserves the assignment text.
