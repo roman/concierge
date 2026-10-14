@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	"github.com/roman/concierge/pkg/hostservice"
 	"github.com/roman/concierge/pkg/taskops"
@@ -36,6 +37,15 @@ func (command *launchCommand) run(
 	}
 	if err := taskops.ValidateInitialLaunch(command.Harness, command.AgentArgs, body); err != nil {
 		return fail(output, 2, err, "provide a nonblank assignment and compatible worker arguments")
+	}
+	body, err = appendBriefInclude(root, body)
+	if err != nil {
+		return fail(
+			output,
+			1,
+			err,
+			"ask the operator to correct config/brief-include.md; no launch was requested",
+		)
 	}
 	response, err := hostservice.Call(ctx, filepath.Join(root, "host.sock"), hostservice.Request{
 		Operation: hostservice.Launch, Expectations: &expectations,
@@ -78,6 +88,19 @@ func (command *launchCommand) run(
 		return 1
 	}
 	return 0
+}
+
+func appendBriefInclude(root, body string) (string, error) {
+	include, err := readOptionalConfiguration(filepath.Join(root, "config", "brief-include.md"))
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(string(include)) == "" {
+		return body, nil
+	}
+	return body + "\n\n## Standing worker instructions\n\nTask-specific instructions take precedence over these defaults.\n\n" + string(
+		include,
+	), nil
 }
 
 func writeLaunchProgress(output io.Writer, taskID string, response hostservice.Response) int {

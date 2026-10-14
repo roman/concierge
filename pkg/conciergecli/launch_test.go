@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -44,9 +45,17 @@ func launchArguments(root string) []string {
 }
 
 func TestLaunchPreservesRequestAndReportsHostOutcome(t *testing.T) {
-	for _, mode := range []string{"completed", "owned", "pending", "blocked", "native checkpoint", "supervision stopped", "lost response", "already bound"} {
+	for _, mode := range []string{"completed", "include", "owned", "pending", "blocked", "native checkpoint", "supervision stopped", "lost response", "already bound"} {
 		t.Run(mode, func(t *testing.T) {
 			root := shortTaskRoot(t)
+			if mode == "include" {
+				if err := os.Mkdir(filepath.Join(root, "config"), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(root, "config", "brief-include.md"), []byte("Use the operator defaults.\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
 			listener, err := net.ListenUnix(
 				"unix",
 				&net.UnixAddr{Name: filepath.Join(root, "host.sock"), Net: "unix"},
@@ -78,7 +87,8 @@ func TestLaunchPreservesRequestAndReportsHostOutcome(t *testing.T) {
 					Outcome: hostservice.Failed,
 					Error:   hostservice.ErrLaunchAlreadyBound.Error(),
 				}
-				if mode == "completed" || mode == "owned" || mode == "supervision stopped" {
+				if mode == "completed" || mode == "include" || mode == "owned" ||
+					mode == "supervision stopped" {
 					response = hostservice.Response{
 						Outcome: hostservice.Completed,
 						Transition: &taskstate.Snapshot{
@@ -202,7 +212,7 @@ func TestLaunchPreservesRequestAndReportsHostOutcome(t *testing.T) {
 				}
 			}
 			code := Run(ctx, arguments, strings.NewReader(body), &output, io.Discard)
-			if mode == "completed" || mode == "owned" {
+			if mode == "completed" || mode == "include" || mode == "owned" {
 				if code != 0 || !strings.Contains(output.String(), "generation: \"gen-1\"") ||
 					!strings.Contains(output.String(), "pane: \"w1:p1\"") {
 					t.Fatalf("launch code %d: %s", code, &output)
@@ -250,6 +260,9 @@ func TestLaunchPreservesRequestAndReportsHostOutcome(t *testing.T) {
 				}
 				if mode == "owned" {
 					expected.Workspace = ""
+				}
+				if mode == "include" {
+					expected.Body += "\n\n## Standing worker instructions\n\nTask-specific instructions take precedence over these defaults.\n\nUse the operator defaults.\n"
 				}
 				if request.Operation != hostservice.Launch ||
 					!reflect.DeepEqual(request.Launch, expected) {

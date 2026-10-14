@@ -38,6 +38,7 @@ type cli struct {
 	} `cmd:"" help:"Run the host service for this state root."`
 	State       stateCommands       `cmd:"" help:"Initialize, back up, and migrate task state with all writers stopped."`
 	Launch      launchCommand       `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
+	Project     projectCommands     `cmd:"" help:"Inspect operator-owned repository settings."`
 	Supervise   supervisionCommands `cmd:"" help:"Monitor workers and recover missing agents."`
 	Control     controlCommands     `cmd:"" help:"Inspect and control live Herdr agents."`
 	Primary     primaryCommands     `cmd:"" help:"Manage the root session owner through native process lifecycle hooks."`
@@ -176,6 +177,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return fail(stdout, 2, err, "use an absolute, clean --root path")
 	}
 	switch selected.Command() {
+	case "project show <repo>":
+		return command.Project.show(root, stdout)
 	case "control interrupt <target>", "control start":
 		return command.Control.runMutation(
 			ctx,
