@@ -66,7 +66,8 @@ read. The primary must ask the operator to correct invalid settings.
 Merge authority and delivery mode are independent. `merge: on` authorizes the
 primary to land green, in-scope work. `merge: off` requires approval for each
 landing. `delivery: fast-forward` leaves the worker's clean ready branch for a
-fast-forward of the default branch. `delivery: pr` has the worker open a PR.
+fast-forward of the default branch. The worker commits its changes and does not
+push or open a PR. `delivery: pr` has the worker push and open a PR.
 Neither mode authorizes red work, force pushes, or discarding unlanded work.
 Destructive, irreversible, or security-sensitive landings require separate
 operator approval even with merge on.

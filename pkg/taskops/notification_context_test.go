@@ -68,6 +68,7 @@ func TestWorkerProtocolIncludesConfiguredCommands(t *testing.T) {
 				"task receive 'task-1'", "task reply send 'task-1'", "--assignment-id MESSAGE_ID", "task ack 'task-1'",
 				`--generation "$CONCIERGE_SPAWN_GENERATION"`, "task-bootstrap", "inbox ack 'task-1'", "status: current",
 				"Never set or export", "pending list", "missing or different",
+				"project show REPO", "delivery: fast-forward", "do not push", "delivery: pr",
 			} {
 				if !strings.Contains(text, fragment) {
 					t.Errorf("protocol lacks %q:\n%s", fragment, text)

@@ -127,6 +127,17 @@ or unblock a task. Missing settings mean merge off, PR delivery, and no include.
 Launch appends the include verbatim after the assignment. Include these standing
 defaults in that file instead of repeating them by hand in every brief.
 
+Run settings commands only after the operator approves the exact change:
+
+```sh
+concierge project set REPO [--merge on|off] [--delivery pr|fast-forward]
+concierge brief-include set --file FILE
+concierge brief-include clear
+```
+
+The commands validate and atomically replace configuration. They create `config/`
+on demand. Unspecified project settings remain unchanged.
+
 Launch a queued task through the host. Resolve the exact base commit before
 launch. Choose a new task branch. Concierge leases its worktree and owns one workspace:
 
@@ -212,22 +223,22 @@ open. Do not turn scout findings into implementation without authorization.
 For project changes, delivery and merge authority are separate settings:
 
 - `delivery: pr`: the worker pushes its branch and opens a PR.
-- `delivery: fast-forward`: the worker leaves a clean ready branch for landing
-  on the default branch. Keep its branch until landing is confirmed.
+- `delivery: fast-forward`: the worker commits a clean ready branch, removes
+  ignored files, and does not push or open a PR. Keep its branch until landing.
 - `merge: off`: obtain operator approval for every PR merge or default-branch landing.
 - `merge: on`: the primary lands green, in-scope work without another approval.
 
 Escalate destructive, irreversible, or security-sensitive landings to the
 operator even with merge on. Standing merge authority cannot approve them.
 
-Never merge red work. Require completed passing checks for the exact commit
-being landed. Delegate verification to a worker. Confirm scope, a clean working
-tree, the current default branch, and the exact reviewed commit before landing.
-Use a fast-forward only for local delivery; stop on divergence. For PR delivery,
-check required CI results for the current PR head before merging. Report the
-landed commit or PR URL. Never force, discard unlanded work, bypass a lease
-refusal, or treat cleanup as landing. Concierge preserves leased branches on
-return; do not delete an unlanded branch. A scout needs no landing.
+Require completed passing checks for the exact commit and confirm its scope.
+Accept the worker result, then run `concierge land TASK_ID` before stopping or
+cleaning up the worker. With merge off, obtain approval for that exact landing
+and pass `--operator-approved`. The command checks the recorded worktree and
+branch, discovers the remote default branch, and applies the configured delivery.
+Report the result's landed commit or PR URL and any skipped operation. Inspect
+the remote after a failed or unconfirmed landing. Never force, discard unlanded
+work, or bypass a lease refusal. A scout needs no landing.
 
 Preserve the accepted worker generation through stop and cleanup. Check the
 bound reply, then accept the result with an explicit closing date:
@@ -235,6 +246,18 @@ bound reply, then accept the result with an explicit closing date:
 ```sh
 concierge task reply check REPLY_ID
 concierge backlog resolve REPLY_ID --mode close --closed-on YYYY-MM-DD
+```
+
+For project changes, land before stopping the worker. Scouts skip this command.
+With merge off, obtain the operator's approval and add `--operator-approved`:
+
+```sh
+concierge land TASK_ID
+```
+
+Stop and clean up the accepted worker:
+
+```sh
 concierge task stop TASK_ID --generation GEN
 concierge backlog cleanup TASK_ID --generation GEN
 ```
