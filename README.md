@@ -525,8 +525,8 @@ stable command definitions in `.claude/settings.json`:
 ```json
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "./.agents/hooks/concierge-session-start", "timeout": 15}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "./.agents/hooks/concierge-claude-stop", "asyncRewake": true, "timeout": 28800}]}]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-session-start; fi", "timeout": 15}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-claude-stop; fi", "asyncRewake": true, "timeout": 28800}]}]
   }
 }
 ```
@@ -536,8 +536,8 @@ Use these definitions in `.codex/hooks.json`:
 ```json
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "./.agents/hooks/concierge-session-start", "timeout": 15}]}],
-    "SessionEnd": [{"hooks": [{"type": "command", "command": "./.agents/hooks/concierge-session-end", "timeout": 3}]}]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-session-start; fi", "timeout": 15}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-session-end; fi", "timeout": 3}]}]
   }
 }
 ```
@@ -546,7 +546,9 @@ Preserve unrelated native settings when adding the definitions. Review and
 approve the initial hook definitions through each harness's normal trust flow.
 A package update keeps the command definitions stable. Enter the development
 shell before launching a root session. Hooks act only in that shell's project
-root and skip worker sessions.
+root. The committed command guards skip worker sessions before accessing the
+generated files. Pooled worker checkouts do not need module shell entry to skip
+the root hooks.
 
 Initialize fresh state explicitly with `concierge state init` before starting a
 root. Shell entry only warns when state is missing. Existing state needs its

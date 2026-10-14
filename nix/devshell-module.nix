@@ -76,7 +76,8 @@ in
         unset concierge_host_args concierge_host_status
       fi
       concierge_check_hook() {
-        if ! ${pkgs.jq}/bin/jq -e --arg event "$2" --arg command "./.agents/hooks/$3" \
+        if ! ${pkgs.jq}/bin/jq -e --arg event "$2" \
+          --arg command 'if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/'"$3"'; fi' \
           'any(.hooks[$event][]?.hooks[]?; .type == "command" and .command == $command and (if $event == "Stop" then .asyncRewake == true and (.timeout | type) == "number" and .timeout >= 28800 else true end))' \
           "$CONCIERGE_PROJECT_ROOT/$1" >/dev/null 2>&1; then
           printf 'Concierge hook settings need review: %s (%s)\n' "$1" "$2" >&2

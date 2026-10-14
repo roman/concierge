@@ -156,6 +156,27 @@ pkgs.runCommand "concierge-devshell"
     test "$stop_status" = 2 || { cat stop-wake; printf 'Stop exit: %s\n' "$stop_status"; exit 1; }
     test -f "$CONCIERGE_HOME/claude-stop.lock"
     grep -F 'A Tincan message is pending' stop-wake
+    start_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-session-start; fi'
+    stop_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-claude-stop; fi'
+    end_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-session-end; fi'
+    ${pkgs.jq}/bin/jq -n --arg start "$start_command" --arg stop "$stop_command" --arg end "$end_command" \
+      '{hooks:{SessionStart:[{hooks:[{type:"command",command:$start}]}],Stop:[{hooks:[{type:"command",command:$stop,asyncRewake:true,timeout:28800}]}],SessionEnd:[{hooks:[{type:"command",command:$end}]}]}}' \
+      > .claude/settings.json
+    cp .claude/settings.json .codex/hooks.json
+    run_entry 2>guarded-settings-warning
+    if grep -F 'hook settings need review' guarded-settings-warning; then exit 1; fi
+    ${pkgs.jq}/bin/jq \
+      '.hooks.SessionStart[0].hooks[0].command = "./.agents/hooks/concierge-session-start" |
+       .hooks.Stop[0].hooks[0].command = "./.agents/hooks/concierge-claude-stop" |
+       .hooks.SessionEnd[0].hooks[0].command = "./.agents/hooks/concierge-session-end"' \
+      .claude/settings.json > unguarded-settings.json
+    cp unguarded-settings.json .claude/settings.json
+    cp unguarded-settings.json .codex/hooks.json
+    run_entry 2>unguarded-settings-warning
+    grep -F '.claude/settings.json (SessionStart)' unguarded-settings-warning
+    grep -F '.claude/settings.json (Stop)' unguarded-settings-warning
+    grep -F '.codex/hooks.json (SessionStart)' unguarded-settings-warning
+    grep -F '.codex/hooks.json (SessionEnd)' unguarded-settings-warning
     ${pkgs.bash}/bin/bash ${./hook-contracts.sh}
     touch "$out"
   ''
