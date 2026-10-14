@@ -497,3 +497,68 @@ that lack the original base commit cannot infer it during release.
 A successful pool return followed by an interrupted task write can complete on
 an identical retry while the checkout remains unleased. A rebound lease rejects
 that retry for inspection. Already recorded returns use no external tools.
+
+## Development shell integration
+
+Concierge exports `devShellModules.default` for devshell-modules. Add both flake
+inputs, import the devshell-modules flake-parts module, and configure the shell:
+
+```nix
+perSystem = { ... }: {
+  devenv.shells.default = {
+    imports = [ inputs.concierge.devShellModules.default ];
+    concierge.enable = true;
+  };
+};
+```
+
+Shell entry puts the pinned Concierge and Tincan commands on PATH. It sets
+`CONCIERGE_PROJECT_ROOT`, `CONCIERGE_HOME`, and `TINCAN_HOME` from `DEVENV_ROOT`
+(or the shell entry directory). It links the hooks into `.agents/hooks/` and the
+supervisor skill into `.agents/skills/` and `.claude/skills/`. Ignore these
+generated paths in Git. Remove previous handwritten copies during adoption;
+devshell-modules refuses to overwrite unmanaged files or links.
+
+Commit the native settings yourself. The module never writes them. Use these
+stable command definitions in `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./.agents/hooks/concierge-session-start", "timeout": 15}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "./.agents/hooks/concierge-claude-stop", "asyncRewake": true, "timeout": 28800}]}]
+  }
+}
+```
+
+Use these definitions in `.codex/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./.agents/hooks/concierge-session-start", "timeout": 15}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "./.agents/hooks/concierge-session-end", "timeout": 3}]}]
+  }
+}
+```
+
+Preserve unrelated native settings when adding the definitions. Review and
+approve the initial hook definitions through each harness's normal trust flow.
+A package update keeps the command definitions stable. Enter the development
+shell before launching a root session. Hooks act only in that shell's project
+root and skip worker sessions.
+
+Initialize fresh state explicitly with `concierge state init` before starting a
+root. Shell entry only warns when state is missing. Existing state needs its
+normal backup and migration procedure; the module does not migrate it.
+
+An owning root hook starts a detached host only when its socket is missing or
+refused. It reuses a compatible host and preserves incompatible or unresponsive
+hosts for inspection. The host survives root exit. On Linux and Darwin, the
+hook uses the packaged `nohup` and redirects every standard stream.
+
+After a package update, shell entry warns if the running host is incompatible
+or unresponsive. Inspect `concierge host status --timeout 1s` and
+`.concierge/host.log`. Stop active writers and the verified old host manually
+before starting a fresh root. Do not start a second host or remove state to
+clear the warning. The module never restarts an older host automatically.

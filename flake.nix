@@ -11,7 +11,10 @@
   inputs.tincan.inputs.nixpkgs.follows = "nixpkgs";
   inputs.tincan.inputs.herdr.follows = "herdr";
 
-  outputs = { self, nixpkgs, herdr, treehouse, tincan }:
+  inputs.devshell-modules.url = "github:roman/devshell-modules/80a5da03e15a2d2c9b43abf08bd8a9d18442429e";
+  inputs.devshell-modules.inputs.nixpkgs.follows = "nixpkgs";
+
+  outputs = { self, nixpkgs, herdr, treehouse, tincan, devshell-modules }:
     let
       systems = [
         "x86_64-linux"
@@ -66,6 +69,8 @@
         });
     in
     {
+      devShellModules.default = import ./nix/devshell-module.nix { conciergeFlake = self; };
+
       packages = forEachSystem (pkgs:
         let
           system = pkgs.stdenv.hostPlatform.system;
@@ -120,6 +125,17 @@
         in
         {
           inherit (packages) concierge;
+          devshell = import ./nix/tests/devshell.nix {
+            inherit pkgs;
+            devshellModules = devshell-modules;
+            conciergeModule = self.devShellModules.default;
+          };
+          devshell-host = import ./nix/tests/devshell-host.nix {
+            inherit pkgs;
+            devshellModules = devshell-modules;
+            conciergeModule = self.devShellModules.default;
+            conciergePackage = packages.concierge;
+          };
           go-source = pkgs.runCommand "concierge-go-source" { src = (goModule pkgs).src; } ''
             test -e "$src/go.mod"
             test -e "$src/cmd"
