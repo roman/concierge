@@ -10,15 +10,60 @@ let
   };
   fakeConcierge = pkgs.writeShellScriptBin "concierge" ''
     printf '%s\n' "$*" >> "$TEST_CALLS"
-    case "$*" in
-      *'host status'*) printf 'status: incompatible\n'; exit 2 ;;
-      *'primary claim'*|*'primary verify'*) cat >/dev/null; printf 'status: owner\nkind: test\n' ;;
-      *'primary release'*) cat >/dev/null ;;
-      *'brief'*) printf 'wakes: 0 pending for concierge\n' ;;
-      *) printf 'Unexpected command\n' >&2; exit 91 ;;
+    case "$3" in
+      primary)
+        cat >/dev/null
+        printf 'status: %s\nkind: test\n' "''${TEST_PRIMARY_STATUS:-owner}"
+        test "''${TEST_PRIMARY_STATUS:-owner}" = owner
+        ;;
+      --message-root)
+        if [ "$5" = brief ]; then
+          if [ -n "''${TEST_RECOVERY_READY:-}" ]; then test -f "$TEST_RECOVERY_READY" || exit 91; fi
+          printf 'workers: 2 registered\n'
+          exit 0
+        fi
+        test "$5" = host
+        host_operation="$6"
+        host_session="''${HERDR_SESSION:-}"
+        explicit_session=0
+        if [ "$6" = --session ]; then
+          explicit_session=1
+          host_session="$7"
+          host_operation="$8"
+        fi
+        if [ -n "''${TEST_HOST_CALLS:-}" ]; then
+          printf '%s|%s|%s\n' "$host_operation" "$host_session" "$explicit_session" >> "$TEST_HOST_CALLS"
+        fi
+        case "$host_operation" in
+          status)
+            if [ -n "''${TEST_RECOVERY_READY:-}" ]; then touch "$TEST_RECOVERY_READY"; fi
+            if [ "''${TEST_HOST_STATUS:-2}" = 1 ] && [ ! -f "$TEST_HOST_READY" ]; then
+              printf 'status: unavailable\n'; exit 1
+            fi
+            printf 'status: fixture\n'
+            exit "''${TEST_HOST_STATUS_OVERRIDE:-''${TEST_HOST_STATUS:-2}}"
+            ;;
+          serve)
+            printf '%s\n' "$$" >> "$TEST_HOST_PID"
+            touch "$TEST_HOST_READY"
+            exec sleep 60
+            ;;
+        esac
+        ;;
+      *) exit 91 ;;
     esac
   '';
-  fakeTincan = pkgs.writeShellScriptBin "tincan" ''printf 'status: pending\nmessages: 1\n' '';
+  fakeTincan = pkgs.writeShellScriptBin "tincan" ''
+    result="''${TEST_INITIAL_RESULT:-pending}"
+    if [ "$7" != 1ms ]; then
+      result=pending
+      if [ -n "''${TEST_WAIT_LOG:-}" ]; then printf 'wait\n' >> "$TEST_WAIT_LOG"; fi
+      if [ -n "''${TEST_WAIT_RELEASE:-}" ]; then
+        until [ -e "$TEST_WAIT_RELEASE" ]; do sleep 0.01; done
+      fi
+    fi
+    printf 'status: %s\ncount: 1\n' "$result"
+  '';
   result = evaluate {
     modules = [
       conciergeModule
@@ -111,5 +156,6 @@ pkgs.runCommand "concierge-devshell"
     test "$stop_status" = 2 || { cat stop-wake; printf 'Stop exit: %s\n' "$stop_status"; exit 1; }
     test -f "$CONCIERGE_HOME/claude-stop.lock"
     grep -F 'A Tincan message is pending' stop-wake
+    ${pkgs.bash}/bin/bash ${./hook-contracts.sh}
     touch "$out"
   ''
