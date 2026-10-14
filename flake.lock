@@ -16,22 +16,6 @@
         "type": "github"
       }
     },
-    "flake-compat_2": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1767039857,
-        "narHash": "sha256-vNpUSpF5Nuw8xvDLj2KCwwksIbjua2LZCqhV1LNRDns=",
-        "owner": "edolstra",
-        "repo": "flake-compat",
-        "rev": "5edf11c44bc78a0d334f6334cdaf7d60d732daab",
-        "type": "github"
-      },
-      "original": {
-        "owner": "edolstra",
-        "repo": "flake-compat",
-        "type": "github"
-      }
-    },
     "herdr": {
       "inputs": {
         "nixpkgs": "nixpkgs",
@@ -89,7 +73,7 @@
         "herdr": "herdr",
         "nixpkgs": "nixpkgs_2",
         "tincan": "tincan",
-        "treehouse": "treehouse_2"
+        "treehouse": "treehouse"
       }
     },
     "rust-overlay": {
@@ -120,50 +104,26 @@
         ],
         "nixpkgs": [
           "nixpkgs"
-        ],
-        "treehouse": "treehouse"
+        ]
       },
       "locked": {
-        "lastModified": 1791962550,
-        "narHash": "sha256-fL8WSTA2yX83iOYPedHTonRYfiL7B2UQxcPHkn+HQ3k=",
+        "lastModified": 1791964098,
+        "narHash": "sha256-gX6+aybaWb6xDo97B4HeBQ+8d9AJIm1GznyDwBA24N8=",
         "owner": "roman",
         "repo": "tincan",
-        "rev": "92106cf41b5180ded4b151d25fd185f28314e8f2",
+        "rev": "954c95d19cc6de7344fd610a1e0c5308cb6f9e8e",
         "type": "github"
       },
       "original": {
         "owner": "roman",
         "repo": "tincan",
-        "rev": "92106cf41b5180ded4b151d25fd185f28314e8f2",
+        "rev": "954c95d19cc6de7344fd610a1e0c5308cb6f9e8e",
         "type": "github"
       }
     },
     "treehouse": {
       "inputs": {
         "flake-compat": "flake-compat",
-        "nixpkgs": [
-          "tincan",
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1790860774,
-        "narHash": "sha256-HXD/f5B0w2h5/GmGddhI3/71UHtr6TLNyF60sp1fmIg=",
-        "owner": "kunchenguid",
-        "repo": "treehouse",
-        "rev": "476002d1a7eb381574c3345299e6bfcc66ecbb1a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "kunchenguid",
-        "ref": "v3.1.1",
-        "repo": "treehouse",
-        "type": "github"
-      }
-    },
-    "treehouse_2": {
-      "inputs": {
-        "flake-compat": "flake-compat_2",
         "nixpkgs": [
           "nixpkgs"
         ]

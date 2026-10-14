@@ -7,7 +7,7 @@
   inputs.treehouse.url = "github:kunchenguid/treehouse/v3.1.1";
   inputs.treehouse.inputs.nixpkgs.follows = "nixpkgs";
 
-  inputs.tincan.url = "github:roman/tincan/92106cf41b5180ded4b151d25fd185f28314e8f2";
+  inputs.tincan.url = "github:roman/tincan/954c95d19cc6de7344fd610a1e0c5308cb6f9e8e";
   inputs.tincan.inputs.nixpkgs.follows = "nixpkgs";
   inputs.tincan.inputs.herdr.follows = "herdr";
 
@@ -30,7 +30,7 @@
         version = "0.1.0";
         src = goSource pkgs;
         go = pkgs.go_1_25;
-        vendorHash = "sha256-bbeD3WMgKFYNL38BZY6lDgryg18Ck+f7lJ4N4ZHw9i8=";
+        vendorHash = "sha256-Oc0fHvSmcNJOUzO7C8peBTgLZrYf0ZRpR/t76e9Fr9U=";
       };
       buildCommands = pkgs:
         pkgs.buildGoModule ((goModule pkgs) // {
