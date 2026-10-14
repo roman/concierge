@@ -108,7 +108,7 @@ func (worker *SupervisedWorker) promptBoundWorker(
 
 func notificationReady(agent herdr.Agent) bool {
 	return agent.Status == herdr.Idle || agent.Status == herdr.Done ||
-		(agent.Kind == "codex" && agent.Status == herdr.Unknown && agent.InteractiveReady)
+		agent.IsReadyWithUnknownActivity()
 }
 
 func (worker *SupervisedWorker) sendBoundNotification(

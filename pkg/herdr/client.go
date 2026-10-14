@@ -38,6 +38,12 @@ type Agent struct {
 	Session          *SessionReference `json:"-"`
 }
 
+// IsReadyWithUnknownActivity preserves Codex's native interactive readiness
+// when Herdr cannot classify its screen activity.
+func (agent Agent) IsReadyWithUnknownActivity() bool {
+	return agent.Kind == "codex" && agent.Status == Unknown && agent.InteractiveReady
+}
+
 var (
 	ErrWorkspaceNotFound = errors.New("herdr workspace not found")
 	ErrNotFound          = errors.New("herdr agent not found")
@@ -243,8 +249,7 @@ func (c Client) StartWithArgs(
 	}
 	// Herdr can mark Codex interactive before it can classify the screen. Its startup
 	// accepts that unknown state only for Codex; other agents need a known state.
-	codexInteractive := kind == "codex" && agent.Status == Unknown && agent.InteractiveReady
-	if agent.PaneID != paneID || (agent.Status == Unknown && !codexInteractive) {
+	if agent.PaneID != paneID || (agent.Status == Unknown && !agent.IsReadyWithUnknownActivity()) {
 		return fmt.Errorf("start verification: %w", ErrResponse)
 	}
 	if agent.Kind != kind {

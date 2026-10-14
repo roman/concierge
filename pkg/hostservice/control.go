@@ -123,7 +123,7 @@ func validateControlResponse(response Response, request Request) error {
 	case herdr.Idle, herdr.Done, herdr.Working, herdr.Blocked:
 		return nil
 	case herdr.Unknown:
-		if agent.Kind == "codex" && agent.InteractiveReady {
+		if agent.IsReadyWithUnknownActivity() {
 			return nil
 		}
 	}

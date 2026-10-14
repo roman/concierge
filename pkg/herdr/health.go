@@ -231,8 +231,10 @@ func (client Client) Health(ctx context.Context, target Target) HealthStatus {
 	}
 	var agent struct {
 		Agent struct {
-			PaneID string     `json:"pane_id"`
-			Status AgentState `json:"agent_status"`
+			PaneID           string     `json:"pane_id"`
+			Kind             string     `json:"agent"`
+			Status           AgentState `json:"agent_status"`
+			InteractiveReady bool       `json:"interactive_ready"`
 		} `json:"agent"`
 	}
 	if code != "" || json.Unmarshal(result, &agent) != nil ||
@@ -240,7 +242,14 @@ func (client Client) Health(ctx context.Context, target Target) HealthStatus {
 		return client.unreadableOrStopped(ctx, target)
 	}
 	activity := classifyActivity(agent.Agent.Status)
-	if activity == HealthUnknown {
+	// Native Codex can be ready before Herdr recognizes its activity. Keep the
+	// launch readiness contract, then verify the endpoint's process independently.
+	observed := Agent{
+		Kind:             agent.Agent.Kind,
+		Status:           agent.Agent.Status,
+		InteractiveReady: agent.Agent.InteractiveReady,
+	}
+	if activity == HealthUnknown && !observed.IsReadyWithUnknownActivity() {
 		return client.unreadableOrStopped(ctx, target)
 	}
 	for attempt := 0; attempt < 10; attempt++ {
