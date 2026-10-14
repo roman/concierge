@@ -104,6 +104,9 @@ pkgs.runCommand "concierge-devshell"
     done
     test -r "$DEVENV_ROOT/.agents/skills/concierge-local-supervisor/SKILL.md"
     test -r "$DEVENV_ROOT/.claude/skills/concierge-local-supervisor/SKILL.md"
+    cmp "$DEVENV_ROOT/.agents/skills/concierge-local-supervisor/SKILL.md" "$DEVENV_ROOT/.claude/skills/concierge-local-supervisor/SKILL.md"
+    grep -F 'The primary reads projects and never changes them.' "$DEVENV_ROOT/.agents/skills/concierge-local-supervisor/SKILL.md"
+    if grep -F 'Exmachina' "$DEVENV_ROOT/.agents/skills/concierge-local-supervisor/SKILL.md"; then exit 1; fi
     test ! -e "$DEVENV_ROOT/.claude/settings.json"
     test ! -e "$DEVENV_ROOT/.codex/hooks.json"
     # A root hook must also preserve explicit initialization before shell re-entry.

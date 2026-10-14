@@ -17,6 +17,75 @@ skills and lifecycle hooks supply the session instructions.
 | `concierge control` | Inspect, start, and interrupt live Herdr agents. |
 | `concierge supervise` | Monitor a manual pane or supervise a task with inbox delivery and worker recovery. |
 | `concierge brief` | Show pending primary messages, queued work, workers, and unfinished completions. |
+| `concierge project show REPO` | Read operator-owned merge authority and delivery mode for a repository. |
+
+## Supervisor delegation and settings
+
+The devshell module installs the supervisor contract through its SessionStart
+hook and its linked `concierge-local-supervisor` skill. The primary delegates
+project work to workers. Scouts produce reports. A specific operator-approved
+operation grants authority only for that operation. The contract belongs to
+Concierge; adopting repositories need no AGENTS.md or CLAUDE.md changes.
+
+Initialize state before creating configuration. These optional files belong to
+the operator. Concierge reads them without creating or changing them.
+
+| Setting | Path under `$CONCIERGE_HOME` | Default |
+| --- | --- | --- |
+| Per-repository `merge` | `config/projects.json` | `off`: operator approval for every landing. |
+| Per-repository `delivery` | `config/projects.json` | `pr`: worker opens a PR. |
+| Standing worker instructions | `config/brief-include.md` | Absent: append no text. |
+
+For example, the operator can create `config/projects.json` containing:
+
+```json
+{
+  "my-project": { "merge": "on", "delivery": "fast-forward" },
+  "another-project": { "merge": "off", "delivery": "pr" }
+}
+```
+
+Keys match the repository name passed to `backlog add --repo`. Read effective
+settings with `concierge project show my-project`. An absent repository or
+omitted field uses its default. Invalid values and unknown fields stop the
+read. The primary must ask the operator to correct invalid settings.
+
+Merge authority and delivery mode are independent. `merge: on` authorizes the
+primary to land green, in-scope work. `merge: off` requires approval for each
+landing. `delivery: fast-forward` leaves the worker's clean ready branch for a
+fast-forward of the default branch. `delivery: pr` has the worker open a PR.
+Neither mode authorizes red work, force pushes, or discarding unlanded work.
+Destructive, irreversible, or security-sensitive landings require separate
+operator approval even with merge on.
+The supervisor skill owns the landing procedure. These settings do not execute
+Git merges or replace CI checks.
+
+`concierge launch` appends the nonempty `config/brief-include.md` verbatim after
+a `Standing worker instructions` heading. It preserves the assignment text.
+Task-specific instructions take precedence over these standing defaults.
+An absent or blank file adds nothing. An unreadable or nonregular file stops
+launch before contacting the host. The existing launch intent freezes the
+resulting assignment. Keep the include unchanged during an interrupted launch retry; inspect
+the intent before changing the request. The include applies to every launched
+task, including scouts. Later `task send` messages are task-specific steering.
+Standing instructions cannot override the scout's read-only contract.
+
+Queue a scout with `backlog add ID TITLE --kind scout --repo REPO` and launch it
+normally. A current `task receive` includes the read-only contract after all
+generation and assignment checks. Scouts deliver findings, evidence,
+limitations, and open decisions through `task reply send --body-file REPORT`.
+Concierge archives every scout reply under `reports/` in the state root using
+the durable message format. Reply publication and archival both precede
+assignment acknowledgement. An identical retry repairs an interrupted archive.
+
+The primary reads a saved report with `concierge task report ID REPLY_ID`.
+The reply ID comes from `task reply send` or the primary inbox. Reports retain
+their original generation and survive worker cleanup and removal of the original
+mailbox. Each reply remains separate, so a later question or report cannot
+overwrite earlier evidence. `status: archived` identifies historical evidence;
+use `task reply check` to validate current results before accepting them.
+Scout read-only behavior is an agent contract under normal native permissions.
+Concierge does not replace those permissions with a filesystem sandbox.
 
 ## Install and verify
 

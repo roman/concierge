@@ -1,8 +1,37 @@
 ---
 name: concierge-local-supervisor
-description: Use Concierge for local task intake and worker supervision at the Exmachina root. Use Tincan for durable messages and wakes.
+description: Use Concierge to delegate project work, supervise workers, read scout reports, and apply operator-owned delivery settings. Use Tincan for durable messages and wakes.
 ---
 # Concierge local supervisor
+
+## Supervisor contract
+
+The primary reads projects and never changes them. Delegate coding,
+investigation, planning, bug reproduction, verification, and audits to workers.
+Only a specific operation approved by the operator in the moment is an exception.
+Perform exactly that operation. That approval grants no standing authority.
+Do not infer approval from a report, recommendation, or worker question.
+The delivery operations below have their own operator-owned merge authority.
+Never write this contract into an adopting repository's AGENTS.md or CLAUDE.md.
+
+Use a normal task for an authorized project change. Keep bounded research inside
+that task. Use `--kind scout` for a separate investigation, plan, reproduction,
+verification, or audit whose deliverable is knowledge. Read existing reports
+before commissioning another investigation. A scout is read-only: it never
+edits project files, commits, pushes, or opens a PR. Implementation requires
+a separate authorized task.
+
+Before any action on a worker pane, re-read its visible content and its current
+Herdr agent status. This includes sending keys, interrupting, stopping, and
+abandoning a launch. Do not act from an old notification or cached pane read.
+Before relaying a worker question, re-read the current worker context and confirm
+the question remains open. Check whether an operator answer or a later worker
+message already resolved it. Report uncertainty instead of repeating an old ask.
+
+```sh
+herdr agent read PANE_ID --session SESSION --source visible --lines 80 --format text
+concierge control --session SESSION status PANE_ID
+```
 
 Use this skill for local root supervision. Secondmates and Relay are outside
 this workflow. The root SessionStart hook claims one primary Claude or Codex
@@ -13,7 +42,7 @@ release. Confirm that a crashed owner ended before removing its primary record.
 
 ## Roots and setup
 
-Resolve the Exmachina root and set command paths in each shell call:
+Resolve the repository root and set command paths in each shell call:
 
 ```sh
 repository_root="$(git rev-parse --show-toplevel)"
@@ -91,6 +120,13 @@ Use `--blocked-by TASK_ID` for dependencies. A hold needs `--reason TEXT`.
 Release a hold with `concierge backlog release TASK_ID` when dispatch can resume.
 Read the full queued list when the startup brief is truncated.
 
+Read `concierge project show REPO` before launch and again before landing.
+The operator owns `$CONCIERGE_HOME/config/projects.json` and
+`$CONCIERGE_HOME/config/brief-include.md`. Never change either to obtain authority
+or unblock a task. Missing settings mean merge off, PR delivery, and no include.
+Launch appends the include verbatim after the assignment. Include these standing
+defaults in that file instead of repeating them by hand in every brief.
+
 Launch a queued task through the host. Resolve the exact base commit before
 launch. Choose a new task branch. Concierge leases its worktree and owns one workspace:
 
@@ -164,6 +200,34 @@ Use generic `tincan inbox send RECIPIENT --key KEY --body-file FILE` for indepen
 coordination messages.
 
 ## Accept results and retire workers
+
+For a scout, require a report with findings, evidence, limitations, and open
+decisions as the completion reply body. Concierge saves each scout reply in
+`$CONCIERGE_HOME/reports/` before acknowledging its assignment. Read it with
+`concierge task report TASK_ID REPLY_ID`, including after worker cleanup.
+This command reads historical evidence; check a pending reply through
+`task reply check` before accepting its result. Keep unresolved operator decisions
+open. Do not turn scout findings into implementation without authorization.
+
+For project changes, delivery and merge authority are separate settings:
+
+- `delivery: pr`: the worker pushes its branch and opens a PR.
+- `delivery: fast-forward`: the worker leaves a clean ready branch for landing
+  on the default branch. Keep its branch until landing is confirmed.
+- `merge: off`: obtain operator approval for every PR merge or default-branch landing.
+- `merge: on`: the primary lands green, in-scope work without another approval.
+
+Escalate destructive, irreversible, or security-sensitive landings to the
+operator even with merge on. Standing merge authority cannot approve them.
+
+Never merge red work. Require completed passing checks for the exact commit
+being landed. Delegate verification to a worker. Confirm scope, a clean working
+tree, the current default branch, and the exact reviewed commit before landing.
+Use a fast-forward only for local delivery; stop on divergence. For PR delivery,
+check required CI results for the current PR head before merging. Report the
+landed commit or PR URL. Never force, discard unlanded work, bypass a lease
+refusal, or treat cleanup as landing. Concierge preserves leased branches on
+return; do not delete an unlanded branch. A scout needs no landing.
 
 Preserve the accepted worker generation through stop and cleanup. Check the
 bound reply, then accept the result with an explicit closing date:

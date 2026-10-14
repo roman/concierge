@@ -55,6 +55,18 @@ pkgs.runCommand "concierge-devshell-host"
     jq -n --arg cwd "$PWD" '{cwd:$cwd,session_id:"module-root",hook_event_name:"SessionStart"}' > payload
     ./.agents/hooks/concierge-session-start < payload > start-output
     grep -F 'Concierge root supervisor context' start-output
+    grep -F 'The primary reads projects and never changes them.' start-output
+    grep -F 'Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.' start-output
+    ${conciergePackage}/bin/concierge project show fixture > default-project
+    grep -qx 'merge: off' default-project
+    grep -qx 'delivery: pr' default-project
+    mkdir -p "$CONCIERGE_HOME/config"
+    printf '%s\n' '{"fixture":{"merge":"on","delivery":"fast-forward"}}' > "$CONCIERGE_HOME/config/projects.json"
+    ${conciergePackage}/bin/concierge project show fixture > configured-project
+    grep -qx 'merge: on' configured-project
+    grep -qx 'delivery: fast-forward' configured-project
+    ${conciergePackage}/bin/concierge task report --help > report-help
+    grep -F 'Reply message ID' report-help
     ${conciergePackage}/bin/concierge host status > first-status
     ./.agents/hooks/concierge-session-start < payload > second-output
     ${conciergePackage}/bin/concierge host status > second-status

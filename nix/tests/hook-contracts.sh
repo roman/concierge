@@ -13,6 +13,8 @@ fi
 
 output="$(TEST_HOST_STATUS=0 TEST_RECOVERY_READY="$TMPDIR/recovered" ./.agents/hooks/concierge-session-start <<< "$payload")"
 [[ "$output" == *'workers: 2 registered'* ]]
+[[ "$output" == *'The primary reads projects and never changes them.'* ]]
+[[ "$output" == *'Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.'* ]]
 
 export TEST_HOST_READY="$TMPDIR/host-ready" TEST_HOST_PID="$TMPDIR/host-pids"
 cleanup() {
