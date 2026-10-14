@@ -20,7 +20,7 @@ import (
 
 const version = "0.1.0"
 
-const cliHelp = "commands: host serve|status, launch TASK_ID, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
+const cliHelp = "commands: host serve|status, launch TASK_ID, project show REPO, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
 type cli struct {
 	hostExpectations        hostservice.Expectations
@@ -218,6 +218,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		"task receive <task-id> <message-id>",
 		"task ack <task-id> <message-id>":
 		return command.runTaskMessages(ctx, root, selected.Command(), stdin, stdout)
+	case "task report <task-id> <reply-id>":
+		return command.Task.report(ctx, root, stdout)
 	case "backlog resolve <reply-id>":
 		return command.runResolve(ctx, root, stdout)
 	case "worker list", "worker show <task-id>", "task list", "task pending":

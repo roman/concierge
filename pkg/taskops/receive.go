@@ -123,6 +123,9 @@ func (service *Service) receiveAssignment(
 			return nil
 		}
 		result = AssignmentStatus{State: AssignmentCurrent, Body: assignmentDisplay(assignment)}
+		if task.Current().Definition().Kind == "scout" {
+			result.Body += scoutContract
+		}
 		return nil
 	})
 	return result, err

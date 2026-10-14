@@ -101,6 +101,14 @@ func (service *Service) SendReply(
 			return err
 		}
 		result = ReplyDelivery{Message: message, Assignment: ReplyUnbound}
+		if input.AssignmentID != "" {
+			result.Assignment = ReplyAcknowledgementUnconfirmed
+		}
+		if task.Current().Definition().Kind == "scout" {
+			if err := service.archiveScoutReply(message); err != nil {
+				return err
+			}
+		}
 		if input.AssignmentID == "" {
 			return nil
 		}
