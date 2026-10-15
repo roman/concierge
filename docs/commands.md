@@ -124,8 +124,16 @@ Fast-forward delivery pushes the verified commit to the remote default branch.
 It deletes a matching remote task branch when present. An explicit lease makes
 that deletion conditional on the verified task commit. A concurrent update keeps
 the branch. Branch updates never use force. It advances the main
-checkout with `--ff-only` when that checkout is clean and on the default branch.
-A dirty, diverged, or differently checked-out main checkout stays unchanged.
+checkout with `--ff-only` when it has no tracked changes and is on the default
+branch. Ignored and untracked local files do not block this check. Git refuses
+the fast-forward if an untracked file would be overwritten. Worker worktrees
+must still be clean, including ignored and untracked files.
+
+A skipped checkout advance creates an open operator action with the checkout
+path, the reason, and a `git -C PATH pull --ff-only origin BRANCH` command.
+Later skips update the same action. A later landing that advances the checkout
+resolves the action and removes its reminder. Other operator actions remain
+unchanged. A ledger write failure reports that the commit already landed.
 The result reports each skipped operation. The local task branch remains available.
 
 PR delivery requires one open, non-draft PR for the recorded branch and exact

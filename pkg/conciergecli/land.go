@@ -2,6 +2,7 @@ package conciergecli
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -86,6 +87,20 @@ func (command *landCommand) run(ctx context.Context, root string, output io.Writ
 			err,
 			"inspect the accepted task, project settings, and remote branch before retrying concierge land TASK_ID",
 		)
+	}
+	if delivery == "fast-forward" {
+		if err := target.recordCheckoutAction(ctx, root, result.checkout); err != nil {
+			return fail(
+				output,
+				1,
+				fmt.Errorf(
+					"commit %s landed; cannot record checkout action: %w",
+					result.commit,
+					err,
+				),
+				"inspect the operator actions ledger and main checkout before retrying concierge land TASK_ID",
+			)
+		}
 	}
 	_, err = fmt.Fprintf(
 		output,
@@ -318,11 +333,46 @@ func (target landing) advanceCheckout(ctx context.Context) string {
 	if err != nil || branch != "refs/heads/"+target.defaultBranch {
 		return "skipped: main checkout is not on the default branch"
 	}
-	if err := requireCleanLandingTree(ctx, target.project); err != nil {
+	status, err := landingGitCommand(
+		ctx,
+		target.project,
+		"status",
+		"--porcelain=v1",
+		"--untracked-files=no",
+		"--ignore-submodules=none",
+	)
+	if err != nil || status != "" {
 		return "skipped: main checkout is dirty or unreadable"
 	}
 	if _, err := landingGitCommand(ctx, target.project, "merge", "--ff-only", target.head); err != nil {
 		return "skipped: main checkout cannot fast-forward"
 	}
 	return "advanced"
+}
+
+func (target landing) recordCheckoutAction(ctx context.Context, root, checkout string) error {
+	// One request follows the checkout across tasks and changing skip reasons.
+	id := fmt.Sprintf("land-checkout-%x", sha256.Sum256([]byte(target.project)))
+	return withOperatorLedger(ctx, root, func(ledger *operatorLedger) error {
+		if checkout == "advanced" {
+			delete(ledger.Actions, id)
+			delete(ledger.Reminded, "action:"+id)
+			return nil
+		}
+		command := "git -C " + landingShellArgument(
+			target.project,
+		) + " pull --ff-only 'origin' " + landingShellArgument(
+			target.defaultBranch,
+		)
+		text := fmt.Sprintf("Checkout %s: %s. Run %s", target.project, checkout, command)
+		if ledger.Actions[id] != text {
+			delete(ledger.Reminded, "action:"+id)
+		}
+		ledger.Actions[id] = text
+		return nil
+	})
+}
+
+func landingShellArgument(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }

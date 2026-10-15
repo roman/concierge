@@ -43,7 +43,9 @@ func newLandingFixture(t *testing.T) landingFixture {
 	}
 	landingGit(t, directory, "init", "--bare", "--initial-branch=trunk", f.remote)
 	landingGit(t, directory, "clone", f.remote, f.project)
-	landingGit(t, f.project, "commit", "--allow-empty", "-m", "base")
+	writeLandingFile(t, f.project, "tracked", "base")
+	landingGit(t, f.project, "add", "tracked")
+	landingGit(t, f.project, "commit", "-m", "base")
 	base := landingGit(t, f.project, "rev-parse", "HEAD")
 	landingGit(t, f.project, "push", "origin", "trunk")
 	landingGit(t, f.project, "worktree", "add", "-b", "task/result", f.worktree)
@@ -93,19 +95,42 @@ func (f landingFixture) seed(
 }
 
 func TestLandFastForward(t *testing.T) {
-	for _, checkout := range []string{"clean", "dirty", "other branch", "diverged"} {
-		t.Run(checkout, func(t *testing.T) {
+	for _, test := range []struct {
+		checkout, want string
+	}{
+		{"clean", "advanced"},
+		{"local files", "advanced"},
+		{"unstaged", "skipped: main checkout is dirty or unreadable"},
+		{"staged", "skipped: main checkout is dirty or unreadable"},
+		{"other branch", "skipped: main checkout is not on the default branch"},
+		{"diverged", "skipped: main checkout cannot fast-forward"},
+		{"untracked collision", "skipped: main checkout cannot fast-forward"},
+	} {
+		t.Run(test.checkout, func(t *testing.T) {
 			f := newLandingFixture(t)
+			if test.checkout == "untracked collision" {
+				writeLandingFile(t, f.worktree, "collision", "landed")
+				landingGit(t, f.worktree, "add", "collision")
+				landingGit(t, f.worktree, "commit", "-m", "add collision")
+				f.head = landingGit(t, f.worktree, "rev-parse", "HEAD")
+			}
 			landingGit(t, f.worktree, "push", "origin", "task/result")
-			switch checkout {
-			case "dirty":
-				if err := os.WriteFile(filepath.Join(f.project, "untracked"), []byte("keep"), 0600); err != nil {
-					t.Fatal(err)
+			switch test.checkout {
+			case "local files":
+				writeLandingFile(t, f.project, ".git/info/exclude", "ignored\n")
+				writeLandingFile(t, f.project, "ignored", "keep ignored")
+				writeLandingFile(t, f.project, "untracked", "keep untracked")
+			case "unstaged", "staged":
+				writeLandingFile(t, f.project, "tracked", "local change")
+				if test.checkout == "staged" {
+					landingGit(t, f.project, "add", "tracked")
 				}
 			case "other branch":
 				landingGit(t, f.project, "checkout", "-b", "other")
 			case "diverged":
 				landingGit(t, f.project, "commit", "--allow-empty", "-m", "local only")
+			case "untracked collision":
+				writeLandingFile(t, f.project, "collision", "keep local")
 			}
 			before := landingGit(t, f.project, "rev-parse", "HEAD")
 			got := invoke(t, f.root, "", "land", "task-1")
@@ -120,19 +145,89 @@ func TestLandFastForward(t *testing.T) {
 				t.Fatal(branches)
 			}
 			want := before
-			if checkout == "clean" {
+			if test.want == "advanced" {
 				want = f.head
 			}
 			if head := landingGit(t, f.project, "rev-parse", "HEAD"); head != want {
 				t.Fatalf("checkout moved: %s, want %s", head, want)
 			}
-			if checkout != "clean" && !strings.Contains(got, "checkout: \"skipped:") {
+			if !strings.Contains(got, "checkout: "+quote(test.want)) {
 				t.Fatal(got)
 			}
-			if checkout == "clean" {
+			ledger, err := readOperatorLedger(filepath.Join(f.root, "operator-actions.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.want == "advanced" {
+				if len(ledger.Actions) != 0 {
+					t.Fatal(ledger.Actions)
+				}
 				invoke(t, f.root, "", "land", "task-1")
+			} else {
+				if len(ledger.Actions) != 1 {
+					t.Fatal(ledger.Actions)
+				}
+				for _, text := range ledger.Actions {
+					if !strings.Contains(text, f.project) || !strings.Contains(text, test.want) ||
+						!strings.Contains(text, "git -C '"+f.project+"' pull --ff-only 'origin' 'trunk'") {
+						t.Fatal(text)
+					}
+				}
+			}
+			if test.checkout == "local files" || test.checkout == "untracked collision" {
+				file, want := "untracked", "keep untracked"
+				if test.checkout == "untracked collision" {
+					file, want = "collision", "keep local"
+				}
+				data, err := os.ReadFile(filepath.Join(f.project, file))
+				if err != nil || string(data) != want {
+					t.Fatalf("local file: %q %v", data, err)
+				}
 			}
 		})
+	}
+}
+
+func writeLandingFile(t *testing.T, directory, name, contents string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(directory, name), []byte(contents), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLandResolvesCheckoutAction(t *testing.T) {
+	f := newLandingFixture(t)
+	invoke(t, f.root, "", "operator", "ask", "unrelated", "Keep this request")
+	writeLandingFile(t, f.project, "tracked", "local change")
+	invoke(t, f.root, "", "land", "task-1")
+	first, err := readOperatorLedger(filepath.Join(f.root, "operator-actions.json"))
+	if err != nil || len(first.Actions) != 2 {
+		t.Fatalf("first skip: %+v %v", first, err)
+	}
+	invoke(t, f.root, "", "operator", "remind")
+	landingGit(t, f.project, "checkout", "-b", "other")
+	invoke(t, f.root, "", "land", "task-1")
+	second, err := readOperatorLedger(filepath.Join(f.root, "operator-actions.json"))
+	if err != nil || len(second.Actions) != 2 {
+		t.Fatalf("second skip: %+v %v", second, err)
+	}
+	for id := range first.Actions {
+		if _, found := second.Actions[id]; !found {
+			t.Fatal("checkout action ID changed")
+		}
+	}
+	landingGit(t, f.project, "checkout", "trunk")
+	landingGit(t, f.project, "restore", "tracked")
+	invoke(t, f.root, "", "land", "task-1")
+	resolved, err := readOperatorLedger(filepath.Join(f.root, "operator-actions.json"))
+	if err != nil || len(resolved.Actions) != 1 ||
+		resolved.Actions["unrelated"] != "Keep this request" {
+		t.Fatalf("resolution: %+v %v", resolved, err)
+	}
+	for key := range resolved.Reminded {
+		if strings.HasPrefix(key, "action:") && key != "action:unrelated" {
+			t.Fatal("checkout reminder remains: " + key)
+		}
 	}
 }
 
