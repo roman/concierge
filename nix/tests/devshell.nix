@@ -47,6 +47,7 @@ let
               printf 'status: unavailable\n'; exit 1
             fi
             printf 'status: fixture\n'
+            printf 'host_revision: "%s"\nbinary_revision: "revision-b"\nupgrade_required: %s\n' "''${TEST_HOST_REVISION:-revision-b}" "''${TEST_UPGRADE_REQUIRED:-no}"
             exit "''${TEST_HOST_STATUS_OVERRIDE:-''${TEST_HOST_STATUS:-2}}"
             ;;
           serve)

@@ -15,6 +15,12 @@ output="$(TEST_HOST_STATUS=0 TEST_RECOVERY_READY="$TMPDIR/recovered" ./.agents/h
 [[ "$output" == *'workers: 2 registered'* ]]
 [[ "$output" == *'The primary reads projects and never changes them.'* ]]
 [[ "$output" == *'Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.'* ]]
+[[ "$output" == *'Concierge revisions: host revision-b, binary revision-b.'* ]]
+
+output="$(TEST_HOST_STATUS=0 TEST_HOST_REVISION=revision-a TEST_UPGRADE_REQUIRED=yes ./.agents/hooks/concierge-session-start <<< "$payload")"
+[[ "$output" == *'Concierge revisions: host revision-a, binary revision-b.'* ]]
+[[ "$output" == *"concierge --root $DEVENV_ROOT/.concierge --message-root $DEVENV_ROOT/.tincan host restart"* ]]
+[[ "$output" == *'Start a new primary session after the restart.'* ]]
 
 export TEST_HOST_READY="$TMPDIR/host-ready" TEST_HOST_PID="$TMPDIR/host-pids"
 cleanup() {

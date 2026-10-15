@@ -17,6 +17,11 @@ configuration, endpoint reservations, background recovery, and controller
 lifetimes. It depends on `taskops`, `taskstate`, `primary`, `wakeup`, `supervise`,
 `herdr`, `control`, `worktree`, `taskmeta`, `stateversion`, and Tincan messaging.
 
+`pkg/hostactivity` holds persistent shared leases for host operations, worker
+launches, and landings. Host shutdown takes an exclusive lease. It also serializes
+replacement callers and checks listener departure. It depends on operating-system
+file locks. `conciergecli`, `hostservice`, and `taskops` use it.
+
 `pkg/taskops` executes task operations across state, messages, panes, and leases.
 It owns assignment delivery, replies, adoption, launch, restart, stop, and
 retirement. It depends on `taskstate`, `taskprotocol`, `taskview`, `taskmeta`,

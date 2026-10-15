@@ -2,6 +2,10 @@
 
 | Command | Responsibility |
 | --- | --- |
+| `concierge --version` | Report the package version and source revision. |
+| `concierge host status` | Report the host and binary revisions and flag an upgrade. |
+| `concierge host restart [--timeout 15s]` | Safely replace the background host with the calling binary. |
+| `concierge host stop [--timeout 15s]` | Safely stop the host and leave workers running. |
 | `tincan inbox` | Send, list, wait for, read, and acknowledge messages. |
 | `tincan notify` | Prompt a Herdr endpoint while its inbox has pending messages. |
 | `concierge state` | Initialize fresh task state, back up legacy state, migrate, and recover. |
@@ -18,6 +22,21 @@
 | `concierge project set REPO [--merge on\|off] [--delivery pr\|fast-forward]` | Atomically update approved repository settings. |
 | `concierge brief-include set --file FILE` / `clear` | Replace or clear approved standing worker instructions. |
 | `concierge land TASK_ID [--operator-approved]` | Land an accepted result with the configured delivery mode. |
+
+## Host upgrades
+
+The host is the background process. The primary is the agent session.
+`host status` returns `host_revision`, `binary_revision`, and `upgrade_required`.
+A ready host can report an upgrade requirement while continuing to serve work.
+An older host without revision metadata reports `unknown`.
+
+After landing a Concierge change, bump its flake pin in the adopting repository.
+Run `direnv reload`, then `concierge host restart`. Start a new primary session
+to refresh the agent's inherited PATH. Restart preserves the state root, message
+root, recipient, Herdr session, and monitor settings. Workers remain running.
+An active landing, launch, or unfinished launch reservation prevents restart.
+The replacement uses the calling binary's runtime tools. Its log remains
+`host.log` in the state root. A timeout requires inspection before another start.
 
 ## Operator requests and reminders
 

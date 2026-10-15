@@ -51,6 +51,23 @@ if [[ "$host_status" != 0 ]]; then
   exit 0
 fi
 
+host_revision=unknown
+binary_revision=unknown
+upgrade_required=no
+while IFS=' ' read -r field value; do
+  case "$field" in
+    host_revision:) host_revision="${value//\"/}" ;;
+    binary_revision:) binary_revision="${value//\"/}" ;;
+    upgrade_required:) upgrade_required="$value" ;;
+  esac
+done <<< "$host_result"
+printf 'Concierge revisions: host %s, binary %s.\n' "$host_revision" "$binary_revision"
+if [[ "$upgrade_required" == yes ]]; then
+  printf 'Concierge upgrade required. Run: '
+  printf '%q ' concierge "${host_args[@]}" restart
+  printf '\nStart a new primary session after the restart.\n'
+fi
+
 if ! brief="$("$concierge_command" --root "$repository_root/.concierge" --message-root "$repository_root/.tincan" brief 2>&1)"; then
   printf 'Concierge startup failed: %s\n' "$brief"
   exit 0
