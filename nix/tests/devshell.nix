@@ -11,6 +11,12 @@ let
   fakeConcierge = pkgs.writeShellScriptBin "concierge" ''
     printf '%s\n' "$*" >> "$TEST_CALLS"
     case "$3" in
+      operator)
+        printf 'status: %s\nopen_items: 0\n' "''${TEST_REMINDER_STATUS:-quiet}"
+        if [ "''${TEST_REMINDER_STATUS:-quiet}" = due ]; then
+          printf 'Waiting on you: approve the stop. Use PushNotification.\n'
+        fi
+        ;;
       primary)
         cat >/dev/null
         printf 'status: %s\nkind: test\n' "''${TEST_PRIMARY_STATUS:-owner}"

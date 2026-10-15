@@ -9,6 +9,8 @@
 | `concierge task` | Adopt workers, exchange bound assignments and replies, stop panes, and inspect tasks. |
 | `concierge worker` | Inspect recorded worker identities and recovery markers. |
 | `concierge primary` | Claim, verify, and release root ownership from native lifecycle hooks. |
+| `concierge operator ask ID TEXT` / `resolve ID` / `list` | Record requests for operator input and resolve answered requests. |
+| `concierge operator remind [--interval 15m]` | Report due operator requests and unfinished worker retirement. |
 | `concierge control` | Inspect, start, and interrupt live Herdr agents. |
 | `concierge supervise` | Monitor a manual pane or supervise a task with inbox delivery and worker recovery. |
 | `concierge brief` | Show pending primary messages, queued work, workers, and unfinished completions. |
@@ -16,6 +18,33 @@
 | `concierge project set REPO [--merge on\|off] [--delivery pr\|fast-forward]` | Atomically update approved repository settings. |
 | `concierge brief-include set --file FILE` / `clear` | Replace or clear approved standing worker instructions. |
 | `concierge land TASK_ID [--operator-approved]` | Land an accepted result with the configured delivery mode. |
+
+## Operator requests and reminders
+
+Before asking for approval, an operator command, or a decision, the primary
+records an action with `concierge operator ask ID TEXT`. Use a stable ID for
+retries. An identical retry succeeds without restarting its reminder interval.
+Different text under the same open ID fails. Resolve the request after the
+operator answers with `concierge operator resolve ID`. Resolving an already
+resolved action succeeds. `operator list`, `brief`, and `task pending` show
+open requests. Accepted worker completions stay in the pending report until
+worker retirement and completion finish. Acceptance does not establish that
+the worker is currently idle; inspect its pane and agent status before stopping it.
+
+`operator remind` returns `status: due` with the requests to repeat, or
+`status: quiet`. `open_items` counts open requests and pending completions.
+Reminder times persist across command invocations. Each item has a 15-minute
+interval by default. `--interval` accepts a positive duration. A new request
+can cause a reminder even during another request's interval. A worker keeps
+its reminder interval through all completion phases. Finishing the completion
+removes it from future reminders.
+
+The Claude Stop hook checks reminders every 30 seconds during its inbox wait.
+The owning Codex primary runs `operator remind` after each inbox checkpoint.
+The supervisor repeats open requests in a short **Waiting on you** list at
+the end of every reply. A reminder without an operator answer also calls for
+a desktop notification through the harness tool when available. Claude uses
+`PushNotification`. Notifications do not resolve requests.
 
 ## Supervisor delegation and settings
 

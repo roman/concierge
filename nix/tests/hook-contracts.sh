@@ -47,6 +47,13 @@ unset TEST_HOST_CALLS
 
 payload='{"hook_event_name":"Stop","session_id":"fixture"}'
 active_payload='{"hook_event_name":"Stop","session_id":"fixture","stop_hook_active":true}'
+status=0
+TEST_REMINDER_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$active_payload" 2>operator-wake || status=$?
+[[ "$status" == 2 ]]
+grep -F 'Waiting on you' operator-wake
+grep -F 'PushNotification' operator-wake
+output="$(TEST_REMINDER_STATUS=quiet ./.agents/hooks/concierge-claude-stop <<< "$active_payload" 2>&1)"
+[[ -z "$output" ]]
 output="$(./.agents/hooks/concierge-claude-stop <<< "$active_payload" 2>&1)"
 [[ -z "$output" ]]
 output="$(TEST_PRIMARY_STATUS=held_by_other ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>&1)"

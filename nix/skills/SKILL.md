@@ -99,13 +99,48 @@ report them. Resolve accepted bound replies through the completion procedure
 below. Acknowledge other handled messages with `tincan inbox ack concierge
 MESSAGE_ID`.
 
-While tasks remain active, a primary Codex session runs one foreground
+## Open operator actions
+
+Record each request before asking the operator for an approval, a command,
+or a decision. Give the request a stable ID and a short, explicit description.
+Resolve the action only after the operator answers or the request is withdrawn.
+Keep an action open while a worker waits for the answer.
+
+```sh
+concierge operator ask stop-worker "Approve stopping the accepted worker"
+concierge operator list
+concierge operator resolve stop-worker
+```
+
+End every reply with a short **Waiting on you** list while operator actions
+remain open. Repeat the unresolved requests in that list. A permission failure
+that needs an operator command or approval also requires an action.
+`concierge brief` and `concierge task pending` include all open actions.
+Pending completions include accepted workers awaiting stop and cleanup.
+Verify their current pane content and status before stopping them.
+
+`concierge operator remind` reports due actions and unfinished worker retirement.
+It records reminder times durably, at most once per item per 15 minutes.
+An unchanged `ask` retry preserves the reminder time. Resolving the action
+stops its reminders. A worker keeps its reminder interval through all completion
+phases. Cleanup removes the worker reminder when the completion is finished.
+
+When a reminder wakes the primary, repeat the due requests to the operator.
+If the operator has not replied, send a desktop notification through the
+harness's notification tool when one exists. Claude uses `PushNotification`.
+Keep the action open after sending a notification.
+
+While tasks or operator actions remain open, a primary Codex session runs one foreground
 `tincan inbox wait concierge --timeout 30s` after handling its current inbox.
 Handle messages on `status: pending`. Check user requests on `status: checkpoint`.
-Repeat only while tasks remain active. Keep one wait active. Claude's background
-Stop hook waits for primary messages and wakes the owner. Handle its inbox after
-each wake. A Stop arms the next wait. The wait ends after eight hours; another
-turn arms it again.
+After each wait checkpoint, run `concierge operator remind`. Repeat due items
+and send the desktop notification as described above. Use `open_items` and the
+task list to decide whether another wait is needed. Repeat while tasks or operator
+actions remain open. Keep one wait active. Claude's background Stop hook checks
+reminders every 30 seconds while it waits for primary messages. It wakes the
+owner for a due reminder or a new message. Handle its inbox after a message
+wake. A Stop arms the next wait. The wait ends after eight hours; another turn
+arms it again.
 
 ## Intake and worker launch
 
