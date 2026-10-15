@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/taskstate"
 )
@@ -77,6 +78,9 @@ func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKe
 	task, err := server.store.Read(ctx, key.id)
 	if errors.Is(err, taskstate.ErrTaskNotFound) {
 		server.controllers.forgetInitialWakeup(key)
+		server.report(
+			fmt.Errorf("restore task %s: retired recovery: task record no longer exists", key.id),
+		)
 		return nil
 	}
 	if err != nil {
@@ -84,6 +88,9 @@ func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKe
 	}
 	snapshot := task.Snapshot()
 	if intent := snapshot.LaunchIntent; intent != nil {
+		if task.Definition().Hold != nil && snapshot.Worker == nil {
+			return server.retireInitialLaunch(ctx, key, intent, "task is held")
+		}
 		originalWorktree := intent.Worktree
 		if intent.LeaseHolder != "" {
 			originalWorktree = ""
@@ -94,6 +101,9 @@ func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKe
 			AgentArgs: intent.AgentArgs, Body: intent.Body,
 		}, recoveryLaunch)
 		if err != nil {
+			if errors.Is(err, herdr.ErrWorkspaceNotFound) && snapshot.Worker == nil {
+				return server.retireInitialLaunch(ctx, key, intent, "workspace no longer exists")
+			}
 			return err
 		}
 	} else if !initialWakeupEligible(snapshot) {
@@ -108,6 +118,57 @@ func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKe
 		initialWakeupStart,
 	)
 	return err
+}
+
+// Recovery already owns the task operation reservation. Verify absence under
+// the durable task lock so an operator cannot change the launch during retirement.
+func (server *Server) retireInitialLaunch(
+	ctx context.Context,
+	key controllerKey,
+	intent *taskstate.LaunchIntent,
+	reason string,
+) error {
+	_, err := server.store.WithTask(ctx, key.id, func(locked *taskstate.LockedTask) error {
+		current := locked.Current()
+		if _, ok := current.LaunchAbandonment(intent.Generation); ok {
+			return nil
+		}
+		if reason == "task is held" && current.Definition().Hold == nil {
+			return taskstate.ErrInvalidTransition
+		}
+		if _, err := current.AbandonInitialLaunch(intent.Generation); err != nil {
+			return err
+		}
+		captured := current.Snapshot().LaunchIntent
+		client, err := herdr.NewClient(server.config.HerdrExecutable).ForSession(captured.Session)
+		if err != nil {
+			return err
+		}
+		resources := herdr.LaunchResources{Name: captured.Name, Label: captured.Label}
+		if captured.Endpoint != nil {
+			resources.Tab, resources.Pane = captured.Endpoint.Tab, captured.Endpoint.Pane
+		}
+		if err := client.CheckLaunchAbsent(ctx, resources); err != nil {
+			return err
+		}
+		_, err = locked.Apply(func(task taskstate.Task) (taskstate.Task, error) {
+			return task.AbandonInitialLaunch(intent.Generation)
+		})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	server.controllers.forgetInitialWakeup(key)
+	server.report(
+		fmt.Errorf(
+			"restore task %s: retired initial launch %s: %s",
+			key.id,
+			intent.Generation,
+			reason,
+		),
+	)
+	return nil
 }
 
 func (server *Server) runInitialReconciliation(ctx context.Context) {

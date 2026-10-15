@@ -66,6 +66,26 @@ task records. A supervision stop removes the task from periodic recovery for the
 current host lifetime. A later explicit retry can resume the same pending launch.
 An active wakeup's failure does not create a fresh automatic restart budget.
 
+Recovery retires an unadopted launch when its task is held or Herdr reports
+that its workspace no longer exists. Before retirement, the host checks that
+the launch's agent, creation label, and any recorded tab or pane are absent
+across the session. A failed or incomplete inventory leaves the intent pending.
+Confirmed absence ends recovery on the first attempt. The task retains an
+abandonment receipt and its worktree metadata. The host logs one retirement
+line. Later reconciliation and host restarts skip that intent. A deleted task
+record ends pending recovery with one diagnostic and is never recreated.
+
+To clean up stale intents left by an older host, install the updated Concierge
+binary and restart the host. Startup performs the same retirement pass:
+
+```sh
+concierge --root /path/to/.concierge --message-root /path/to/.tincan host restart
+```
+
+Inspect `abandoned_launches` in `ROOT/records/TASK_ID.json` for the retained
+receipt. Cleanup preserves the task hold, worktree, and branch. It does not
+remove worker resources.
+
 Exact pending retries must preserve every request field. A completed or retired
 launch requires inspection instead of another launch. A disconnected client
 cannot establish whether launch completed. Inspect `backlog show TASK_ID` and
