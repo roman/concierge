@@ -16,7 +16,7 @@
       inputs.nixDir.follows = "nixDir";
     };
     devshell-modules = {
-      url = "github:roman/devshell-modules/80a5da03e15a2d2c9b43abf08bd8a9d18442429e";
+      url = "github:roman/devshell-modules/320157389046a0f96712018fc57ae30be0200e40";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flake-parts.url = "github:hercules-ci/flake-parts";
