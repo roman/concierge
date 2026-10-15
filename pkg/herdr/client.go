@@ -226,6 +226,14 @@ func (c Client) StartWithArgs(
 	paneID, name, kind string,
 	agentArgs []string,
 ) error {
+	return c.startWithEnvironment(ctx, paneID, name, kind, agentArgs, nil)
+}
+
+func (c Client) startWithEnvironment(
+	ctx context.Context,
+	paneID, name, kind string,
+	agentArgs, prefix []string,
+) error {
 	if paneID == "" || name == "" || kind == "" {
 		return fmt.Errorf("%w: missing start argument", ErrResponse)
 	}
@@ -234,6 +242,9 @@ func (c Client) StartWithArgs(
 		return ErrAgentPresent
 	}
 	if !errors.Is(err, ErrNotFound) {
+		return err
+	}
+	if err := c.prepareEnvironment(ctx, paneID, kind, prefix); err != nil {
 		return err
 	}
 	args := []string{"agent", "start", name, "--kind", kind, "--pane", paneID}

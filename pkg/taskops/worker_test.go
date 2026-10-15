@@ -38,6 +38,7 @@ type workerRunner struct {
 	onStart           func() error
 	starts            int
 	startArgs         []string
+	environmentSetup  string
 	verificationError bool
 }
 
@@ -57,6 +58,11 @@ func (runner *workerRunner) RunSession(
 		return nil, nil, fmt.Errorf("unexpected session %s", session)
 	}
 	switch strings.Join(args[:2], " ") {
+	case "pane run":
+		runner.environmentSetup = args[3]
+		return nil, nil, nil
+	case "pane wait-output":
+		return nil, nil, nil
 	case "pane get":
 		return []byte(
 			fmt.Sprintf(
@@ -116,6 +122,27 @@ func (runner *workerRunner) RunSession(
 		return []byte(`{"result":{}}`), nil, nil
 	default:
 		return nil, nil, fmt.Errorf("unexpected command %v", args)
+	}
+}
+
+func TestWorkerRestartLoadsWorktreeEnvironment(t *testing.T) {
+	service, runner, messages := runningWorkerService(t)
+	if err := os.WriteFile(filepath.Join(runner.worktree, ".envrc"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	runner.absent = true
+	worker, err := service.SupervisedWorker("task-1", messages, herdr.Client{SessionRunner: runner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Restart(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(runner.environmentSetup, "'direnv' 'exec' '"+runner.worktree+"'") {
+		t.Fatalf("restart environment = %q", runner.environmentSetup)
+	}
+	if !strings.Contains(strings.Join(runner.startArgs, " "), "resume thread-1") {
+		t.Fatalf("restart lost resume arguments: %q", runner.startArgs)
 	}
 }
 

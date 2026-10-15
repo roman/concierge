@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "gopls": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "if [ -f .envrc ]; then exec direnv exec . gopls mcp; fi; exec nix develop . -c gopls mcp"
+      ]
+    }
+  }
+}

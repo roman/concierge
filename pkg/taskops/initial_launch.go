@@ -340,5 +340,12 @@ func (service *Service) prepareInitialAgent(
 	if err := service.checkInitialLaunchActive(ctx, taskID, intent.Generation); err != nil {
 		return err
 	}
-	return client.StartWithArgs(ctx, intent.Endpoint.Pane, intent.Name, intent.Harness, arguments)
+	return client.StartInWorktree(
+		ctx,
+		intent.Endpoint.Pane,
+		intent.Name,
+		intent.Harness,
+		intent.Worktree,
+		arguments,
+	)
 }

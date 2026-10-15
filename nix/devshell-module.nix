@@ -59,35 +59,37 @@ in
     };
     enterShell = ''
       export CONCIERGE_PROJECT_ROOT="$(${pkgs.coreutils}/bin/realpath -m -- "''${DEVENV_ROOT:-$PWD}")"
-      export CONCIERGE_HOME="$CONCIERGE_PROJECT_ROOT/.concierge"
-      export TINCAN_HOME="$CONCIERGE_PROJECT_ROOT/.tincan"
-      if [ ! -f "$CONCIERGE_HOME/.task-state-version" ] || [ "$(cat "$CONCIERGE_HOME/.task-state-version")" != 2 ]; then
-        printf 'Concierge version 2 state is required. Run concierge state init for fresh state; inspect existing state before migration.\n' >&2
-      else
-        concierge_host_args=(--root "$CONCIERGE_HOME" --message-root "$TINCAN_HOME" host)
-        if [ "''${HERDR_ENV:-}" = 1 ]; then
-          concierge_host_args+=(--session "''${HERDR_SESSION:-default}")
+      export CONCIERGE_HOME="''${CONCIERGE_HOME:-$CONCIERGE_PROJECT_ROOT/.concierge}"
+      export TINCAN_HOME="''${TINCAN_HOME:-$CONCIERGE_PROJECT_ROOT/.tincan}"
+      if [ -z "''${CONCIERGE_WORKER:-}" ]; then
+        if [ ! -f "$CONCIERGE_HOME/.task-state-version" ] || [ "$(cat "$CONCIERGE_HOME/.task-state-version")" != 2 ]; then
+          printf 'Concierge version 2 state is required. Run concierge state init for fresh state; inspect existing state before migration.\n' >&2
+        else
+          concierge_host_args=(--root "$CONCIERGE_HOME" --message-root "$TINCAN_HOME" host)
+          if [ "''${HERDR_ENV:-}" = 1 ]; then
+            concierge_host_args+=(--session "''${HERDR_SESSION:-default}")
+          fi
+          concierge_host_status=0
+          ${cfg.package}/bin/concierge "''${concierge_host_args[@]}" status --timeout 1s >/dev/null 2>&1 || concierge_host_status=$?
+          if [ "$concierge_host_status" -ge 2 ]; then
+            printf 'Concierge host is incompatible or unresponsive. Inspect the host; a manual restart is required after a package update.\n' >&2
+          fi
+          unset concierge_host_args concierge_host_status
         fi
-        concierge_host_status=0
-        ${cfg.package}/bin/concierge "''${concierge_host_args[@]}" status --timeout 1s >/dev/null 2>&1 || concierge_host_status=$?
-        if [ "$concierge_host_status" -ge 2 ]; then
-          printf 'Concierge host is incompatible or unresponsive. Inspect the host; a manual restart is required after a package update.\n' >&2
-        fi
-        unset concierge_host_args concierge_host_status
+        concierge_check_hook() {
+          if ! ${pkgs.jq}/bin/jq -e --arg event "$2" \
+            --arg command 'if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/'"$3"'; fi' \
+            'any(.hooks[$event][]?.hooks[]?; .type == "command" and .command == $command and (if $event == "Stop" then .asyncRewake == true and (.timeout | type) == "number" and .timeout >= 28800 else true end))' \
+            "$CONCIERGE_PROJECT_ROOT/$1" >/dev/null 2>&1; then
+            printf 'Concierge hook settings need review: %s (%s)\n' "$1" "$2" >&2
+          fi
+        }
+        concierge_check_hook .claude/settings.json SessionStart concierge-session-start
+        concierge_check_hook .claude/settings.json Stop concierge-claude-stop
+        concierge_check_hook .codex/hooks.json SessionStart concierge-session-start
+        concierge_check_hook .codex/hooks.json SessionEnd concierge-session-end
+        unset -f concierge_check_hook
       fi
-      concierge_check_hook() {
-        if ! ${pkgs.jq}/bin/jq -e --arg event "$2" \
-          --arg command 'if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/'"$3"'; fi' \
-          'any(.hooks[$event][]?.hooks[]?; .type == "command" and .command == $command and (if $event == "Stop" then .asyncRewake == true and (.timeout | type) == "number" and .timeout >= 28800 else true end))' \
-          "$CONCIERGE_PROJECT_ROOT/$1" >/dev/null 2>&1; then
-          printf 'Concierge hook settings need review: %s (%s)\n' "$1" "$2" >&2
-        fi
-      }
-      concierge_check_hook .claude/settings.json SessionStart concierge-session-start
-      concierge_check_hook .claude/settings.json Stop concierge-claude-stop
-      concierge_check_hook .codex/hooks.json SessionStart concierge-session-start
-      concierge_check_hook .codex/hooks.json SessionEnd concierge-session-end
-      unset -f concierge_check_hook
     '';
   };
 }

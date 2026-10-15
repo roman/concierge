@@ -517,6 +517,17 @@ an explicit Herdr session. `--harness claude` selects Claude. Repeat
 `--settings`. Codex arguments must not override `shell_environment_policy`.
 Configure other harness settings through the harness's user or project settings.
 
+Initial launch and native resume load the worktree environment after pane shell
+startup. A worktree with `.envrc` uses `direnv exec WORKTREE`. Otherwise, a flake
+with a default devShell for the host system uses `nix develop WORKTREE -c`.
+Repositories without either keep the native launch. Flake evaluation errors stop
+launch instead of silently starting outside the environment. Ship
+`.envrc.template` for optional local direnv setup; a fresh worktree needs no
+`.envrc` when its flake provides the default devShell.
+
+This repository's `.mcp.json` starts `gopls mcp` for Claude through direnv when
+`.envrc` exists, or through the default Nix devshell otherwise.
+
 The host validates the request before reserving it. It captures the native
 session ID from Herdr, adopts the worker, publishes its assignment, and registers
 the task resident. Missing native session metadata leaves the launch unresolved.
@@ -655,6 +666,11 @@ the root hooks.
 Initialize fresh state explicitly with `concierge state init` before starting a
 root. Shell entry only warns when state is missing. Existing state needs its
 normal backup and migration procedure; the module does not migrate it.
+
+The module preserves explicit `CONCIERGE_HOME` and `TINCAN_HOME` roots. Worker
+shells skip supervisor state, host, and hook-settings checks. The module does not
+install Git hooks. Repositories using devshell-modules Git hooks still need an
+upstream guard against installing hooks in a linked worktree's shared Git directory.
 
 An owning root hook starts a detached host only when its socket is missing or
 refused. It reuses a compatible host and preserves incompatible or unresponsive

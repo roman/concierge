@@ -92,7 +92,7 @@ func (worker *SupervisedWorker) Restart(ctx context.Context) error {
 			if err := checkWorktreeLease(ctx, bound.Lease, worker.service.pool); err != nil {
 				return err
 			}
-			if err := client.StartWithArgs(ctx, bound.Pane, bound.Name, bound.Harness, arguments); err != nil {
+			if err := client.StartInWorktree(ctx, bound.Pane, bound.Name, bound.Harness, bound.Worktree, arguments); err != nil {
 				return err
 			}
 			if _, err := task.Apply(taskstate.Task.CompleteLaunch); err != nil {

@@ -82,6 +82,8 @@ pkgs.runCommand "concierge-devshell"
       pkgs.coreutils
       pkgs.gnugrep
       pkgs.gnused
+      pkgs.git
+      pkgs.diffutils
     ];
     shellEntry = result.shellHook;
   }
@@ -181,5 +183,35 @@ pkgs.runCommand "concierge-devshell"
     grep -F '.codex/hooks.json (SessionStart)' unguarded-settings-warning
     grep -F '.codex/hooks.json (SessionEnd)' unguarded-settings-warning
     ${pkgs.bash}/bin/bash ${./hook-contracts.sh}
+    export CONCIERGE_HOME="$TMPDIR/shared-state"
+    export TINCAN_HOME="$TMPDIR/shared-messages"
+    export CONCIERGE_WORKER=fixture
+    : > "$TEST_CALLS"
+    run_entry 2>worker-warning
+    test "$CONCIERGE_HOME" = "$TMPDIR/shared-state"
+    test "$TINCAN_HOME" = "$TMPDIR/shared-messages"
+    test ! -s worker-warning
+    test ! -s "$TEST_CALLS"
+    unset CONCIERGE_WORKER
+    mkdir -p "$CONCIERGE_HOME"
+    printf '2\n' > "$CONCIERGE_HOME/.task-state-version"
+    run_entry 2>explicit-root-warning
+    test "$CONCIERGE_HOME" = "$TMPDIR/shared-state"
+    test "$TINCAN_HOME" = "$TMPDIR/shared-messages"
+    if grep -F 'version 2 state is required' explicit-root-warning; then exit 1; fi
+    export GIT_CONFIG_GLOBAL=/dev/null
+    export GIT_CONFIG_NOSYSTEM=1
+    git -c init.templateDir= init -b main "$TMPDIR/main-checkout"
+    git -C "$TMPDIR/main-checkout" -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -m Initial
+    mkdir -p "$TMPDIR/main-checkout/.git/hooks"
+    printf 'fixture\n' > "$TMPDIR/main-checkout/.git/hooks/pre-commit"
+    cp -r "$TMPDIR/main-checkout/.git/hooks" "$TMPDIR/hooks-before"
+    git -C "$TMPDIR/main-checkout" worktree add --detach "$TMPDIR/linked-checkout"
+    export DEVENV_ROOT="$TMPDIR/linked-checkout"
+    export CONCIERGE_WORKER=fixture
+    cd "$DEVENV_ROOT"
+    run_entry 2>linked-worker-warning
+    test ! -s linked-worker-warning
+    diff -r "$TMPDIR/hooks-before" "$TMPDIR/main-checkout/.git/hooks"
     touch "$out"
   ''
