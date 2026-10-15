@@ -72,6 +72,7 @@ func (command *cli) runHost(ctx context.Context, root string, output io.Writer) 
 				Concierge: conciergeExecutable,
 				Tincan:    tincanExecutable,
 			},
+			Revision:    revision,
 			Session:     command.Host.Session,
 			Supervision: monitor,
 		},

@@ -102,7 +102,7 @@ func TestHostStatusVerifiesPackageAndConfiguration(t *testing.T) {
 			args = append(args, "status")
 			var output bytes.Buffer
 			code := Run(context.Background(), args, nil, &output, io.Discard)
-			if scenario == "ready" || scenario == "reuse session" {
+			if scenario == "ready" || scenario == "reuse session" || scenario == "package" {
 				if code != 0 || !strings.HasPrefix(output.String(), "status: ready\n") ||
 					!strings.Contains(output.String(), "session: \"work\"") {
 					t.Fatalf("ready code %d: %s", code, &output)

@@ -19,6 +19,7 @@ import (
 )
 
 var version = "dev"
+var revision = "dev"
 
 const cliHelp = "commands: host serve|status, launch TASK_ID, land TASK_ID [--operator-approved], project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
@@ -66,7 +67,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	if len(args) == 1 {
 		switch args[0] {
 		case "--version", "-v", "-V":
-			fmt.Fprintln(stdout, version)
+			fmt.Fprintf(stdout, "%s (%s)\n", version, revision)
 			return 0
 		}
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/primary"
+	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/tincan/pkg/inbox"
 )
@@ -15,11 +16,14 @@ const HostStatus Operation = "host_status"
 type StatusRequest struct{}
 
 type StatusResult struct {
-	Root        string `json:"root"`
-	MessageRoot string `json:"message_root"`
-	Recipient   string `json:"recipient"`
-	Session     string `json:"session"`
-	Executable  string `json:"executable"`
+	Root            string           `json:"root"`
+	MessageRoot     string           `json:"message_root"`
+	Recipient       string           `json:"recipient"`
+	Session         string           `json:"session"`
+	Executable      string           `json:"executable"`
+	Revision        string           `json:"revision,omitempty"`
+	HerdrExecutable string           `json:"herdr_executable,omitempty"`
+	Supervision     supervise.Config `json:"supervision,omitempty"`
 }
 
 func authorizeStatusCaller(caller primary.Caller) error {
@@ -33,7 +37,10 @@ func (server *Server) status() *StatusResult {
 	return &StatusResult{
 		Root: server.config.Root, MessageRoot: server.config.MessageRoot,
 		Recipient: server.config.Recipient.String(), Session: server.config.Session,
-		Executable: server.config.WorkerCommands.Concierge,
+		Executable:      server.config.WorkerCommands.Concierge,
+		Revision:        server.config.Revision,
+		HerdrExecutable: server.config.HerdrExecutable,
+		Supervision:     server.config.Supervision,
 	}
 }
 

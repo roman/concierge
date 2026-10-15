@@ -6,7 +6,10 @@ pkgs.buildGoModule {
   go = pkgs.go_1_25;
   vendorHash = "sha256-x9nfr2qHyTpL1/AYZDeoyE/H7YGcSo/MQvf1dWRgAIU=";
   subPackages = [ "cmd/concierge" ];
-  ldflags = [ "-X github.com/roman/concierge/pkg/conciergecli.version=${pkgs.lib.trim (builtins.readFile ../../VERSION)}" ];
+  ldflags = [
+    "-X github.com/roman/concierge/pkg/conciergecli.version=${pkgs.lib.trim (builtins.readFile ../../VERSION)}"
+    "-X github.com/roman/concierge/pkg/conciergecli.revision=${inputs.self.rev or inputs.self.dirtyRev or "unknown"}"
+  ];
   nativeCheckInputs = [ pkgs.git inputs.treehouse.packages.${pkgs.stdenv.hostPlatform.system}.default ];
   TREEHOUSE_TEST_EXECUTABLE = "${inputs.treehouse.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/treehouse";
   TINCAN_TEST_EXECUTABLE = "${inputs.tincan.packages.${pkgs.stdenv.hostPlatform.system}.tincan}/bin/tincan";

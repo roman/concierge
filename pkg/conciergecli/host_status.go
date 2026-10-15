@@ -70,8 +70,7 @@ func (command *cli) runHostStatus(ctx context.Context, root string, output io.Wr
 	status := response.Status
 	if status.Root != root || status.MessageRoot != messageRoot ||
 		status.Recipient != command.Recipient ||
-		(command.Host.Session != "" && status.Session != command.Host.Session) ||
-		status.Executable != executable {
+		(command.Host.Session != "" && status.Session != command.Host.Session) {
 		fmt.Fprintln(output, "status: incompatible")
 		return fail(
 			output,
@@ -90,6 +89,17 @@ func (command *cli) runHostStatus(ctx context.Context, root string, output io.Wr
 		quote(status.Executable),
 	)
 	if err != nil {
+		return 1
+	}
+	hostRevision := status.Revision
+	if hostRevision == "" {
+		hostRevision = "unknown"
+	}
+	upgrade := "no"
+	if hostRevision != revision || status.Executable != executable {
+		upgrade = "yes"
+	}
+	if _, err := fmt.Fprintf(output, "host_revision: %s\nbinary_revision: %s\nupgrade_required: %s\n", quote(hostRevision), quote(revision), upgrade); err != nil {
 		return 1
 	}
 	return 0

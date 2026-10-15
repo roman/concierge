@@ -23,6 +23,7 @@ type Config struct {
 	TreehouseExecutable string
 	WorkerCommands      taskops.CommandPaths
 	Session             string
+	Revision            string
 }
 
 // Expectations reject conflicting client settings without selecting host resources.

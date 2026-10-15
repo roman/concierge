@@ -3,7 +3,10 @@ set -euo pipefail
 unset CONCIERGE_HOME TINCAN_HOME TINCAN_HERDR HERDR_SESSION HERDR_SOCKET_PATH HERDR_WORKSPACE_ID HERDR_TAB_ID HERDR_PANE_ID
 export PATH=
 test -x "$concierge/bin/concierge"
-test "$("$concierge/bin/concierge" --version)" = "$version"
+case "$("$concierge/bin/concierge" --version)" in
+  "$version ("*")") ;;
+  *) exit 1 ;;
+esac
 set -- "$concierge"/bin/*
 test "$#" -eq 1
 test "$1" = "$concierge/bin/concierge"
