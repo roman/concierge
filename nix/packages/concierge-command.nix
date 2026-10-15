@@ -4,7 +4,7 @@ pkgs.buildGoModule {
   version = pkgs.lib.trim (builtins.readFile ../../VERSION);
   src = import ../source.nix { inherit (pkgs) lib; };
   go = pkgs.go_1_25;
-  vendorHash = "sha256-x9nfr2qHyTpL1/AYZDeoyE/H7YGcSo/MQvf1dWRgAIU=";
+  vendorHash = "sha256-TidSYfQFXZNBaT58l+NEV/0CKabWsp9a50kh+ApZP+k=";
   subPackages = [ "cmd/concierge" ];
   ldflags = [
     "-X github.com/roman/concierge/pkg/conciergecli.version=${pkgs.lib.trim (builtins.readFile ../../VERSION)}"

@@ -10,4 +10,4 @@ require (
 
 require golang.org/x/sys v0.42.0
 
-require github.com/roman/tincan v0.0.0-20261015032558-4d94549baf11
+require github.com/roman/tincan v0.0.0-20261015052048-497b0d8dd6eb

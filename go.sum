@@ -14,8 +14,8 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/roman/tincan v0.0.0-20261015032558-4d94549baf11 h1:x80lJ8vfhgfre5Xoce7DCz3HWHxlC8FaR73IILcGPnw=
-github.com/roman/tincan v0.0.0-20261015032558-4d94549baf11/go.mod h1:XSh8Xd+m16QMrpEfq/3Kbp3NJyQffJH3tCohdBR7z4s=
+github.com/roman/tincan v0.0.0-20261015052048-497b0d8dd6eb h1:5kyzw8t28zAut0z+v1iIIqauHkk4VJJRF5ZIw3/B3Kw=
+github.com/roman/tincan v0.0.0-20261015052048-497b0d8dd6eb/go.mod h1:XSh8Xd+m16QMrpEfq/3Kbp3NJyQffJH3tCohdBR7z4s=
 github.com/stretchr/testify v1.4.0 h1:2E4SXV/wtOkTonXsotYi4li6zVWxYlZuYNCXe9XRJyk=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 golang.org/x/sys v0.42.0 h1:omrd2nAlyT5ESRdCLYdm3+fMfNFE/+Rf4bDIQImRJeo=

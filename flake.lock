@@ -275,16 +275,16 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1790708764,
-        "narHash": "sha256-uu452Xe23pSvFk7w7fKPjiaqY5QenUIljao2SFAxpc0=",
+        "lastModified": 1791993401,
+        "narHash": "sha256-N7e7oCKxeCoxek6UT8Lweq16rSsQQi34QMb7C2iNpm8=",
         "owner": "herdrdev",
         "repo": "herdr",
-        "rev": "7b116c05bfda646af39d2524c54e70c751f57ee8",
+        "rev": "2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01",
         "type": "github"
       },
       "original": {
         "owner": "herdrdev",
-        "ref": "v0.9.3",
+        "ref": "v0.9.5",
         "repo": "herdr",
         "type": "github"
       }
@@ -398,7 +398,7 @@
       },
       "original": {
         "owner": "roman",
-        "ref": "v3",
+        "ref": "v3.4.0",
         "repo": "nixDir",
         "type": "github"
       }
@@ -546,17 +546,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1792034758,
-        "narHash": "sha256-nKhunJLV5aio4fFq0Cf3e5jp77B+Mr9iWlsv9vlx818=",
+        "lastModified": 1792041648,
+        "narHash": "sha256-3sGXHUyDJTuKisH0ui7VPuFoxfrmVs1omR6BY4qwueQ=",
         "owner": "roman",
         "repo": "tincan",
-        "rev": "4d94549baf1127db45ff39e401410f00731be2e9",
+        "rev": "497b0d8dd6ebabe1d85f8047d652fdad7e36541a",
         "type": "github"
       },
       "original": {
         "owner": "roman",
         "repo": "tincan",
-        "rev": "4d94549baf1127db45ff39e401410f00731be2e9",
+        "rev": "497b0d8dd6ebabe1d85f8047d652fdad7e36541a",
         "type": "github"
       }
     },
@@ -568,16 +568,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1790860774,
-        "narHash": "sha256-HXD/f5B0w2h5/GmGddhI3/71UHtr6TLNyF60sp1fmIg=",
+        "lastModified": 1792070667,
+        "narHash": "sha256-k4Wep5bIVXeLqQPJKrAAuQMvLtR/SdMaO3QZ2tp7aN4=",
         "owner": "kunchenguid",
         "repo": "treehouse",
-        "rev": "476002d1a7eb381574c3345299e6bfcc66ecbb1a",
+        "rev": "acf59c8e7c2dcb1ab560d0eef70b371ba626f0e5",
         "type": "github"
       },
       "original": {
         "owner": "kunchenguid",
-        "ref": "v3.1.1",
+        "ref": "v3.1.4",
         "repo": "treehouse",
         "type": "github"
       }
