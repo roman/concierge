@@ -54,8 +54,8 @@ func TestParseTarget(t *testing.T) {
 		session, pane string
 		valid         bool
 	}{
-		{"crew", "pane-1", true}, {"", "pane-1", false}, {"crew", "", false},
-		{"crew other", "pane-1", false}, {"crew", "pane/1", false},
+		{"work", "pane-1", true}, {"", "pane-1", false}, {"work", "", false},
+		{"work other", "pane-1", false}, {"work", "pane/1", false},
 	} {
 		_, err := ParseTarget(test.session, test.pane)
 		if (err == nil) != test.valid {
@@ -83,7 +83,7 @@ func TestConfirmPaneGoneRequiresExactNotFound(t *testing.T) {
 		{"empty response", healthResponse{}, ErrResponse},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			target, err := ParseTarget("crew", "pane-1")
+			target, err := ParseTarget("work", "pane-1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -94,7 +94,7 @@ func TestConfirmPaneGoneRequiresExactNotFound(t *testing.T) {
 			}
 			if !reflect.DeepEqual(
 				runner.calls,
-				[]healthCall{{"crew", []string{"pane", "get", "pane-1", "--session", "crew"}}},
+				[]healthCall{{"work", []string{"pane", "get", "pane-1", "--session", "work"}}},
 			) {
 				t.Fatalf("calls = %v", runner.calls)
 			}
@@ -148,7 +148,7 @@ func TestHealth(t *testing.T) {
 		{"process unreadable", []healthResponse{{out: pane}, {out: working}, {out: `{"result":{}}`}, {out: `{"server":{"running":true}}`}}, fakeProcesses{}, Unreadable, HealthUnknown, [][]string{{"pane", "get", "pane-1"}, {"agent", "get", "pane-1"}, {"pane", "process-info", "--pane", "pane-1"}, {"status", "--json"}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			target, _ := ParseTarget("crew", "pane-1")
+			target, _ := ParseTarget("work", "pane-1")
 			runner := &healthRunner{responses: test.responses}
 			got := (Client{SessionRunner: runner, Processes: test.processes}).Health(
 				context.Background(),
@@ -159,7 +159,7 @@ func TestHealth(t *testing.T) {
 			}
 			var want []healthCall
 			for _, args := range test.calls {
-				want = append(want, healthCall{"crew", append(args, "--session", "crew")})
+				want = append(want, healthCall{"work", append(args, "--session", "work")})
 			}
 			if !reflect.DeepEqual(runner.calls, want) {
 				t.Fatalf("calls = %v, want %v", runner.calls, want)
@@ -208,7 +208,7 @@ func TestClassifyProcess(t *testing.T) {
 }
 
 func TestHealthSettlesOtherForeground(t *testing.T) {
-	target, _ := ParseTarget("crew", "pane-1")
+	target, _ := ParseTarget("work", "pane-1")
 	runner := &healthRunner{responses: []healthResponse{
 		{out: `{"result":{"pane":{"pane_id":"pane-1"}}}`},
 		{out: `{"result":{"agent":{"pane_id":"pane-1","agent_status":"idle"}}}`},
@@ -232,7 +232,7 @@ func TestHealthSettlesOtherForeground(t *testing.T) {
 }
 
 func TestHealthStopsAfterTenOtherSamples(t *testing.T) {
-	target, _ := ParseTarget("crew", "pane-1")
+	target, _ := ParseTarget("work", "pane-1")
 	responses := []healthResponse{
 		{out: `{"result":{"pane":{"pane_id":"pane-1"}}}`},
 		{out: `{"result":{"agent":{"pane_id":"pane-1","agent_status":"working"}}}`},
@@ -266,14 +266,14 @@ func TestCommandRunnerSessionEnvironment(t *testing.T) {
 	}
 	stdout, _, err := NewClient(executable).SessionRunner.RunSession(
 		context.Background(),
-		"crew",
+		"work",
 		"pane",
 		"get",
 		"pane-1",
 		"--session",
-		"crew",
+		"work",
 	)
-	if err != nil || string(stdout) != "crew\n\n\n\n\npane\nget\npane-1\n--session\ncrew\n" {
+	if err != nil || string(stdout) != "work\n\n\n\n\npane\nget\npane-1\n--session\nwork\n" {
 		t.Fatalf("session command = %q, %v", stdout, err)
 	}
 }

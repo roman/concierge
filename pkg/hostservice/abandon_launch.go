@@ -67,7 +67,7 @@ func (server *Server) abandonLaunch(
 		return Response{}, err
 	}
 	if clearedIntent {
-		server.controllers.forgetInitialResident(key)
+		server.controllers.forgetInitialWakeup(key)
 	}
 	snapshot := task.Snapshot()
 	return Response{Transition: &snapshot, Abandoned: result}, nil

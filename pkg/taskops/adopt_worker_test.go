@@ -52,7 +52,7 @@ func adoptionFixture(t *testing.T) (*Service, AdoptionInput, *adoptionRunner) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Create(context.Background(), taskstate.Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"}); err != nil {
+	if _, err := service.Create(context.Background(), taskstate.Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"}); err != nil {
 		t.Fatal(err)
 	}
 	input := AdoptionInput{
@@ -353,7 +353,7 @@ func TestAdoptWorkerRejectsAnotherTasksEndpoint(t *testing.T) {
 		t.Run(state, func(t *testing.T) {
 			service, input, runner := adoptionFixture(t)
 			ctx := context.Background()
-			if _, err := service.Create(ctx, taskstate.Definition{ID: "task-2", Title: "Other", Repo: "exmachina", Kind: "ship"}); err != nil {
+			if _, err := service.Create(ctx, taskstate.Definition{ID: "task-2", Title: "Other", Repo: "exmachina", Kind: "task"}); err != nil {
 				t.Fatal(err)
 			}
 			worker := taskstate.Worker{

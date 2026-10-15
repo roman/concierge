@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/roman/concierge/pkg/resident"
 	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/wakeup"
 	"github.com/roman/tincan/pkg/inbox"
 )
 
@@ -123,7 +123,7 @@ func TestTaskControllerPreparationRejectsChangedEndpoint(t *testing.T) {
 	if _, err := os.Stat(calls); !os.IsNotExist(err) {
 		t.Fatalf("stale preparation reached Herdr: %v", err)
 	}
-	lease, err := resident.AcquireTaskLease(server.config.Root, "task-1")
+	lease, err := wakeup.AcquireTaskLease(server.config.Root, "task-1")
 	if err != nil {
 		t.Fatalf("stale preparation retained lease: %v", err)
 	}

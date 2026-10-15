@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/roman/concierge/pkg/herdr"
-	"github.com/roman/concierge/pkg/resident"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/wakeup"
 	"github.com/roman/tincan/pkg/inbox"
 	"github.com/roman/tincan/pkg/notify"
 )
@@ -383,7 +383,7 @@ func TestRestartBootstrapWatcherDefersUntilIdleAndStopsAfterAcknowledgement(t *t
 	ready := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		done <- (resident.Watcher{Store: worker.messages, Recipient: worker.recipient, Target: "task-1", Doorbell: worker, RetryDelay: 5 * time.Millisecond}).Run(ctx, ready)
+		done <- (wakeup.Watcher{Store: worker.messages, Recipient: worker.recipient, Target: "task-1", Doorbell: worker, RetryDelay: 5 * time.Millisecond}).Run(ctx, ready)
 	}()
 	select {
 	case <-ready:

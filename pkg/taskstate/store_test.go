@@ -35,7 +35,7 @@ func versionTwoRoot(t *testing.T) string {
 
 func queuedStoreTask(t *testing.T) Task {
 	t.Helper()
-	task, err := NewQueued(Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"})
+	task, err := NewQueued(Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestStoreListsVersionTwoTasksInIDOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, id := range []string{"task-z", "task-a"} {
-		task, err := NewQueued(Definition{ID: id, Title: id, Repo: "exmachina", Kind: "ship"})
+		task, err := NewQueued(Definition{ID: id, Title: id, Repo: "exmachina", Kind: "task"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -364,7 +364,7 @@ func TestStorePreservesOriginalTaskWhenTransitionChangesID(t *testing.T) {
 	}
 	returned, err := store.Update(context.Background(), "task-1", func(Task) (Task, error) {
 		return NewQueued(
-			Definition{ID: "task-2", Title: "Different", Repo: "exmachina", Kind: "ship"},
+			Definition{ID: "task-2", Title: "Different", Repo: "exmachina", Kind: "task"},
 		)
 	})
 	if !errors.Is(err, ErrInvalidTask) {
@@ -484,7 +484,7 @@ func TestStoreReportsPublicationWhenRecordsDirectoryMoves(t *testing.T) {
 
 func TestStoreRejectsTaskIDTooLongForLockName(t *testing.T) {
 	longID := strings.Repeat("x", 245)
-	if _, err := NewQueued(Definition{ID: longID, Title: "Work", Repo: "exmachina", Kind: "ship"}); !errors.Is(
+	if _, err := NewQueued(Definition{ID: longID, Title: "Work", Repo: "exmachina", Kind: "task"}); !errors.Is(
 		err,
 		ErrInvalidTask,
 	) {

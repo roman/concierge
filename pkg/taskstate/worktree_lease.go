@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 type LeaseState string
@@ -38,7 +38,7 @@ func validWorktreeLease(lease WorktreeLease) bool {
 		return false
 	}
 	for _, path := range []string{lease.Path, lease.Project} {
-		if _, err := firstmate.ParseAbsolutePath(path); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return false
 		}
 	}

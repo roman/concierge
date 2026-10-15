@@ -102,7 +102,7 @@ func TestTaskStopRequiresGenerationAndPreservesHistoricalWorker(t *testing.T) {
 	}
 	t.Setenv("PATH", directory)
 	t.Setenv("TEST_CALLS", record)
-	recipient, _ := inbox.ParseRecipient("firstmate")
+	recipient, _ := inbox.ParseRecipient("taskmeta")
 	claimNativeParent(t, root)
 	serveConfiguredTaskRoot(
 		t,
@@ -172,7 +172,7 @@ esac
 	t.Setenv("HERDR_SESSION", "wrong-ambient")
 	t.Setenv("TEST_CALLS", record)
 	t.Setenv("TEST_SOCKET", filepath.Join(directory, "herdr.sock"))
-	recipient, _ := inbox.ParseRecipient("firstmate")
+	recipient, _ := inbox.ParseRecipient("taskmeta")
 	claimNativeParent(t, root)
 	serveConfiguredTaskRoot(
 		t,

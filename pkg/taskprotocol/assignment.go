@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/tincan/pkg/inbox"
 )
 
@@ -35,7 +35,7 @@ func DecodeAssignment(body, taskRoot, taskID string) (Assignment, error) {
 		assignment.Task != taskID || strings.TrimSpace(assignment.Body) == "" {
 		return Assignment{}, ErrInvalidAssignment
 	}
-	if err := firstmate.ValidateSpawnGeneration(assignment.SpawnGeneration); err != nil {
+	if err := taskmeta.ValidateSpawnGeneration(assignment.SpawnGeneration); err != nil {
 		return Assignment{}, err
 	}
 	if (assignment.OriginalMessageID == "") != (assignment.PreviousMessageID == "") {

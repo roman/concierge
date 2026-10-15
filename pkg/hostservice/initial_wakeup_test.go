@@ -7,70 +7,70 @@ import (
 	"testing"
 )
 
-func TestInitialResidentRegistrationRetriesPreparationFailure(t *testing.T) {
+func TestInitialWakeupRegistrationRetriesPreparationFailure(t *testing.T) {
 	registry := newControllerRegistry(context.Background())
 	defer registry.close()
 	key := controllerKey{kind: taskController, id: "task-1"}
 	endpoint := controllerEndpoint{session: "work", pane: "pane-1"}
-	if err := registry.awaitInitialResident(key); err != nil {
+	if err := registry.awaitInitialWakeup(key); err != nil {
 		t.Fatal(err)
 	}
 	failure := errors.New("temporary preparation failure")
-	if _, err := registry.startInitialResident(context.Background(), key, endpoint, "binding", func(context.Context) (preparedController, error) { return preparedController{}, failure }); !errors.Is(
+	if _, err := registry.startInitialWakeup(context.Background(), key, endpoint, "binding", func(context.Context) (preparedController, error) { return preparedController{}, failure }); !errors.Is(
 		err,
 		failure,
 	) {
 		t.Fatalf("first registration: %v", err)
 	}
-	if len(registry.initialResidentTasks()) != 1 {
+	if len(registry.initialWakeupTasks()) != 1 {
 		t.Fatal("preparation failure lost the pending registration")
 	}
-	if _, err := registry.startInitialResident(context.Background(), key, endpoint, "binding", func(context.Context) (preparedController, error) {
+	if _, err := registry.startInitialWakeup(context.Background(), key, endpoint, "binding", func(context.Context) (preparedController, error) {
 		return preparedController{Run: func(ctx context.Context, ready chan<- struct{}) error { close(ready); <-ctx.Done(); return nil }}, nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if len(registry.initialResidentTasks()) != 0 {
-		t.Fatal("ready resident remains pending")
+	if len(registry.initialWakeupTasks()) != 0 {
+		t.Fatal("ready wakeup remains pending")
 	}
 }
 
-func TestInitialResidentStopRejectsPreviouslySelectedRetry(t *testing.T) {
+func TestInitialWakeupStopRejectsPreviouslySelectedRetry(t *testing.T) {
 	registry := newControllerRegistry(context.Background())
 	defer registry.close()
 	key := controllerKey{kind: taskController, id: "task-1"}
-	if err := registry.awaitInitialResident(key); err != nil {
+	if err := registry.awaitInitialWakeup(key); err != nil {
 		t.Fatal(err)
 	}
-	selected := registry.initialResidentTasks()
+	selected := registry.initialWakeupTasks()
 	if len(selected) != 1 {
 		t.Fatal("registration was not selected")
 	}
 	if err := registry.stop(context.Background(), key); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registry.startInitialResident(context.Background(), selected[0], controllerEndpoint{session: "work", pane: "pane-1"}, "binding", func(context.Context) (preparedController, error) {
+	if _, err := registry.startInitialWakeup(context.Background(), selected[0], controllerEndpoint{session: "work", pane: "pane-1"}, "binding", func(context.Context) (preparedController, error) {
 		t.Error("stopped retry reached preparation")
 		return preparedController{}, nil
 	}); !errors.Is(
 		err,
-		errInitialResidentStopped,
+		errInitialWakeupStopped,
 	) {
 		t.Fatalf("stopped registration: %v", err)
 	}
 }
 
-func TestInitialResidentFailureAfterReadinessDoesNotRearm(t *testing.T) {
+func TestInitialWakeupFailureAfterReadinessDoesNotRearm(t *testing.T) {
 	registry := newControllerRegistry(context.Background())
 	defer registry.close()
 	key := controllerKey{kind: taskController, id: "task-1"}
 	endpoint := controllerEndpoint{session: "work", pane: "pane-1"}
-	if err := registry.awaitInitialResident(key); err != nil {
+	if err := registry.awaitInitialWakeup(key); err != nil {
 		t.Fatal(err)
 	}
 	exit := make(chan struct{})
 	var preparations atomic.Int32
-	if _, err := registry.startInitialResident(context.Background(), key, endpoint, "binding", func(context.Context) (preparedController, error) {
+	if _, err := registry.startInitialWakeup(context.Background(), key, endpoint, "binding", func(context.Context) (preparedController, error) {
 		preparations.Add(1)
 		return preparedController{Run: func(ctx context.Context, ready chan<- struct{}) error {
 			close(ready)
@@ -89,31 +89,31 @@ func TestInitialResidentFailureAfterReadinessDoesNotRearm(t *testing.T) {
 	registry.mu.Unlock()
 	close(exit)
 	<-entry.done
-	if len(registry.initialResidentTasks()) != 0 {
-		t.Fatal("failed active resident was queued for automatic registration")
+	if len(registry.initialWakeupTasks()) != 0 {
+		t.Fatal("failed active wakeup was queued for automatic registration")
 	}
-	if _, err := registry.startInitialResident(context.Background(), key, endpoint, "binding", func(context.Context) (preparedController, error) {
+	if _, err := registry.startInitialWakeup(context.Background(), key, endpoint, "binding", func(context.Context) (preparedController, error) {
 		preparations.Add(1)
 		return preparedController{}, nil
 	}); !errors.Is(
 		err,
-		errInitialResidentStopped,
+		errInitialWakeupStopped,
 	) {
 		t.Fatalf("failed active registration rearmed: %v", err)
 	}
 	if preparations.Load() != 1 {
-		t.Fatal("active failure reset the resident preparation")
+		t.Fatal("active failure reset the wakeup preparation")
 	}
 }
 
-func TestInitialResidentCompletionRecordsReadinessBeforeReleasingEntry(t *testing.T) {
+func TestInitialWakeupCompletionRecordsReadinessBeforeReleasingEntry(t *testing.T) {
 	for _, state := range []string{"ready", "not ready"} {
 		t.Run(state, func(t *testing.T) {
 			registry := newControllerRegistry(context.Background())
 			defer registry.close()
 			key := controllerKey{kind: taskController, id: "task-1"}
 			endpoint := controllerEndpoint{session: "work", pane: "pane-1"}
-			if err := registry.awaitInitialResident(key); err != nil {
+			if err := registry.awaitInitialWakeup(key); err != nil {
 				t.Fatal(err)
 			}
 			entry := &controllerEntry{
@@ -133,7 +133,7 @@ func TestInitialResidentCompletionRecordsReadinessBeforeReleasingEntry(t *testin
 			default:
 				t.Fatal("completion did not release the entry")
 			}
-			_, err := registry.startInitialResident(
+			_, err := registry.startInitialWakeup(
 				context.Background(),
 				key,
 				endpoint,
@@ -144,8 +144,8 @@ func TestInitialResidentCompletionRecordsReadinessBeforeReleasingEntry(t *testin
 					}, nil
 				},
 			)
-			if state == "ready" && !errors.Is(err, errInitialResidentStopped) {
-				t.Fatalf("completed ready resident rearmed: %v", err)
+			if state == "ready" && !errors.Is(err, errInitialWakeupStopped) {
+				t.Fatalf("completed ready wakeup rearmed: %v", err)
 			}
 			if state == "not ready" && err != nil {
 				t.Fatalf("unready failure stopped recovery: %v", err)
@@ -154,16 +154,16 @@ func TestInitialResidentCompletionRecordsReadinessBeforeReleasingEntry(t *testin
 	}
 }
 
-func TestInitialResidentReadinessDuringCancellationDoesNotRearm(t *testing.T) {
+func TestInitialWakeupReadinessDuringCancellationDoesNotRearm(t *testing.T) {
 	registry := newControllerRegistry(context.Background())
 	defer registry.close()
 	key := controllerKey{kind: taskController, id: "task-1"}
-	if err := registry.awaitInitialResident(key); err != nil {
+	if err := registry.awaitInitialWakeup(key); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, _ = registry.startInitialResident(
+	_, _ = registry.startInitialWakeup(
 		ctx,
 		key,
 		controllerEndpoint{session: "work", pane: "pane-1"},
@@ -174,7 +174,7 @@ func TestInitialResidentReadinessDuringCancellationDoesNotRearm(t *testing.T) {
 			}, nil
 		},
 	)
-	if len(registry.initialResidentTasks()) != 0 {
-		t.Fatal("cancellation rearmed a resident that reported readiness")
+	if len(registry.initialWakeupTasks()) != 0 {
+		t.Fatal("cancellation rearmed a wakeup that reported readiness")
 	}
 }

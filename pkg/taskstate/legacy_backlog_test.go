@@ -10,7 +10,7 @@ func TestParseLegacyBacklogPreservesTaskFields(t *testing.T) {
 	data := []byte(`# Backlog
 
 ## In flight
-- [ ] task-a - Fix the worker (repo: exmachina) (kind: ship) (priority: 2) (since 2026-10-01) (hold: awaiting review) (hold-kind: captain) blocked-by: task-b - review first
+- [ ] task-a - Fix the worker (repo: exmachina) (kind: task) (priority: 2) (since 2026-10-01) (hold: awaiting review) (hold-kind: primary) blocked-by: task-b - review first
   First paragraph.
 
   Second paragraph.
@@ -30,11 +30,11 @@ func TestParseLegacyBacklogPreservesTaskFields(t *testing.T) {
 	if first.State != InFlight || first.Definition.ID != "task-a" ||
 		first.Definition.Title != "Fix the worker" ||
 		first.Definition.Body != "First paragraph.\n\nSecond paragraph." ||
-		first.Definition.Repo != "exmachina" || first.Definition.Kind != "ship" ||
+		first.Definition.Repo != "exmachina" || first.Definition.Kind != "task" ||
 		first.Definition.Priority == nil || *first.Definition.Priority != 2 ||
 		first.Definition.Created != "2026-10-01" ||
 		first.Definition.Hold == nil || first.Definition.Hold.Reason != "awaiting review" ||
-		first.Definition.Hold.Kind != "captain" ||
+		first.Definition.Hold.Kind != "primary" ||
 		len(first.Definition.Dependencies) != 1 ||
 		first.Definition.Dependencies[0] != (Dependency{
 			Type: "blocked-by", ID: "task-b", Reason: "review first",
@@ -49,11 +49,11 @@ func TestParseLegacyBacklogPreservesTaskFields(t *testing.T) {
 
 func TestParseLegacyBacklogAcceptsPinnedGrammar(t *testing.T) {
 	data := []byte("## Queued\n" +
-		"- [ ] task-a - Fix worker blocked-by: task-b (repo: exmachina) (kind: ship)   \n" +
+		"- [ ] task-a - Fix worker blocked-by: task-b (repo: exmachina) (kind: task)   \n" +
 		"- [ ] task-b - Fix report.md (reported 2026-06-22): (repo: selection) wording (repo: exmachina) (kind: audit)\n" +
 		"- [ ] task-c - Check status(priority: 2) (repo: exmachina) (kind: audit)\n" +
-		"- [ ] task-d - Repair notifier (repo: exmachina) (kind: ship) blocked-by: task-b - reason includes unblocked-by: text\n" +
-		"- [ ] task-e - SHIP: release (repo: exmachina)\n")
+		"- [ ] task-d - Repair notifier (repo: exmachina) (kind: task) blocked-by: task-b - reason includes unblocked-by: text\n" +
+		"- [ ] task-e - Release (repo: exmachina) (kind: task)\n")
 	rows, err := ParseLegacyBacklog(data)
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestParseLegacyBacklogAcceptsPinnedGrammar(t *testing.T) {
 		rows[2].Definition.Priority == nil || *rows[2].Definition.Priority != 2 ||
 		len(rows[3].Definition.Dependencies) != 1 ||
 		rows[3].Definition.Dependencies[0].Reason != "reason includes unblocked-by: text" ||
-		rows[4].Definition.Kind != "ship" {
+		rows[4].Definition.Kind != "task" {
 		t.Fatalf("rows = %#v", rows)
 	}
 }
@@ -85,7 +85,7 @@ func TestParseLegacyBacklogUsesTabSectionHeader(t *testing.T) {
 
 func TestParseLegacyBacklogPreservesDependencyOrder(t *testing.T) {
 	data := []byte("## Queued\n" +
-		"- [ ] task-a - Work blocked-by: task-b (repo: exmachina) (kind: ship) parent: task-c - parent reason discovered-from: task-d - source reason\n")
+		"- [ ] task-a - Work blocked-by: task-b (repo: exmachina) (kind: task) parent: task-c - parent reason discovered-from: task-d - source reason\n")
 	rows, err := ParseLegacyBacklog(data)
 	if err != nil {
 		t.Fatal(err)

@@ -36,7 +36,7 @@ func TestHostConfigurationBindsExternalDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, expected := range []Expectations{
-		{MessageRoot: filepath.Join(root, "different")}, {Recipient: "firstmate"}, {HerdrExecutable: "/different/herdr"}, {Session: "other"},
+		{MessageRoot: filepath.Join(root, "different")}, {Recipient: "taskmeta"}, {HerdrExecutable: "/different/herdr"}, {Session: "other"},
 	} {
 		if err := server.checkExpectations(&expected); err == nil {
 			t.Fatalf("accepted conflicting expectations: %+v", expected)

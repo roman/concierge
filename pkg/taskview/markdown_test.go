@@ -37,14 +37,14 @@ func TestMarkdownShowsStateDependenciesAndHold(t *testing.T) {
 	queued, err := taskstate.NewQueued(taskstate.Definition{
 		ID: "task-a", Title: "Inspect", Body: "First line\nSecond line", Repo: "tincan", Kind: "audit",
 		Dependencies: []taskstate.Dependency{{Type: "blocked-by", ID: "task-b", Reason: "review"}},
-		Hold:         &taskstate.Hold{Reason: "Waiting", Kind: "captain"},
+		Hold:         &taskstate.Hold{Reason: "Waiting", Kind: "primary"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	done, err := taskstate.NewMigrated(taskstate.Snapshot{
 		Definition: taskstate.Definition{
-			ID: "task-b", Title: "Complete", Repo: "tincan", Kind: "ship", Closed: "2026-10-11",
+			ID: "task-b", Title: "Complete", Repo: "tincan", Kind: "task", Closed: "2026-10-11",
 		},
 		State: taskstate.Done,
 	})
@@ -57,9 +57,9 @@ func TestMarkdownShowsStateDependenciesAndHold(t *testing.T) {
 	}
 	want := "# Backlog\n\n## In flight\n## Queued\n" +
 		"- [ ] task-a - Inspect (repo: tincan) (kind: audit) " +
-		"(hold: Waiting) (hold-kind: captain) blocked-by: task-b - review\n" +
+		"(hold: Waiting) (hold-kind: primary) blocked-by: task-b - review\n" +
 		"  First line\n  Second line\n" +
-		"## Done\n- [x] task-b - Complete (repo: tincan) (kind: ship) (done 2026-10-11)\n"
+		"## Done\n- [x] task-b - Complete (repo: tincan) (kind: task) (done 2026-10-11)\n"
 	if output.String() != want {
 		t.Fatalf("Markdown = %q, want %q", output.String(), want)
 	}
@@ -69,9 +69,9 @@ func TestMarkdownShowsInFlightPriorityAndDates(t *testing.T) {
 	priority := 1
 	task, err := taskstate.NewMigrated(taskstate.Snapshot{
 		Definition: taskstate.Definition{
-			ID: "task-running", Title: "Build", Repo: "tincan", Kind: "ship",
+			ID: "task-running", Title: "Build", Repo: "tincan", Kind: "task",
 			Priority: &priority, Created: "2026-10-10",
-			Hold: &taskstate.Hold{Reason: "Review", Kind: "captain", Until: "2026-10-12"},
+			Hold: &taskstate.Hold{Reason: "Review", Kind: "primary", Until: "2026-10-12"},
 		},
 		State: taskstate.InFlight,
 		Worker: &taskstate.Worker{
@@ -87,9 +87,9 @@ func TestMarkdownShowsInFlightPriorityAndDates(t *testing.T) {
 	if err := WriteMarkdown(&output, []taskstate.Task{task}); err != nil {
 		t.Fatal(err)
 	}
-	want := "## In flight\n- **task-running** - Build (repo: tincan) (kind: ship) " +
+	want := "## In flight\n- **task-running** - Build (repo: tincan) (kind: task) " +
 		"(priority: 1) (since 2026-10-10) (hold: Review) " +
-		"(hold-kind: captain) (hold-until: 2026-10-12)\n"
+		"(hold-kind: primary) (hold-until: 2026-10-12)\n"
 	if !strings.Contains(output.String(), want) {
 		t.Fatalf("in-flight view = %s", output.String())
 	}
@@ -102,7 +102,7 @@ func TestRebuildReplacesStaleProjectionFromRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	task, err := taskstate.NewQueued(taskstate.Definition{
-		ID: "task-a", Title: "Current task", Repo: "tincan", Kind: "ship",
+		ID: "task-a", Title: "Current task", Repo: "tincan", Kind: "task",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +156,7 @@ func TestRebuildReportsPublishedProjectionWhenDirectorySyncFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	task, err := taskstate.NewQueued(taskstate.Definition{
-		ID: "task-a", Title: "Current task", Repo: "tincan", Kind: "ship",
+		ID: "task-a", Title: "Current task", Repo: "tincan", Kind: "task",
 	})
 	if err != nil {
 		t.Fatal(err)

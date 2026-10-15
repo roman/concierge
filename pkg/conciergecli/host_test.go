@@ -50,7 +50,7 @@ func TestIntakeNeverFallsBackToLocalWrites(t *testing.T) {
 					"task-1",
 					"Work",
 					"--kind",
-					"ship",
+					"task",
 					"--repo",
 					"tincan",
 				},

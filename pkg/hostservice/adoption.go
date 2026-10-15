@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
 )
@@ -18,14 +18,14 @@ func validateAdoptionInput(input *taskops.AdoptionInput) error {
 	if input == nil {
 		return errors.New("adoption requires a binding")
 	}
-	if _, err := firstmate.ParseTaskID(input.TaskID); err != nil {
+	if _, err := taskmeta.ParseTaskID(input.TaskID); err != nil {
 		return err
 	}
-	if err := firstmate.ValidateSpawnGeneration(input.Generation); err != nil {
+	if err := taskmeta.ValidateSpawnGeneration(input.Generation); err != nil {
 		return err
 	}
 	for _, path := range []string{input.Project, input.Worktree} {
-		if _, err := firstmate.ParseAbsolutePath(path); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return err
 		}
 	}

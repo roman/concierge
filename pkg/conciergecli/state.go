@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
@@ -30,7 +30,7 @@ func (command stateCommands) run(ctx context.Context, root, selected string, out
 	case "state recover":
 		target = command.Recover
 	}
-	if _, err := firstmate.ParseAbsolutePath(target.Backup); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(target.Backup); err != nil {
 		return fail(output, 2, err, "use an absolute, clean --backup path")
 	}
 	var err error

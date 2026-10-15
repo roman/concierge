@@ -161,7 +161,7 @@ func initialLaunchFixture(t *testing.T) (*Service, *initialLaunchRunner, Initial
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Create(context.Background(), taskstate.Definition{ID: "task-1", Title: "Work", Repo: "project", Kind: "ship"}); err != nil {
+	if _, err := service.Create(context.Background(), taskstate.Definition{ID: "task-1", Title: "Work", Repo: "project", Kind: "task"}); err != nil {
 		t.Fatal(err)
 	}
 	intent := taskstate.LaunchIntent{

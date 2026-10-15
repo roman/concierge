@@ -96,7 +96,7 @@ func TestLaunchPreservesRequestAndReportsHostOutcome(t *testing.T) {
 								ID:    "task-1",
 								Title: "Work",
 								Repo:  "repo",
-								Kind:  "ship",
+								Kind:  "task",
 							}, State: taskstate.InFlight,
 							Worker: &taskstate.Worker{
 								Name:       "worker",

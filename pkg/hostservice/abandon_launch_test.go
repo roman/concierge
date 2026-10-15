@@ -27,7 +27,7 @@ func TestAbandonFailedLaunchKeepsTaskAndResources(t *testing.T) {
 		}
 	}
 	before := task.Snapshot()
-	if err := server.controllers.awaitInitialResident(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
+	if err := server.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
 		t.Fatal(err)
 	}
 	script := `#!/bin/sh
@@ -73,7 +73,7 @@ esac
 			t.Fatalf("lost retained paths: %+v", result)
 		}
 	}
-	if len(server.controllers.initialResidentTasks()) != 0 {
+	if len(server.controllers.initialWakeupTasks()) != 0 {
 		t.Fatal("abandoned task remains eligible for recovery")
 	}
 }
@@ -117,7 +117,7 @@ func TestAbandonLaunchRefusesLiveOrUncertainResources(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := server.controllers.awaitInitialResident(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
+			if err := server.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
 				t.Fatal(err)
 			}
 			before := task.Snapshot()
@@ -161,7 +161,7 @@ esac
 			if err == nil {
 				t.Fatal("abandoned a live, uncertain, stale, or busy launch")
 			}
-			if len(server.controllers.initialResidentTasks()) != 1 {
+			if len(server.controllers.initialWakeupTasks()) != 1 {
 				t.Fatal("failed abandonment disabled recovery")
 			}
 
@@ -194,7 +194,7 @@ func TestHistoricalAbandonmentRetryPreservesNewLaunch(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := task.Snapshot()
-	if err := server.controllers.awaitInitialResident(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
+	if err := server.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
 		t.Fatal(err)
 	}
 	response, err := server.perform(
@@ -211,7 +211,7 @@ func TestHistoricalAbandonmentRetryPreservesNewLaunch(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(before, after.Snapshot()) {
 		t.Fatalf("historical retry changed new launch: %v", err)
 	}
-	if len(server.controllers.initialResidentTasks()) != 1 {
+	if len(server.controllers.initialWakeupTasks()) != 1 {
 		t.Fatal("historical retry disabled new recovery")
 	}
 	if response.Abandoned == nil || response.Abandoned.Worktree != input.Worktree ||

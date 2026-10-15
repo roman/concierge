@@ -4,9 +4,9 @@ import (
 	"errors"
 	"os"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/primary"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/tincan/pkg/inbox"
 )
 
@@ -59,7 +59,7 @@ func validateStatusResponse(response Response) error {
 	}
 	status := response.Status
 	for _, path := range []string{status.Root, status.MessageRoot, status.Executable} {
-		if _, err := firstmate.ParseAbsolutePath(path); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return err
 		}
 	}

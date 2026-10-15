@@ -105,7 +105,7 @@ func TestLaunchProgressRequiresMatchingRecoveryAdmission(t *testing.T) {
 		t.Fatalf("untracked launch: %v", err)
 	}
 	key := controllerKey{kind: taskController, id: input.TaskID}
-	if err := server.controllers.awaitInitialResident(key); err != nil {
+	if err := server.controllers.awaitInitialWakeup(key); err != nil {
 		t.Fatal(err)
 	}
 	changed := input
@@ -189,7 +189,7 @@ func TestTrackedLaunchRemainsInspectableAfterCallerDeadline(t *testing.T) {
 	if _, err := server.reserveInitialLaunch(ctx, input); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.controllers.awaitInitialResident(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
+	if err := server.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
 		t.Fatal(err)
 	}
 	expired, cancel := context.WithCancel(ctx)
@@ -218,12 +218,12 @@ func TestLaunchRegistrationFailureRetainsConfirmedWorker(t *testing.T) {
 				pane:    snapshot.Worker.Pane,
 			}
 			if state == "pending" {
-				if err := server.controllers.awaitInitialResident(key); err != nil {
+				if err := server.controllers.awaitInitialWakeup(key); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if strings.HasPrefix(state, "active") {
-				startEndpointResident(t, server, key, endpoint, func() error { return nil })
+				startEndpointWakeup(t, server, key, endpoint, func() error { return nil })
 				if state == "active" {
 					server.controllers.mu.Lock()
 					server.controllers.entries[key].specification = supervisionSpecification(

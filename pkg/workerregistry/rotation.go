@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"encoding/json"
@@ -8,18 +8,18 @@ import (
 	"reflect"
 	"syscall"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 // ReserveLaunch keeps one generation across message publication and launch retries.
 func (task *CurrentTask) ReserveLaunch(candidate string) (string, error) {
-	if task == nil || task.crewRoot == nil ||
-		firstmate.ValidateSpawnGeneration(candidate) != nil {
+	if task == nil || task.workerRegistryRoot == nil ||
+		taskmeta.ValidateSpawnGeneration(candidate) != nil {
 		return "", ErrInvalidRecord
 	}
 	var generation string
-	err := withCrewLock(task.crewRoot, func() error {
-		latest, err := readRecord(task.crewRoot, task.id.String())
+	err := withWorkerRegistryLock(task.workerRegistryRoot, func() error {
+		latest, err := readRecord(task.workerRegistryRoot, task.id.String())
 		if err != nil {
 			return err
 		}
@@ -34,7 +34,7 @@ func (task *CurrentTask) ReserveLaunch(candidate string) (string, error) {
 			return ErrInvalidRecord
 		}
 		latest.PendingLaunch = candidate
-		if err := replaceRecord(task.crewRoot, latest); err != nil {
+		if err := replaceRecord(task.workerRegistryRoot, latest); err != nil {
 			return err
 		}
 		task.record = latest
@@ -46,12 +46,12 @@ func (task *CurrentTask) ReserveLaunch(candidate string) (string, error) {
 
 // CompleteLaunch clears a reserved generation after Herdr confirms the worker.
 func (task *CurrentTask) CompleteLaunch() error {
-	if task == nil || task.crewRoot == nil || task.record.PendingLaunch == "" ||
+	if task == nil || task.workerRegistryRoot == nil || task.record.PendingLaunch == "" ||
 		task.record.PendingLaunch != task.record.SpawnGeneration {
 		return ErrInvalidRecord
 	}
-	return withCrewLock(task.crewRoot, func() error {
-		latest, err := readRecord(task.crewRoot, task.id.String())
+	return withWorkerRegistryLock(task.workerRegistryRoot, func() error {
+		latest, err := readRecord(task.workerRegistryRoot, task.id.String())
 		if err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func (task *CurrentTask) CompleteLaunch() error {
 			return ErrConflict
 		}
 		latest.PendingLaunch = ""
-		if err := replaceRecord(task.crewRoot, latest); err != nil {
+		if err := replaceRecord(task.workerRegistryRoot, latest); err != nil {
 			return err
 		}
 		task.record = latest
@@ -69,12 +69,12 @@ func (task *CurrentTask) CompleteLaunch() error {
 
 // CancelLaunch releases a future launch when the current worker is alive.
 func (task *CurrentTask) CancelLaunch() error {
-	if task == nil || task.crewRoot == nil || task.record.PendingLaunch == "" ||
+	if task == nil || task.workerRegistryRoot == nil || task.record.PendingLaunch == "" ||
 		task.record.PendingLaunch == task.record.SpawnGeneration {
 		return ErrInvalidRecord
 	}
-	return withCrewLock(task.crewRoot, func() error {
-		latest, err := readRecord(task.crewRoot, task.id.String())
+	return withWorkerRegistryLock(task.workerRegistryRoot, func() error {
+		latest, err := readRecord(task.workerRegistryRoot, task.id.String())
 		if err != nil {
 			return err
 		}
@@ -82,7 +82,7 @@ func (task *CurrentTask) CancelLaunch() error {
 			return ErrConflict
 		}
 		latest.PendingLaunch = ""
-		if err := replaceRecord(task.crewRoot, latest); err != nil {
+		if err := replaceRecord(task.workerRegistryRoot, latest); err != nil {
 			return err
 		}
 		task.record = latest
@@ -92,21 +92,21 @@ func (task *CurrentTask) CancelLaunch() error {
 
 // AdvanceGeneration records a new incarnation before a replacement worker starts.
 func (task *CurrentTask) AdvanceGeneration(next string) error {
-	if task == nil || task.taskRoot == nil || task.crewRoot == nil ||
-		firstmate.ValidateSpawnGeneration(next) != nil ||
+	if task == nil || task.taskRoot == nil || task.workerRegistryRoot == nil ||
+		taskmeta.ValidateSpawnGeneration(next) != nil ||
 		next == task.record.SpawnGeneration ||
 		(task.record.PendingLaunch != "" && next != task.record.PendingLaunch) {
 		return ErrInvalidRecord
 	}
-	return withCrewLock(task.crewRoot, func() error {
-		latest, err := readRecord(task.crewRoot, task.id.String())
+	return withWorkerRegistryLock(task.workerRegistryRoot, func() error {
+		latest, err := readRecord(task.workerRegistryRoot, task.id.String())
 		if err != nil {
 			return err
 		}
 		if !reflect.DeepEqual(latest, task.record) {
 			return ErrConflict
 		}
-		metadata, err := firstmate.ReadTaskFromRoot(task.taskRoot, task.id)
+		metadata, err := taskmeta.ReadTaskFromRoot(task.taskRoot, task.id)
 		if err != nil {
 			return err
 		}
@@ -115,10 +115,15 @@ func (task *CurrentTask) AdvanceGeneration(next string) error {
 		}
 		pending := latest
 		pending.PendingGeneration = next
-		if err := replaceRecord(task.crewRoot, pending); err != nil {
+		if err := replaceRecord(task.workerRegistryRoot, pending); err != nil {
 			return err
 		}
-		final, err := completePendingGeneration(task.taskRoot, task.crewRoot, task.id, pending)
+		final, err := completePendingGeneration(
+			task.taskRoot,
+			task.workerRegistryRoot,
+			task.id,
+			pending,
+		)
 		if err == nil {
 			task.record = final
 		}
@@ -127,31 +132,31 @@ func (task *CurrentTask) AdvanceGeneration(next string) error {
 }
 
 func recoverPendingGeneration(
-	taskRoot, crewRoot *os.Root,
-	id firstmate.TaskID,
+	taskRoot, workerRegistryRoot *os.Root,
+	id taskmeta.TaskID,
 	selected Record,
 ) (Record, error) {
 	var recovered Record
-	err := withCrewLock(crewRoot, func() error {
-		latest, err := readRecord(crewRoot, id.String())
+	err := withWorkerRegistryLock(workerRegistryRoot, func() error {
+		latest, err := readRecord(workerRegistryRoot, id.String())
 		if err != nil {
 			return err
 		}
 		if !reflect.DeepEqual(latest, selected) {
 			return ErrConflict
 		}
-		recovered, err = completePendingGeneration(taskRoot, crewRoot, id, latest)
+		recovered, err = completePendingGeneration(taskRoot, workerRegistryRoot, id, latest)
 		return err
 	})
 	return recovered, err
 }
 
 func completePendingGeneration(
-	taskRoot, crewRoot *os.Root,
-	id firstmate.TaskID,
+	taskRoot, workerRegistryRoot *os.Root,
+	id taskmeta.TaskID,
 	pending Record,
 ) (Record, error) {
-	metadata, err := firstmate.ReadTaskFromRoot(taskRoot, id)
+	metadata, err := taskmeta.ReadTaskFromRoot(taskRoot, id)
 	if err != nil {
 		return Record{}, err
 	}
@@ -160,7 +165,7 @@ func completePendingGeneration(
 	}
 	switch metadata.SpawnGeneration() {
 	case pending.SpawnGeneration:
-		if _, err := firstmate.ReplaceSpawnGenerationLocked(
+		if _, err := taskmeta.ReplaceSpawnGenerationLocked(
 			taskRoot,
 			id,
 			pending.SpawnGeneration,
@@ -175,13 +180,13 @@ func completePendingGeneration(
 	final := pending
 	final.SpawnGeneration = pending.PendingGeneration
 	final.PendingGeneration = ""
-	if err := replaceRecord(crewRoot, final); err != nil {
+	if err := replaceRecord(workerRegistryRoot, final); err != nil {
 		return Record{}, err
 	}
 	return final, nil
 }
 
-func withCrewLock(root *os.Root, operation func() error) error {
+func withWorkerRegistryLock(root *os.Root, operation func() error) error {
 	lock, err := lockfile.Open(root, ".lock")
 	if err != nil {
 		return err

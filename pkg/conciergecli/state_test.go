@@ -20,7 +20,7 @@ func legacyStateFixture(t *testing.T) (string, string) {
 	if err := os.Mkdir(root, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "backlog.md"), []byte("# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: ship)\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "backlog.md"), []byte("# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: task)\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	return root, filepath.Join(parent, "backup")
@@ -94,7 +94,7 @@ func TestStateRecoverPendingMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	task, err := taskstate.NewQueued(
-		taskstate.Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		taskstate.Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 	)
 	if err != nil {
 		t.Fatal(err)

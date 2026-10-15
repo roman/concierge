@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 // PendingCompletion identifies a backlog transition that still needs finishing.
@@ -18,7 +18,7 @@ type PendingCompletion struct {
 }
 
 // ListPendingCompletions reads durable completion markers, including tasks whose
-// metadata and crew records have already been retired.
+// metadata and worker registry records have already been retired.
 func (registry *Registry) ListPendingCompletions() ([]PendingCompletion, error) {
 	if registry == nil || registry.root == "" {
 		return nil, ErrInvalidRecord
@@ -71,7 +71,7 @@ func (registry *Registry) ListPendingCompletions() ([]PendingCompletion, error) 
 }
 
 func pendingCompletion(taskRoot *os.Root, name string) (PendingCompletion, bool, error) {
-	id, err := firstmate.ParseTaskID(strings.TrimSuffix(name, ".completion.json"))
+	id, err := taskmeta.ParseTaskID(strings.TrimSuffix(name, ".completion.json"))
 	if err != nil {
 		return PendingCompletion{}, false, fmt.Errorf("completion %s: %w", name, err)
 	}

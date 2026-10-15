@@ -9,10 +9,10 @@ import (
 
 func TestQueuedTaskRoundTripPreservesBacklogFields(t *testing.T) {
 	input := Definition{
-		ID: "task-1", Title: "Ship the task store", Body: "Keep the full task body.\n",
-		Repo: "exmachina", Kind: "ship",
+		ID: "task-1", Title: "Build the task store", Body: "Keep the full task body.\n",
+		Repo: "exmachina", Kind: "task",
 		Dependencies: []Dependency{{Type: "blocked-by", ID: "task-0", Reason: "wait for review"}},
-		Hold:         &Hold{Reason: "operator review", Kind: "captain", Until: "2026-10-20"},
+		Hold:         &Hold{Reason: "operator review", Kind: "primary", Until: "2026-10-20"},
 		Created:      "2026-10-11", Priority: priority(2),
 	}
 	task, err := NewQueued(input)
@@ -49,7 +49,7 @@ func TestQueuedTaskRoundTripPreservesBacklogFields(t *testing.T) {
 }
 
 func TestQueuedTaskRejectsInvalidDefinitions(t *testing.T) {
-	base := Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"}
+	base := Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"}
 	tests := []struct {
 		name string
 		edit func(*Definition)
@@ -65,7 +65,7 @@ func TestQueuedTaskRejectsInvalidDefinitions(t *testing.T) {
 				{Type: "blocked-by", ID: "task-0"},
 			}
 		}},
-		{"invalid hold", func(input *Definition) { input.Hold = &Hold{Kind: "captain"} }},
+		{"invalid hold", func(input *Definition) { input.Hold = &Hold{Kind: "primary"} }},
 		{"invalid date", func(input *Definition) { input.Created = "tomorrow" }},
 		{"invalid priority", func(input *Definition) { input.Priority = priority(5) }},
 		{"closed queued task", func(input *Definition) { input.Closed = "2026-10-11" }},
@@ -83,7 +83,7 @@ func TestQueuedTaskRejectsInvalidDefinitions(t *testing.T) {
 
 func TestDecodeRejectsUnknownAndImpossibleFields(t *testing.T) {
 	base := []byte(
-		`{"format":2,"id":"task-1","title":"Work","repo":"exmachina","kind":"ship","state":"queued"}`,
+		`{"format":2,"id":"task-1","title":"Work","repo":"exmachina","kind":"task","state":"queued"}`,
 	)
 	tests := []struct {
 		name string
@@ -115,7 +115,7 @@ func TestDecodeRejectsUnknownAndImpossibleFields(t *testing.T) {
 
 func TestMigratedTaskPreservesWorkerLaunchIntent(t *testing.T) {
 	input := Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      InFlight,
 		Worker: &Worker{
 			Name: "worker-1", Harness: "codex", Session: "work", Workspace: "workspace-1",
@@ -148,7 +148,7 @@ func TestMigratedTaskPreservesWorkerLaunchIntent(t *testing.T) {
 
 func TestMigratedTaskRejectsConflictingResultState(t *testing.T) {
 	base := Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      InFlight,
 		Worker: &Worker{
 			Name: "worker-1", Harness: "codex", Session: "work", Workspace: "workspace-1",
@@ -192,7 +192,7 @@ func TestMigratedTaskRejectsConflictingResultState(t *testing.T) {
 }
 
 func TestMigratedTaskRepresentsCompletionStages(t *testing.T) {
-	definition := Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"}
+	definition := Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"}
 	worker := &Worker{
 		Name: "worker-1", Harness: "codex", Session: "work", Workspace: "workspace-1",
 		Tab: "tab-1", Pane: "pane-1", Project: "/project", Worktree: "/worktree",
@@ -247,7 +247,7 @@ func TestMigratedTaskRepresentsCompletionStages(t *testing.T) {
 
 func TestMigratedTaskRejectsAcceptedResultWithoutWorker(t *testing.T) {
 	input := Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      Done,
 		Completion: &Completion{Generation: "gen-1", Mode: Close, Phase: Accepted},
 	}
@@ -258,7 +258,7 @@ func TestMigratedTaskRejectsAcceptedResultWithoutWorker(t *testing.T) {
 
 func TestMigratedTaskPreservesEarlierRetiredReceipt(t *testing.T) {
 	input := Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      InFlight,
 		Worker: &Worker{
 			Name: "worker-2", Harness: "codex", Session: "work", Workspace: "workspace-2",
@@ -299,7 +299,7 @@ func TestMigratedTaskRejectsConflictingReceiptHistory(t *testing.T) {
 		{{Generation: "gen-1", Mode: Close}},
 	} {
 		_, err := NewMigrated(Snapshot{
-			Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+			Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 			State:      Queued, Receipt: &Receipt{Generation: "gen-2", Mode: Retain},
 			PriorReceipts: prior,
 		})
@@ -316,7 +316,7 @@ func TestMigratedTaskRejectsWorkerAfterTerminalClose(t *testing.T) {
 		Workspace: "workspace-1", Tab: "tab-2", AgentArgs: []string{"resume", "thread-2"},
 	}
 	_, err := NewMigrated(Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      Done, Worker: &worker,
 		Completion: &Completion{Generation: "gen-2", Mode: Close, Phase: Accepted},
 		Receipt:    &Receipt{Generation: "gen-1", Mode: Close},
@@ -328,7 +328,7 @@ func TestMigratedTaskRejectsWorkerAfterTerminalClose(t *testing.T) {
 
 func TestMigratedTaskPreservesReceiptWithoutWorker(t *testing.T) {
 	input := Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      Done, Receipt: &Receipt{Generation: "gen-1", Mode: Close},
 	}
 	if _, err := NewMigrated(input); err != nil {
@@ -344,7 +344,7 @@ func TestMigratedTaskRejectsInvalidReceipt(t *testing.T) {
 	}
 	for _, receipt := range tests {
 		input := Snapshot{
-			Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+			Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 			State:      Done, Receipt: &receipt,
 		}
 		if _, err := NewMigrated(input); !errors.Is(err, ErrInvalidTask) {
@@ -377,7 +377,7 @@ func TestMigratedTaskRejectsReceiptForActiveGeneration(t *testing.T) {
 					ID:    "task-1",
 					Title: "Work",
 					Repo:  "exmachina",
-					Kind:  "ship",
+					Kind:  "task",
 				},
 				State: InFlight, Worker: &worker,
 				Receipt: &Receipt{Generation: "gen-1", Mode: Retain},
@@ -391,7 +391,7 @@ func TestMigratedTaskRejectsReceiptForActiveGeneration(t *testing.T) {
 
 func TestMigratedTaskKeepsOldReceiptDuringNewRetirement(t *testing.T) {
 	input := Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      Done,
 		Completion: &Completion{Generation: "gen-2", Mode: Close, Phase: Retired},
 		Receipt:    &Receipt{Generation: "gen-1", Mode: Retain},
@@ -408,7 +408,7 @@ func TestMigratedTaskPreservesWorkerDuringPartialRetirement(t *testing.T) {
 		AgentArgs: []string{"resume", "thread-1"},
 	}
 	input := Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      Done, Worker: worker,
 		Completion: &Completion{Generation: "gen-1", Mode: Close, Phase: Retired},
 	}
@@ -437,7 +437,7 @@ func TestMigratedTaskChecksReceiptAgainstSameGenerationCompletion(t *testing.T) 
 					ID:    "task-1",
 					Title: "Work",
 					Repo:  "exmachina",
-					Kind:  "ship",
+					Kind:  "task",
 				},
 				State:      Queued,
 				Completion: &Completion{Generation: "gen-1", Mode: Retain, Phase: Retired},
@@ -456,7 +456,7 @@ func TestMigratedTaskChecksReceiptAgainstSameGenerationCompletion(t *testing.T) 
 
 func TestEncodeRejectsRecordBeyondDecodeLimit(t *testing.T) {
 	task, err := NewQueued(Definition{
-		ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship",
+		ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task",
 		Body: strings.Repeat("x", maximumTaskBytes),
 	})
 	if err != nil {
@@ -469,7 +469,7 @@ func TestEncodeRejectsRecordBeyondDecodeLimit(t *testing.T) {
 
 func TestMigrationRejectsMalformedWorkerBinding(t *testing.T) {
 	base := Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      Queued,
 		Worker: &Worker{
 			Name: "worker-1", Harness: "codex", Session: "work", Workspace: "workspace-1",
@@ -509,7 +509,7 @@ func TestMigrationRejectsMalformedWorkerBinding(t *testing.T) {
 
 func TestMigratedCompletionIsDetachedFromCaller(t *testing.T) {
 	input := Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      InFlight,
 		Worker: &Worker{
 			Name: "worker-1", Harness: "codex", Session: "work", Workspace: "workspace-1",
@@ -533,7 +533,7 @@ func TestMigratedCompletionIsDetachedFromCaller(t *testing.T) {
 func TestDecodeRejectsOversizedRecord(t *testing.T) {
 	data := append(
 		[]byte(
-			`{"format":2,"id":"task-1","title":"Work","repo":"exmachina","kind":"ship","state":"queued","body":"`,
+			`{"format":2,"id":"task-1","title":"Work","repo":"exmachina","kind":"task","state":"queued","body":"`,
 		),
 		[]byte(strings.Repeat("x", maximumTaskBytes))...)
 	data = append(data, []byte(`"}`)...)

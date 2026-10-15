@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"slices"
 	"syscall"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 // Adoption names a live worker and the exact launch details needed for recovery.
@@ -27,7 +27,7 @@ type Adoption struct {
 	AgentArgs []string
 }
 
-// AdoptLocalTask reserves a worker, publishes local task metadata, and completes its crew record.
+// AdoptLocalTask reserves a worker, publishes local task metadata, and completes its worker registry record.
 // A retry completes a pending reservation after an interrupted publication.
 func (registry *Registry) AdoptLocalTask(
 	ctx context.Context,
@@ -37,12 +37,12 @@ func (registry *Registry) AdoptLocalTask(
 	if err := ValidateLaunch(input.Name, input.AgentArgs); err != nil {
 		return err
 	}
-	id, err := firstmate.ParseTaskID(input.TaskID)
+	id, err := taskmeta.ParseTaskID(input.TaskID)
 	if err != nil {
 		return err
 	}
 	for _, path := range []string{input.Project, input.Worktree} {
-		if _, err := firstmate.ParseAbsolutePath(path); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return err
 		}
 	}
@@ -73,7 +73,7 @@ func (registry *Registry) AdoptLocalTask(
 
 func (registry *Registry) recoverAdoption(
 	input Adoption,
-	id firstmate.TaskID,
+	id taskmeta.TaskID,
 	root *os.Root,
 	check func() error,
 ) (bool, error) {
@@ -87,7 +87,7 @@ func (registry *Registry) recoverAdoption(
 	if !reserved.PendingAdoption {
 		return false, nil
 	}
-	metadata, err := firstmate.ReadTaskFromRoot(root, id)
+	metadata, err := taskmeta.ReadTaskFromRoot(root, id)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -108,23 +108,23 @@ func (registry *Registry) recoverAdoption(
 
 // CancelPendingAdoption releases a reservation only when task metadata is absent.
 func (registry *Registry) CancelPendingAdoption(taskID string) error {
-	id, err := firstmate.ParseTaskID(taskID)
+	id, err := taskmeta.ParseTaskID(taskID)
 	if err != nil {
 		return err
 	}
 	return registry.withLockedTask(taskID, func(taskRoot *os.Root, check func() error) error {
-		if _, err := firstmate.ReadTaskFromRoot(taskRoot, id); !errors.Is(err, os.ErrNotExist) {
+		if _, err := taskmeta.ReadTaskFromRoot(taskRoot, id); !errors.Is(err, os.ErrNotExist) {
 			if err != nil {
 				return err
 			}
 			return ErrConflict
 		}
-		crewRoot, err := registry.openCrew()
+		workerRegistryRoot, err := registry.openWorkerRegistry()
 		if err != nil {
 			return err
 		}
-		defer crewRoot.Close()
-		lock, err := lockfile.Open(crewRoot, ".lock")
+		defer workerRegistryRoot.Close()
+		lock, err := lockfile.Open(workerRegistryRoot, ".lock")
 		if err != nil {
 			return err
 		}
@@ -133,7 +133,7 @@ func (registry *Registry) CancelPendingAdoption(taskID string) error {
 			return err
 		}
 		defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
-		record, err := readRecord(crewRoot, taskID)
+		record, err := readRecord(workerRegistryRoot, taskID)
 		if err != nil {
 			return err
 		}
@@ -143,17 +143,17 @@ func (registry *Registry) CancelPendingAdoption(taskID string) error {
 		if err := check(); err != nil {
 			return err
 		}
-		if err := crewRoot.Remove(taskID + ".json"); err != nil {
+		if err := workerRegistryRoot.Remove(taskID + ".json"); err != nil {
 			return err
 		}
-		return syncRoot(crewRoot)
+		return syncRoot(workerRegistryRoot)
 	})
 }
 
 func (registry *Registry) adoptLocked(
 	ctx context.Context,
 	input Adoption,
-	id firstmate.TaskID,
+	id taskmeta.TaskID,
 	target herdr.Target,
 	bound herdr.Client,
 	root *os.Root,
@@ -176,7 +176,7 @@ func (registry *Registry) adoptLocked(
 	if health := bound.Health(ctx, target); health.Endpoint != herdr.Alive {
 		return fmt.Errorf("worker endpoint is %s", health.Endpoint)
 	}
-	previous, err := firstmate.ReadTaskFromRoot(root, id)
+	previous, err := taskmeta.ReadTaskFromRoot(root, id)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -212,12 +212,12 @@ func (registry *Registry) adoptLocked(
 		details.TabID,
 		input.Pane,
 	))
-	if _, err := firstmate.Parse(data, id); err != nil {
+	if _, err := taskmeta.Parse(data, id); err != nil {
 		return err
 	}
 	if previous.SpawnGeneration() != "" &&
 		!sameAdoptionBinding(previous, input, details, agent.Kind) {
-		return firstmate.ErrMetadataConflict
+		return taskmeta.ErrMetadataConflict
 	}
 	return registry.registerAfter(Record{
 		TaskID: id.String(), Name: input.Name, Kind: agent.Kind, PaneID: input.Pane,
@@ -228,7 +228,7 @@ func (registry *Registry) adoptLocked(
 			return err
 		}
 		if previous.SpawnGeneration() == "" {
-			_, err := firstmate.CreateTaskMetadataLocked(root, id, data)
+			_, err := taskmeta.CreateTaskMetadataLocked(root, id, data)
 			return err
 		}
 		return nil
@@ -236,7 +236,7 @@ func (registry *Registry) adoptLocked(
 }
 
 func sameAdoptionBinding(
-	previous firstmate.Metadata,
+	previous taskmeta.Metadata,
 	input Adoption,
 	details herdr.PaneDetails,
 	harness string,

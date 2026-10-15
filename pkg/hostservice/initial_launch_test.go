@@ -205,7 +205,7 @@ esac
 		t.Fatal(err)
 	}
 	task, err := taskstate.NewQueued(
-		taskstate.Definition{ID: "task-2", Title: "Launch", Repo: "repo", Kind: "ship"},
+		taskstate.Definition{ID: "task-2", Title: "Launch", Repo: "repo", Kind: "task"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -411,18 +411,18 @@ func TestInitialLaunchReservationExcludesTaskOperations(t *testing.T) {
 	again()
 }
 
-func TestInitialLaunchReservationRejectsExistingResident(t *testing.T) {
+func TestInitialLaunchReservationRejectsExistingWakeup(t *testing.T) {
 	server, key, endpoint := taskEndpointFixture(t)
-	startEndpointResident(t, server, key, endpoint, func() error { return nil })
+	startEndpointWakeup(t, server, key, endpoint, func() error { return nil })
 	if _, err := server.controllers.reserveInitialLaunch(key); !errors.Is(err, errControllerBusy) {
-		t.Fatalf("resident overlaps initial launch: %v", err)
+		t.Fatalf("wakeup overlaps initial launch: %v", err)
 	}
 }
 
 func TestManualControlRejectsInitialLaunchEndpoint(t *testing.T) {
 	server, _, endpoint := taskEndpointFixture(t)
 	queued, err := taskstate.NewQueued(
-		taskstate.Definition{ID: "task-2", Title: "Launch", Repo: "repo", Kind: "ship"},
+		taskstate.Definition{ID: "task-2", Title: "Launch", Repo: "repo", Kind: "task"},
 	)
 	if err != nil {
 		t.Fatal(err)

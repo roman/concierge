@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"os"

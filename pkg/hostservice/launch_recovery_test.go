@@ -122,7 +122,7 @@ func TestUncertainLaunchReservationRemainsTrackedForRecovery(t *testing.T) {
 		before.Snapshot().Worker != nil {
 		t.Fatal("uncertain reservation advanced to launch effects")
 	}
-	if len(server.controllers.initialResidentTasks()) != 1 {
+	if len(server.controllers.initialWakeupTasks()) != 1 {
 		t.Fatal("uncertain reservation lost recovery admission")
 	}
 	server.reserveLaunchIntent = server.store.ReserveInitialLaunch
@@ -147,20 +147,20 @@ func TestRecoveredLaunchReservationRejectsStoppedSelection(t *testing.T) {
 	registry := newControllerRegistry(context.Background())
 	defer registry.close()
 	key := controllerKey{kind: taskController, id: "task-1"}
-	if err := registry.awaitInitialResident(key); err != nil {
+	if err := registry.awaitInitialWakeup(key); err != nil {
 		t.Fatal(err)
 	}
-	selected := registry.initialResidentTasks()[0]
+	selected := registry.initialWakeupTasks()[0]
 	if err := registry.stop(context.Background(), key); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := registry.reserveRecoveredLaunch(selected); !errors.Is(
 		err,
-		errInitialResidentStopped,
+		errInitialWakeupStopped,
 	) {
 		t.Fatalf("stopped continuation: %v", err)
 	}
-	if err := registry.awaitInitialResident(key); err != nil {
+	if err := registry.awaitInitialWakeup(key); err != nil {
 		t.Fatal(err)
 	}
 	release, err := registry.reserveRecoveredLaunch(key)
@@ -211,25 +211,25 @@ esac
 func TestInitialReconciliationRetriesRegistrationAndPreservesStop(t *testing.T) {
 	server, key, failure := initialRecoveryFixture(t)
 	ctx := context.Background()
-	if err := server.controllers.awaitInitialResident(key); err != nil {
+	if err := server.controllers.awaitInitialWakeup(key); err != nil {
 		t.Fatal(err)
 	}
 	server.reconcileInitialTasks(ctx)
-	if len(server.controllers.initialResidentTasks()) != 1 {
+	if len(server.controllers.initialWakeupTasks()) != 1 {
 		t.Fatal("transient registration failure lost recovery tracking")
 	}
 	if err := os.Remove(failure); err != nil {
 		t.Fatal(err)
 	}
 	server.reconcileInitialTasks(ctx)
-	if len(server.controllers.initialResidentTasks()) != 0 {
+	if len(server.controllers.initialWakeupTasks()) != 0 {
 		t.Fatal("successful registration remains pending")
 	}
 	server.controllers.mu.Lock()
 	entry := server.controllers.entries[key]
 	server.controllers.mu.Unlock()
 	if entry == nil {
-		t.Fatal("reconciliation did not register the resident")
+		t.Fatal("reconciliation did not register the wakeup")
 	}
 	if _, err := server.supervision(ctx, StopSupervision, SupervisionRequest{TaskID: key.id}); err != nil {
 		t.Fatal(err)
@@ -243,7 +243,7 @@ func TestInitialReconciliationRetriesRegistrationAndPreservesStop(t *testing.T) 
 	}
 }
 
-func TestServeRecoversInitialResidentWithoutClientAndJoinsOnCancel(t *testing.T) {
+func TestServeRecoversInitialWakeupWithoutClientAndJoinsOnCancel(t *testing.T) {
 	server, key, failure := initialRecoveryFixture(t)
 	server.config.Supervision.Interval = 5 * time.Millisecond
 	if err := server.controllers.close(); err != nil {
@@ -281,7 +281,7 @@ func TestServeRecoversInitialResidentWithoutClientAndJoinsOnCancel(t *testing.T)
 	case <-time.After(5 * time.Second):
 		t.Fatal("host did not become ready after initial registration failure")
 	}
-	if len(server.controllers.initialResidentTasks()) != 1 {
+	if len(server.controllers.initialWakeupTasks()) != 1 {
 		t.Fatal("startup did not reconstruct initial registration tracking")
 	}
 	if err := os.Remove(failure); err != nil {

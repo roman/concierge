@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/worktree"
 	"github.com/roman/tincan/pkg/inbox"
@@ -49,7 +49,7 @@ func (service *Service) ContinueInitialLaunch(
 	if config.ReserveEndpoint == nil {
 		return taskstate.Task{}, errors.New("initial launch requires endpoint reservation")
 	}
-	if _, err := firstmate.ParseAbsolutePath(config.MessageRoot); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(config.MessageRoot); err != nil {
 		return taskstate.Task{}, err
 	}
 	_, intent, err := service.initialLaunch(ctx, taskID, generation)

@@ -14,19 +14,19 @@ import (
 	"github.com/roman/concierge/pkg/herdr"
 )
 
-func TestWithPresentationLockSharesFirstmateIdentity(t *testing.T) {
+func TestWithPresentationLockSharesTaskMetadataIdentity(t *testing.T) {
 	directory := t.TempDir()
-	namespace := filepath.Join(directory, "firstmate-herdr-presentation")
-	socket := filepath.Join(directory, "crew.sock")
+	namespace := filepath.Join(directory, "concierge-herdr-presentation")
+	socket := filepath.Join(directory, "work.sock")
 	runner := &healthRunner{responses: []healthResponse{
-		{out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + socket + `"}]}`},
-		{out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + socket + `"}]}`},
+		{out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + socket + `"}]}`},
+		{out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + socket + `"}]}`},
 	}}
 	client := herdr.Client{SessionRunner: runner}
-	key := sha256.Sum256([]byte("crew\x00" + socket))
+	key := sha256.Sum256([]byte("work\x00" + socket))
 	lockPath := filepath.Join(namespace, "order-"+hex.EncodeToString(key[:])[:32]+".lock")
 	called := false
-	err := withLock(context.Background(), client, "crew", namespace, func() error {
+	err := withLock(context.Background(), client, "work", namespace, func() error {
 		called = true
 		owner, err := os.Readlink(lockPath)
 		if err != nil {
@@ -42,7 +42,7 @@ func TestWithPresentationLockSharesFirstmateIdentity(t *testing.T) {
 		t.Fatalf("withPresentationLock called = %v, err = %v", called, err)
 	}
 	if len(runner.calls) != 2 || len(runner.calls[0].args) != 5 ||
-		runner.calls[0].args[3] != "--session" || runner.calls[0].args[4] != "crew" {
+		runner.calls[0].args[3] != "--session" || runner.calls[0].args[4] != "work" {
 		t.Fatalf("session lookup calls = %v", runner.calls)
 	}
 	if _, err := os.Lstat(lockPath); !errors.Is(err, os.ErrNotExist) {
@@ -54,13 +54,13 @@ func TestWithPresentationLockRefusesChangedSocket(t *testing.T) {
 	directory := t.TempDir()
 	runner := &healthRunner{responses: []healthResponse{
 		{
-			out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + filepath.Join(
+			out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + filepath.Join(
 				directory,
 				"one.sock",
 			) + `"}]}`,
 		},
 		{
-			out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + filepath.Join(
+			out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + filepath.Join(
 				directory,
 				"two.sock",
 			) + `"}]}`,
@@ -70,7 +70,7 @@ func TestWithPresentationLockRefusesChangedSocket(t *testing.T) {
 	err := withLock(
 		context.Background(),
 		herdr.Client{SessionRunner: runner},
-		"crew",
+		"work",
 		filepath.Join(directory, "locks"),
 		func() error {
 			called = true
@@ -85,9 +85,9 @@ func TestWithPresentationLockRefusesChangedSocket(t *testing.T) {
 func TestWithPresentationLockRefusesAmbiguousSession(t *testing.T) {
 	for _, body := range []string{
 		`{"sessions":[]}`,
-		`{"sessions":[{"name":"crew","running":false,"socket_path":"/tmp/crew.sock"}]}`,
-		`{"sessions":[{"name":"crew","running":true,"socket_path":"/tmp/a"},{"name":"crew","running":true,"socket_path":"/tmp/b"}]}`,
-		`{"sessions":[{"name":"crew","running":true,"socket_path":null}]}`,
+		`{"sessions":[{"name":"work","running":false,"socket_path":"/tmp/work.sock"}]}`,
+		`{"sessions":[{"name":"work","running":true,"socket_path":"/tmp/a"},{"name":"work","running":true,"socket_path":"/tmp/b"}]}`,
+		`{"sessions":[{"name":"work","running":true,"socket_path":null}]}`,
 	} {
 		t.Run(body, func(t *testing.T) {
 			runner := &healthRunner{responses: []healthResponse{{out: body}}}
@@ -95,7 +95,7 @@ func TestWithPresentationLockRefusesAmbiguousSession(t *testing.T) {
 			err := withLock(
 				context.Background(),
 				herdr.Client{SessionRunner: runner},
-				"crew",
+				"work",
 				filepath.Join(t.TempDir(), "locks"),
 				func() error {
 					called = true
@@ -117,12 +117,14 @@ func TestWithPresentationLockRefusesUnsafeNamespace(t *testing.T) {
 	}
 	runner := &healthRunner{
 		responses: []healthResponse{
-			{out: `{"sessions":[{"name":"crew","running":true,"socket_path":"/tmp/crew.sock"}]}`},
+			{
+				out: `{"sessions":[{"name":"work","running":true,"socket_path":"/tmp/work.sock"}]}`,
+			},
 		},
 	}
 	err := withLock(
 		context.Background(), herdr.Client{SessionRunner: runner},
-		"crew",
+		"work",
 		namespace,
 		func() error { t.Fatal("unsafe callback"); return nil },
 	)
@@ -137,15 +139,15 @@ func TestWithPresentationLockWaitsForExistingOwner(t *testing.T) {
 	if err := os.Mkdir(namespace, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	socket := filepath.Join(directory, "crew.sock")
-	key := sha256.Sum256([]byte("crew\x00" + socket))
+	socket := filepath.Join(directory, "work.sock")
+	key := sha256.Sum256([]byte("work\x00" + socket))
 	lockPath := filepath.Join(namespace, "order-"+hex.EncodeToString(key[:])[:32]+".lock")
 	if err := os.Mkdir(lockPath, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	runner := &healthRunner{
 		responses: []healthResponse{
-			{out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + socket + `"}]}`},
+			{out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + socket + `"}]}`},
 		},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
@@ -153,7 +155,7 @@ func TestWithPresentationLockWaitsForExistingOwner(t *testing.T) {
 	called := false
 	err := withLock(
 		ctx, herdr.Client{SessionRunner: runner},
-		"crew",
+		"work",
 		namespace,
 		func() error {
 			called = true
@@ -171,16 +173,16 @@ func TestWithPresentationLockWaitsForExistingOwner(t *testing.T) {
 func TestWithPresentationLockReleasesAfterOperationError(t *testing.T) {
 	directory := t.TempDir()
 	namespace := filepath.Join(directory, "locks")
-	socket := filepath.Join(directory, "crew.sock")
+	socket := filepath.Join(directory, "work.sock")
 	runner := &healthRunner{responses: []healthResponse{
-		{out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + socket + `"}]}`},
-		{out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + socket + `"}]}`},
+		{out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + socket + `"}]}`},
+		{out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + socket + `"}]}`},
 	}}
 	want := errors.New("operation failed")
 	err := withLock(
 		context.Background(),
 		herdr.Client{SessionRunner: runner},
-		"crew",
+		"work",
 		namespace,
 		func() error { return want },
 	)
@@ -199,8 +201,8 @@ func TestWithPresentationLockRecoversDeadOwner(t *testing.T) {
 	if err := os.Mkdir(namespace, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	socket := filepath.Join(directory, "crew.sock")
-	key := sha256.Sum256([]byte("crew\x00" + socket))
+	socket := filepath.Join(directory, "work.sock")
+	key := sha256.Sum256([]byte("work\x00" + socket))
 	lockPath := filepath.Join(namespace, "order-"+hex.EncodeToString(key[:])[:32]+".lock")
 	owner := lockPath + ".owner.dead"
 	if err := os.Mkdir(owner, 0o700); err != nil {
@@ -213,14 +215,14 @@ func TestWithPresentationLockRecoversDeadOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &healthRunner{responses: []healthResponse{
-		{out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + socket + `"}]}`},
-		{out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + socket + `"}]}`},
+		{out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + socket + `"}]}`},
+		{out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + socket + `"}]}`},
 	}}
 	called := false
 	err := withLock(
 		context.Background(),
 		herdr.Client{SessionRunner: runner},
-		"crew",
+		"work",
 		namespace,
 		func() error { called = true; return nil },
 	)
@@ -243,26 +245,26 @@ func TestWithPresentationLockCanonicalizesSocketParent(t *testing.T) {
 		t.Fatal(err)
 	}
 	namespace := filepath.Join(directory, "locks")
-	key := sha256.Sum256([]byte("crew\x00" + filepath.Join(physical, "crew.sock")))
+	key := sha256.Sum256([]byte("work\x00" + filepath.Join(physical, "work.sock")))
 	lockPath := filepath.Join(namespace, "order-"+hex.EncodeToString(key[:])[:32]+".lock")
 	runner := &healthRunner{responses: []healthResponse{
 		{
-			out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + filepath.Join(
+			out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + filepath.Join(
 				alias,
-				"crew.sock",
+				"work.sock",
 			) + `"}]}`,
 		},
 		{
-			out: `{"sessions":[{"name":"crew","running":true,"socket_path":"` + filepath.Join(
+			out: `{"sessions":[{"name":"work","running":true,"socket_path":"` + filepath.Join(
 				physical,
-				"crew.sock",
+				"work.sock",
 			) + `"}]}`,
 		},
 	}}
 	err := withLock(
 		context.Background(),
 		herdr.Client{SessionRunner: runner},
-		"crew",
+		"work",
 		namespace,
 		func() error {
 			if _, err := os.Readlink(lockPath); err != nil {

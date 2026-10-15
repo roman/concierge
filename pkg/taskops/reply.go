@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"os"
 	"strings"
 
@@ -103,7 +103,7 @@ func (service *Service) resolve(
 				return inbox.ErrDispositionConflict
 			}
 			generation = strings.TrimSuffix(strings.TrimPrefix(existing.Action, prefix), suffix)
-			if firstmate.ValidateSpawnGeneration(generation) != nil {
+			if taskmeta.ValidateSpawnGeneration(generation) != nil {
 				return inbox.ErrDispositionConflict
 			}
 		} else if !errors.Is(dispositionErr, os.ErrNotExist) {

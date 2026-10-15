@@ -1,4 +1,4 @@
-package firstmate
+package taskmeta
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const validMetadata = "window=crew:pane-1\nendpoint_task_id=task-1\nworktree=/repo/worktree\nproject=/repo\nharness=codex\nkind=ship\nspawn_gen=s123.456.7\nbackend=herdr\nherdr_session=crew\nherdr_workspace_id=workspace-1\nherdr_tab_id=tab:1\nherdr_pane_id=pane-1\n"
+const validMetadata = "window=work:pane-1\nendpoint_task_id=task-1\nworktree=/repo/worktree\nproject=/repo\nharness=codex\nkind=task\nspawn_gen=s123.456.7\nbackend=herdr\nherdr_session=work\nherdr_workspace_id=workspace-1\nherdr_tab_id=tab:1\nherdr_pane_id=pane-1\n"
 
 func TestReplaceSpawnGenerationLockedPreservesTaskMetadata(t *testing.T) {
 	state := t.TempDir()
@@ -120,19 +120,19 @@ func TestParseLocalHerdrMetadata(t *testing.T) {
 		metadata.Worktree().String() != "/repo/worktree" {
 		t.Fatalf("unexpected metadata: %+v", metadata)
 	}
-	if metadata.Window() != "crew:pane-1" || metadata.HerdrSession() != "crew" ||
+	if metadata.Window() != "work:pane-1" || metadata.HerdrSession() != "work" ||
 		metadata.HerdrPaneID() != "pane-1" ||
 		metadata.HerdrWorkspaceID() != "workspace-1" ||
 		metadata.HerdrTabID() != "tab:1" {
 		t.Fatalf("unexpected endpoint: %+v", metadata)
 	}
-	if metadata.Harness() != "codex" || metadata.Kind() != "ship" ||
+	if metadata.Harness() != "codex" || metadata.Kind() != "task" ||
 		metadata.SpawnGeneration() != "s123.456.7" {
 		t.Fatalf("unexpected task fields: %+v", metadata)
 	}
 }
 
-func TestParseAcceptsFirstmateSpawnGenerationForms(t *testing.T) {
+func TestParseAcceptsSpawnGenerationForms(t *testing.T) {
 	id, _ := ParseTaskID("task-1")
 	for _, generation := range []string{"-legacy", "_legacy"} {
 		t.Run(generation, func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestParseRejectsUnsafeMetadata(t *testing.T) {
 		{"missing backend", strings.Replace(validMetadata, "backend=herdr\n", "", 1)},
 		{
 			"window mismatch",
-			strings.Replace(validMetadata, "window=crew:pane-1", "window=other:pane-1", 1),
+			strings.Replace(validMetadata, "window=work:pane-1", "window=other:pane-1", 1),
 		},
 		{
 			"relative worktree",
@@ -173,7 +173,7 @@ func TestParseRejectsUnsafeMetadata(t *testing.T) {
 		{"relative project", strings.Replace(validMetadata, "project=/repo", "project=repo", 1)},
 		{
 			"malformed session",
-			strings.Replace(validMetadata, "herdr_session=crew", "herdr_session=bad:session", 1),
+			strings.Replace(validMetadata, "herdr_session=work", "herdr_session=bad:session", 1),
 		},
 		{
 			"malformed tab",
@@ -192,7 +192,7 @@ func TestParseRejectsUnsafeMetadata(t *testing.T) {
 			strings.Replace(validMetadata, "spawn_gen=s123.456.7", "spawn_gen=gen@2", 1),
 		},
 		{"missing harness", strings.Replace(validMetadata, "harness=codex\n", "", 1)},
-		{"missing kind", strings.Replace(validMetadata, "kind=ship\n", "", 1)},
+		{"missing kind", strings.Replace(validMetadata, "kind=task\n", "", 1)},
 		{
 			"control character",
 			strings.Replace(validMetadata, "herdr_pane_id=pane-1", "herdr_pane_id=pane\t1", 1),

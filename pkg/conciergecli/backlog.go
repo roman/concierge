@@ -44,7 +44,7 @@ type backlogCommands struct {
 	Hold struct {
 		TaskID string `arg:"" help:"Task ID."`
 		Reason string `required:"" help:"Reason for the hold."`
-		Kind   string `help:"Optional hold kind: captain, external, load, parked, or future."`
+		Kind   string `help:"Optional hold kind: primary, external, load, parked, or future."`
 		Until  string `help:"Optional date YYYY-MM-DD; records a date without scheduling release."`
 	} `cmd:"" help:"Replace the task hold to block dispatch or close."`
 	Release struct {

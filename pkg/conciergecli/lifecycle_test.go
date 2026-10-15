@@ -88,7 +88,7 @@ printf '%s\n' '{"error":{"code":"pane_not_found"}}'
 				"--reason",
 				"Review",
 				"--kind",
-				"captain",
+				"primary",
 				"--until",
 				"2026-10-15",
 			)

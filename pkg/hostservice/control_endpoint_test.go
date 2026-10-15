@@ -38,7 +38,7 @@ func TestManualStartAndSupervisionRejectTaskBoundPane(t *testing.T) {
 	}
 }
 
-func TestControlInterruptResolvesAliasBeforeResidentReservation(t *testing.T) {
+func TestControlInterruptResolvesAliasBeforeWakeupReservation(t *testing.T) {
 	server, _, endpoint := taskEndpointFixture(t)
 	server.config.Session = "work"
 	calls := filepath.Join(t.TempDir(), "calls")
@@ -46,7 +46,7 @@ func TestControlInterruptResolvesAliasBeforeResidentReservation(t *testing.T) {
 	if err := os.WriteFile(server.config.HerdrExecutable, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
-	startEndpointResident(
+	startEndpointWakeup(
 		t,
 		server,
 		controllerKey{kind: paneController, id: "pane-1"},
@@ -59,7 +59,7 @@ func TestControlInterruptResolvesAliasBeforeResidentReservation(t *testing.T) {
 		ControlRequest{Target: "worker"},
 	)
 	if !errors.Is(err, errControllerBusy) {
-		t.Fatalf("alias bypassed resident: %v", err)
+		t.Fatalf("alias bypassed wakeup: %v", err)
 	}
 	data, _ := os.ReadFile(calls)
 	if string(data) != "agent get worker\n" {

@@ -27,7 +27,7 @@ sessions. A host without a manual session can supervise tasks; manual control
 requires a fixed host session. Use `host --herdr PATH`, `--interval DURATION`,
 `--restart-tolerance N`, and `--restart-window DURATION` to configure the host.
 
-Startup attempts to restore eligible in-flight task residents before reporting
+Startup attempts to restore eligible in-flight task wakeups before reporting
 `status: ready`. Each failed restoration reports a diagnostic and leaves the
 host available for repairs. Retry supervision explicitly after fixing the task.
 Readiness confirms completed restoration attempts and an available host.
@@ -158,11 +158,11 @@ For an active accepted generation, stop closes its exact recorded pane. A retry
 for a retired generation can succeed from its receipt and leaves a newer worker
 unchanged. Cleanup verifies pane departure and retires the accepted worker
 binding. Preserve the accepted generation through these
-steps. Stop and cleanup join the matching resident before their pane operations.
+steps. Stop and cleanup join the matching wakeup before their pane operations.
 Their task and endpoint reservations block conflicting operations until they
 finish. Invalid cleanup leaves supervision running. An operation failure after
-resident shutdown reports that supervision is stopped. Inspect the worker before
-restarting its resident. `task pending` lists unfinished completion work. `task cancel` releases
+wakeup shutdown reports that supervision is stopped. Inspect the worker before
+restarting its wakeup. `task pending` lists unfinished completion work. `task cancel` releases
 an unbound adoption reservation; it rejects confirmed bindings.
 
 ## Worktree lease cleanup

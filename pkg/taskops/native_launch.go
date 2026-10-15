@@ -6,8 +6,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 func nativeResumeArguments(harness string, reference *herdr.SessionReference) ([]string, error) {
@@ -43,7 +43,7 @@ func nativeLaunchArguments(
 	if strings.TrimSpace(protocol) == "" || strings.IndexFunc(protocol, unicode.IsControl) >= 0 {
 		return nil, fmt.Errorf("worker protocol must be a nonempty shell-safe native argument")
 	}
-	if err := firstmate.ValidateSpawnGeneration(generation); err != nil {
+	if err := taskmeta.ValidateSpawnGeneration(generation); err != nil {
 		return nil, fmt.Errorf("invalid launch generation: %w", err)
 	}
 	if err := validateNativeLaunch(harness, arguments); err != nil {

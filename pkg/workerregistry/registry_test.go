@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"errors"
@@ -20,7 +20,7 @@ func testRecord() Record {
 	}
 }
 
-func TestRegistryPersistsCrewAcrossInstances(t *testing.T) {
+func TestRegistryPersistsWorkerRegistryAcrossInstances(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "state")
 	registry, err := New(root)
 	if err != nil {
@@ -236,12 +236,12 @@ func TestRegistryRejectsSymlinkedDirectories(t *testing.T) {
 	if err := registry.Register(testRecord()); !errors.Is(err, ErrInvalidRecord) {
 		t.Fatalf("linked root: got %v", err)
 	}
-	if err := os.Symlink(realRoot, filepath.Join(realRoot, "crew")); err != nil {
+	if err := os.Symlink(realRoot, filepath.Join(realRoot, "workerregistry")); err != nil {
 		t.Fatal(err)
 	}
 	registry, _ = New(realRoot)
 	if err := registry.Register(testRecord()); !errors.Is(err, ErrInvalidRecord) {
-		t.Fatalf("linked crew directory: got %v", err)
+		t.Fatalf("linked workerregistry directory: got %v", err)
 	}
 }
 
@@ -254,7 +254,7 @@ func TestRegistryLockTimesOut(t *testing.T) {
 	if err := registry.Register(testRecord()); err != nil {
 		t.Fatal(err)
 	}
-	lock, err := os.OpenFile(filepath.Join(root, "crew", ".lock"), os.O_RDWR, 0)
+	lock, err := os.OpenFile(filepath.Join(root, "workerregistry", ".lock"), os.O_RDWR, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,10 +281,10 @@ func TestRegistryRejectsInvalidIdentityAndSymlinkRecord(t *testing.T) {
 	if err := registry.Register(record); !errors.Is(err, ErrInvalidRecord) {
 		t.Fatalf("got %v, want invalid record", err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "crew"), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "workerregistry"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(filepath.Join(root, "elsewhere"), filepath.Join(root, "crew", "task-1.json")); err != nil {
+	if err := os.Symlink(filepath.Join(root, "elsewhere"), filepath.Join(root, "workerregistry", "task-1.json")); err != nil {
 		t.Fatal(err)
 	}
 	if err := registry.Register(testRecord()); !errors.Is(err, ErrInvalidRecord) {

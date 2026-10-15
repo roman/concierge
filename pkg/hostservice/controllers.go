@@ -54,28 +54,28 @@ type controllerEntry struct {
 }
 
 type controllerRegistry struct {
-	ctx                     context.Context
-	cancel                  context.CancelFunc
-	mu                      sync.Mutex
-	entries                 map[controllerKey]*controllerEntry
-	endpoints               map[controllerEndpoint]struct{}
-	closed                  bool
-	operationKeys           map[controllerKey]struct{}
-	operationEndpoints      map[controllerEndpoint]struct{}
-	awaitingInitialResident map[controllerKey]struct{}
-	report                  func(error)
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	mu                    sync.Mutex
+	entries               map[controllerKey]*controllerEntry
+	endpoints             map[controllerEndpoint]struct{}
+	closed                bool
+	operationKeys         map[controllerKey]struct{}
+	operationEndpoints    map[controllerEndpoint]struct{}
+	awaitingInitialWakeup map[controllerKey]struct{}
+	report                func(error)
 }
 
 func newControllerRegistry(ctx context.Context) *controllerRegistry {
 	lifetime, cancel := context.WithCancel(ctx)
 	return &controllerRegistry{
-		ctx:                     lifetime,
-		cancel:                  cancel,
-		entries:                 make(map[controllerKey]*controllerEntry),
-		endpoints:               make(map[controllerEndpoint]struct{}),
-		operationKeys:           make(map[controllerKey]struct{}),
-		operationEndpoints:      make(map[controllerEndpoint]struct{}),
-		awaitingInitialResident: make(map[controllerKey]struct{}),
+		ctx:                   lifetime,
+		cancel:                cancel,
+		entries:               make(map[controllerKey]*controllerEntry),
+		endpoints:             make(map[controllerEndpoint]struct{}),
+		operationKeys:         make(map[controllerKey]struct{}),
+		operationEndpoints:    make(map[controllerEndpoint]struct{}),
+		awaitingInitialWakeup: make(map[controllerKey]struct{}),
 	}
 }
 
@@ -100,7 +100,7 @@ type controllerStartMode uint8
 
 const (
 	explicitControllerStart controllerStartMode = iota
-	initialResidentStart
+	initialWakeupStart
 )
 
 func (registry *controllerRegistry) startWithMode(
@@ -119,10 +119,10 @@ func (registry *controllerRegistry) startWithMode(
 		registry.mu.Unlock()
 		return false, context.Canceled
 	}
-	if mode == initialResidentStart {
-		if _, pending := registry.awaitingInitialResident[key]; !pending {
+	if mode == initialWakeupStart {
+		if _, pending := registry.awaitingInitialWakeup[key]; !pending {
 			registry.mu.Unlock()
-			return false, errInitialResidentStopped
+			return false, errInitialWakeupStopped
 		}
 	}
 	if _, exists := registry.operationKeys[key]; exists {
@@ -137,7 +137,7 @@ func (registry *controllerRegistry) startWithMode(
 		identical := existing.active && !existing.stopping && existing.endpoint == endpoint &&
 			existing.specification == specification
 		if identical {
-			delete(registry.awaitingInitialResident, key)
+			delete(registry.awaitingInitialWakeup, key)
 		}
 		registry.mu.Unlock()
 		if identical {
@@ -202,7 +202,7 @@ func (registry *controllerRegistry) startWithMode(
 	select {
 	case <-ready:
 		registry.mu.Lock()
-		delete(registry.awaitingInitialResident, key)
+		delete(registry.awaitingInitialWakeup, key)
 		if ctx.Err() == nil && lifetime.Err() == nil && !entry.stopping && !registry.closed &&
 			!entry.exited {
 			entry.active = true
@@ -234,7 +234,7 @@ func (registry *controllerRegistry) finishRunning(
 	registry.mu.Lock()
 	select {
 	case <-ready:
-		delete(registry.awaitingInitialResident, key)
+		delete(registry.awaitingInitialWakeup, key)
 	default:
 	}
 	registry.mu.Unlock()
@@ -261,7 +261,7 @@ func (registry *controllerRegistry) stop(ctx context.Context, key controllerKey)
 		registry.mu.Unlock()
 		return errControllerBusy
 	}
-	delete(registry.awaitingInitialResident, key)
+	delete(registry.awaitingInitialWakeup, key)
 	entry := registry.entries[key]
 	if entry == nil {
 		registry.mu.Unlock()
@@ -317,7 +317,7 @@ func (registry *controllerRegistry) close() error {
 	return cleanupError
 }
 
-// quiesce retains an operation reservation after the resident releases its lease.
+// quiesce retains an operation reservation after the wakeup releases its lease.
 func (registry *controllerRegistry) quiesce(
 	ctx context.Context,
 	key controllerKey,
@@ -349,7 +349,7 @@ func (registry *controllerRegistry) quiesce(
 		return nil, errControllerBusy
 	}
 	release := registry.reserveOperationLocked(key, endpoint)
-	delete(registry.awaitingInitialResident, key)
+	delete(registry.awaitingInitialWakeup, key)
 	if entry != nil {
 		entry.stopping = true
 		entry.cancel()
@@ -407,8 +407,8 @@ func (registry *controllerRegistry) reserveLaunch(
 		return nil, context.Canceled
 	}
 	if admission == recoveryLaunch {
-		if _, pending := registry.awaitingInitialResident[key]; !pending {
-			return nil, errInitialResidentStopped
+		if _, pending := registry.awaitingInitialWakeup[key]; !pending {
+			return nil, errInitialWakeupStopped
 		}
 	}
 	if _, exists := registry.operationKeys[key]; exists {

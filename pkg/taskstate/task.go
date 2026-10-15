@@ -13,8 +13,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/tincan/pkg/inbox"
 )
 
@@ -349,7 +349,7 @@ func validate(selected record) error {
 	}
 	if selected.Receipt != nil {
 		if !validWorktreeLease(selected.Receipt.Lease) ||
-			firstmate.ValidateSpawnGeneration(selected.Receipt.Generation) != nil ||
+			taskmeta.ValidateSpawnGeneration(selected.Receipt.Generation) != nil ||
 			(selected.Receipt.Mode != Close && selected.Receipt.Mode != Retain) {
 			return ErrInvalidTask
 		}
@@ -382,7 +382,7 @@ func validate(selected record) error {
 	seenReceipts := make(map[string]bool, len(selected.PriorReceipts))
 	for _, receipt := range selected.PriorReceipts {
 		if !validWorktreeLease(receipt.Lease) ||
-			firstmate.ValidateSpawnGeneration(receipt.Generation) != nil ||
+			taskmeta.ValidateSpawnGeneration(receipt.Generation) != nil ||
 			receipt.Mode != Retain ||
 			seenReceipts[receipt.Generation] {
 			return ErrInvalidTask
@@ -411,7 +411,7 @@ func validate(selected record) error {
 }
 
 func validDefinition(input Definition) bool {
-	if _, err := firstmate.ParseTaskID(input.ID); err != nil ||
+	if _, err := taskmeta.ParseTaskID(input.ID); err != nil ||
 		len(input.ID) > maximumTaskIDBytes ||
 		input.ID[0] == '.' || input.ID[0] == '_' || input.ID[0] == '-' {
 		return false
@@ -432,7 +432,7 @@ func validDefinition(input Definition) bool {
 	}
 	seen := make(map[string]bool, len(input.Dependencies))
 	for _, dependency := range input.Dependencies {
-		if _, err := firstmate.ParseTaskID(dependency.ID); err != nil ||
+		if _, err := taskmeta.ParseTaskID(dependency.ID); err != nil ||
 			dependency.ID == input.ID || seen[dependency.ID] ||
 			!validDependencyType(dependency.Type) || !optionalLine(dependency.Reason) {
 			return false
@@ -451,8 +451,8 @@ func validWorker(worker Worker) bool {
 		if index == 0 {
 			seen[plan.From] = true
 		}
-		if firstmate.ValidateSpawnGeneration(plan.From) != nil ||
-			firstmate.ValidateSpawnGeneration(plan.To) != nil ||
+		if taskmeta.ValidateSpawnGeneration(plan.From) != nil ||
+			taskmeta.ValidateSpawnGeneration(plan.To) != nil ||
 			plan.From == plan.To || seen[plan.To] {
 			return false
 		}
@@ -488,7 +488,7 @@ func validWorker(worker Worker) bool {
 	}
 	if !validAtom(worker.Name, false) || len(worker.AgentArgs) == 0 ||
 		!validAtom(worker.Harness, false) ||
-		firstmate.ValidateSpawnGeneration(worker.Generation) != nil {
+		taskmeta.ValidateSpawnGeneration(worker.Generation) != nil {
 		return false
 	}
 	for _, argument := range worker.AgentArgs {
@@ -500,17 +500,17 @@ func validWorker(worker Worker) bool {
 		return false
 	}
 	for _, path := range []string{worker.Project, worker.Worktree} {
-		if _, err := firstmate.ParseAbsolutePath(path); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return false
 		}
 	}
 	if worker.PendingGeneration != "" &&
-		(firstmate.ValidateSpawnGeneration(worker.PendingGeneration) != nil ||
+		(taskmeta.ValidateSpawnGeneration(worker.PendingGeneration) != nil ||
 			worker.PendingGeneration == worker.Generation) {
 		return false
 	}
 	if worker.PendingLaunch != "" &&
-		firstmate.ValidateSpawnGeneration(worker.PendingLaunch) != nil {
+		taskmeta.ValidateSpawnGeneration(worker.PendingLaunch) != nil {
 		return false
 	}
 	if worker.PendingAdoption && (worker.PendingGeneration != "" || worker.PendingLaunch != "") {
@@ -525,7 +525,7 @@ func validWorker(worker Worker) bool {
 }
 
 func validCompletion(completion Completion) bool {
-	return firstmate.ValidateSpawnGeneration(completion.Generation) == nil &&
+	return taskmeta.ValidateSpawnGeneration(completion.Generation) == nil &&
 		(completion.Mode == Close || completion.Mode == Retain) &&
 		(completion.Phase == Accepted || completion.Phase == Retired)
 }
@@ -564,7 +564,7 @@ func validDate(value string) bool {
 
 func validHoldKind(value string) bool {
 	return value == "" ||
-		slices.Contains([]string{"captain", "external", "load", "parked", "future"}, value)
+		slices.Contains([]string{"primary", "external", "load", "parked", "future"}, value)
 }
 
 func validDependencyType(value string) bool {

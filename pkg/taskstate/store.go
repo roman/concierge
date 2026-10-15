@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/stateversion"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 var ErrStoreLockTimeout = errors.New("task record lock timed out")
@@ -33,7 +33,7 @@ type Store struct {
 
 // NewStore validates the directory path used by all task operations.
 func NewStore(path string) (*Store, error) {
-	root, err := firstmate.ParseAbsolutePath(path)
+	root, err := taskmeta.ParseAbsolutePath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +342,7 @@ func launchConflicts(launch, other *LaunchIntent, worker *Worker) bool {
 }
 
 func (store *Store) updatePinned(
-	ctx context.Context, root *os.Root, id firstmate.TaskID, transition func(Task) (Task, error),
+	ctx context.Context, root *os.Root, id taskmeta.TaskID, transition func(Task) (Task, error),
 ) (Task, error) {
 	return store.withTaskPinned(ctx, root, id, func(task *LockedTask) error {
 		_, err := task.apply(transition)
@@ -350,10 +350,10 @@ func (store *Store) updatePinned(
 	})
 }
 
-func parseStoreTaskID(value string) (firstmate.TaskID, error) {
-	id, err := firstmate.ParseTaskID(value)
+func parseStoreTaskID(value string) (taskmeta.TaskID, error) {
+	id, err := taskmeta.ParseTaskID(value)
 	if err != nil || len(value) > maximumTaskIDBytes {
-		return firstmate.TaskID{}, ErrInvalidTask
+		return taskmeta.TaskID{}, ErrInvalidTask
 	}
 	return id, nil
 }
@@ -394,7 +394,7 @@ func openRecords(root *os.Root) (*os.Root, os.FileInfo, error) {
 }
 
 func withTaskLock(
-	ctx context.Context, root *os.Root, id firstmate.TaskID, operation func() error,
+	ctx context.Context, root *os.Root, id taskmeta.TaskID, operation func() error,
 ) error {
 	return withRootLock(ctx, root, ".task-"+id.String()+".lock", operation)
 }

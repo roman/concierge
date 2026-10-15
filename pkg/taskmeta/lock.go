@@ -1,4 +1,4 @@
-package firstmate
+package taskmeta
 
 import (
 	"errors"
@@ -22,7 +22,7 @@ const (
 	missingPIDGrace  = 2 * time.Second
 )
 
-// TaskLock holds one Firstmate-compatible task metadata lock.
+// TaskLock holds one task metadata lock.
 type TaskLock struct {
 	path         string
 	ownerPath    string
@@ -37,7 +37,7 @@ type taskLockReleaseState struct {
 }
 
 // AcquireTaskLock waits at most timeout to claim the task's metadata lock.
-// Dead owners are reclaimed under Firstmate's steal lock.
+// Dead owners are reclaimed under a separate steal lock.
 func AcquireTaskLock(stateDir AbsolutePath, id TaskID, timeout time.Duration) (*TaskLock, error) {
 	if stateDir.value == "" {
 		return nil, ErrInvalidPath
@@ -63,7 +63,7 @@ func AcquireTaskLock(stateDir AbsolutePath, id TaskID, timeout time.Duration) (*
 	return AcquirePathLock(path, timeout)
 }
 
-// AcquirePathLock claims an absolute Firstmate-compatible path lock.
+// AcquirePathLock claims an absolute path lock.
 func AcquirePathLock(path string, timeout time.Duration) (*TaskLock, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return nil, ErrInvalidLock

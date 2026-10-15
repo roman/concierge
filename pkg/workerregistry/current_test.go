@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 func writeCurrentTask(t *testing.T, root string) {
@@ -21,7 +21,7 @@ func writeCurrentTask(t *testing.T, root string) {
 	}
 	data := strings.Join([]string{
 		"window=work:pane-1", "endpoint_task_id=task-1", "worktree=/project-worktree",
-		"project=/project", "harness=codex", "kind=crewmate", "spawn_gen=gen-1",
+		"project=/project", "harness=codex", "kind=task", "spawn_gen=gen-1",
 		"backend=herdr", "herdr_session=work", "herdr_workspace_id=workspace-1",
 		"herdr_tab_id=tab-1", "herdr_pane_id=pane-1", "",
 	}, "\n")
@@ -78,11 +78,11 @@ func TestWithCurrentTaskHoldsMetadataLockDuringOperation(t *testing.T) {
 		if record.TaskID != "task-1" {
 			t.Fatalf("record = %+v", record)
 		}
-		state, _ := firstmate.ParseAbsolutePath(filepath.Join(root, "tasks"))
-		id, _ := firstmate.ParseTaskID("task-1")
-		if _, lockErr := firstmate.AcquireTaskLock(state, id, 50*time.Millisecond); !errors.Is(
+		state, _ := taskmeta.ParseAbsolutePath(filepath.Join(root, "tasks"))
+		id, _ := taskmeta.ParseTaskID("task-1")
+		if _, lockErr := taskmeta.AcquireTaskLock(state, id, 50*time.Millisecond); !errors.Is(
 			lockErr,
-			firstmate.ErrLockTimeout,
+			taskmeta.ErrLockTimeout,
 		) {
 			t.Fatalf("metadata lock was not held: %v", lockErr)
 		}
@@ -91,9 +91,9 @@ func TestWithCurrentTaskHoldsMetadataLockDuringOperation(t *testing.T) {
 	if !errors.Is(err, want) {
 		t.Fatalf("operation error = %v", err)
 	}
-	state, _ := firstmate.ParseAbsolutePath(filepath.Join(root, "tasks"))
-	id, _ := firstmate.ParseTaskID("task-1")
-	lock, err := firstmate.AcquireTaskLock(state, id, time.Second)
+	state, _ := taskmeta.ParseAbsolutePath(filepath.Join(root, "tasks"))
+	id, _ := taskmeta.ParseTaskID("task-1")
+	lock, err := taskmeta.AcquireTaskLock(state, id, time.Second)
 	if err != nil {
 		t.Fatalf("metadata lock remained held: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestWithCurrentTaskHoldsMetadataLockDuringOperation(t *testing.T) {
 	}
 }
 
-func TestCurrentTaskCheckRejectsReplacedCrewRecord(t *testing.T) {
+func TestCurrentTaskCheckRejectsReplacedWorkerRegistryRecord(t *testing.T) {
 	root := t.TempDir()
 	writeCurrentTask(t, root)
 	registry, err := New(root)
@@ -122,7 +122,7 @@ func TestCurrentTaskCheckRejectsReplacedCrewRecord(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(root, "crew", "task-1.json"), data, 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(root, "workerregistry", "task-1.json"), data, 0o600); err != nil {
 			t.Fatal(err)
 		}
 		return task.CheckCurrent()
@@ -175,7 +175,7 @@ func TestWithCurrentTaskRejectsStaleBinding(t *testing.T) {
 	}
 }
 
-func TestSelectedCrewDirectoryKeepsOriginalRecord(t *testing.T) {
+func TestSelectedWorkerRegistryDirectoryKeepsOriginalRecord(t *testing.T) {
 	root := t.TempDir()
 	registry, err := New(root)
 	if err != nil {
@@ -189,15 +189,15 @@ func TestSelectedCrewDirectoryKeepsOriginalRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer registryRoot.Close()
-	selected, _, err := openSelectedDirectory(registryRoot, "crew")
+	selected, _, err := openSelectedDirectory(registryRoot, "workerregistry")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer selected.Close()
-	if err := os.Rename(filepath.Join(root, "crew"), filepath.Join(root, "old-crew")); err != nil {
+	if err := os.Rename(filepath.Join(root, "workerregistry"), filepath.Join(root, "old-workerregistry")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(root, "crew"), 0o700); err != nil {
+	if err := os.Mkdir(filepath.Join(root, "workerregistry"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	replacement := testRecord()
@@ -206,7 +206,7 @@ func TestSelectedCrewDirectoryKeepsOriginalRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "crew", "task-1.json"), data, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "workerregistry", "task-1.json"), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	got, err := readRecord(selected, "task-1")

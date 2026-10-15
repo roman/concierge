@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/tincan/pkg/inbox"
 )
@@ -120,7 +120,7 @@ func validateResolutionResponse(response Response, request Request) error {
 		response.Error != "" {
 		return errors.New("host returned an incomplete resolution result")
 	}
-	if _, err := firstmate.ParseTaskID(response.Resolution.TaskID); err != nil {
+	if _, err := taskmeta.ParseTaskID(response.Resolution.TaskID); err != nil {
 		return err
 	}
 	expected := taskstate.Done

@@ -72,7 +72,7 @@ func taskEndpointFixture(t *testing.T) (*Server, controllerKey, controllerEndpoi
 		}
 }
 
-func startEndpointResident(
+func startEndpointWakeup(
 	t *testing.T,
 	server *Server,
 	key controllerKey,
@@ -97,10 +97,10 @@ func startEndpointResident(
 	}
 }
 
-func TestTaskStopJoinsResidentBeforeBackendFailure(t *testing.T) {
+func TestTaskStopJoinsWakeupBeforeBackendFailure(t *testing.T) {
 	server, key, endpoint := taskEndpointFixture(t)
 	cleaned := make(chan struct{})
-	startEndpointResident(t, server, key, endpoint, func() error { close(cleaned); return nil })
+	startEndpointWakeup(t, server, key, endpoint, func() error { close(cleaned); return nil })
 	_, err := server.perform(
 		context.Background(),
 		Request{
@@ -114,7 +114,7 @@ func TestTaskStopJoinsResidentBeforeBackendFailure(t *testing.T) {
 	select {
 	case <-cleaned:
 	default:
-		t.Fatal("Stop ran without joining resident")
+		t.Fatal("Stop ran without joining wakeup")
 	}
 	if !strings.Contains(err.Error(), "supervision is stopped") {
 		t.Fatalf("missing stopped diagnostic: %v", err)
@@ -126,9 +126,9 @@ func TestTaskStopJoinsResidentBeforeBackendFailure(t *testing.T) {
 	release()
 }
 
-func TestInvalidCleanupLeavesResidentActive(t *testing.T) {
+func TestInvalidCleanupLeavesWakeupActive(t *testing.T) {
 	server, key, endpoint := taskEndpointFixture(t)
-	startEndpointResident(t, server, key, endpoint, nil)
+	startEndpointWakeup(t, server, key, endpoint, nil)
 	_, err := server.perform(
 		context.Background(),
 		Request{
@@ -140,11 +140,11 @@ func TestInvalidCleanupLeavesResidentActive(t *testing.T) {
 		t.Fatalf("cleanup eligibility: %v", err)
 	}
 	if _, err := server.controllers.acquire(endpoint); !errors.Is(err, errControllerBusy) {
-		t.Fatalf("invalid cleanup stopped resident: %v", err)
+		t.Fatalf("invalid cleanup stopped wakeup: %v", err)
 	}
 }
 
-func TestHistoricalStopLeavesNewerResidentActive(t *testing.T) {
+func TestHistoricalStopLeavesNewerWakeupActive(t *testing.T) {
 	server, key, endpoint := taskEndpointFixture(t)
 	_, err := server.store.Update(
 		context.Background(),
@@ -158,16 +158,16 @@ func TestHistoricalStopLeavesNewerResidentActive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	startEndpointResident(t, server, key, endpoint, nil)
+	startEndpointWakeup(t, server, key, endpoint, nil)
 	if _, err := server.perform(context.Background(), Request{Operation: Stop, Transition: &TransitionRequest{TaskID: "task-1", Generation: "old-gen"}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := server.controllers.acquire(endpoint); !errors.Is(err, errControllerBusy) {
-		t.Fatalf("historical retry stopped resident: %v", err)
+		t.Fatalf("historical retry stopped wakeup: %v", err)
 	}
 }
 
-func TestTaskStopRejectsBindingChangedDuringResidentCleanup(t *testing.T) {
+func TestTaskStopRejectsBindingChangedDuringWakeupCleanup(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		change func(*taskstate.Worker)
@@ -183,7 +183,7 @@ func TestTaskStopRejectsBindingChangedDuringResidentCleanup(t *testing.T) {
 			if err := os.WriteFile(server.config.HerdrExecutable, []byte(script), 0700); err != nil {
 				t.Fatal(err)
 			}
-			startEndpointResident(t, server, key, endpoint, func() error {
+			startEndpointWakeup(t, server, key, endpoint, func() error {
 				// Store transitions forbid changing endpoint identity.
 				task, err := server.store.Read(context.Background(), "task-1")
 				if err != nil {
@@ -222,13 +222,13 @@ func TestTaskStopRejectsBindingChangedDuringResidentCleanup(t *testing.T) {
 	}
 }
 
-func TestCleanupJoinsResidentBeforePaneProbe(t *testing.T) {
+func TestCleanupJoinsWakeupBeforePaneProbe(t *testing.T) {
 	server, key, endpoint := taskEndpointFixture(t)
 	if _, err := server.service.Finish(context.Background(), "task-1", "gen-1", taskstate.Close, "2026-10-12"); err != nil {
 		t.Fatal(err)
 	}
 	cleaned := make(chan struct{})
-	startEndpointResident(t, server, key, endpoint, func() error { close(cleaned); return nil })
+	startEndpointWakeup(t, server, key, endpoint, func() error { close(cleaned); return nil })
 	_, err := server.perform(
 		context.Background(),
 		Request{
@@ -242,7 +242,7 @@ func TestCleanupJoinsResidentBeforePaneProbe(t *testing.T) {
 	select {
 	case <-cleaned:
 	default:
-		t.Fatal("cleanup ran without joining resident")
+		t.Fatal("cleanup ran without joining wakeup")
 	}
 	if !strings.Contains(err.Error(), "supervision is stopped") {
 		t.Fatalf("missing stopped diagnostic: %v", err)
@@ -257,7 +257,7 @@ func TestCleanupJoinsResidentBeforePaneProbe(t *testing.T) {
 func TestTaskStopCleanupFailureReportsStoppedSupervision(t *testing.T) {
 	server, key, endpoint := taskEndpointFixture(t)
 	expected := errors.New("lease cleanup failed")
-	startEndpointResident(t, server, key, endpoint, func() error { return expected })
+	startEndpointWakeup(t, server, key, endpoint, func() error { return expected })
 	_, err := server.perform(
 		context.Background(),
 		Request{

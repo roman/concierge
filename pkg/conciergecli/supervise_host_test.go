@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"github.com/roman/concierge/pkg/hostservice"
-	"github.com/roman/concierge/pkg/resident"
+	"github.com/roman/concierge/pkg/wakeup"
 	"github.com/roman/tincan/pkg/inbox"
 	"io"
 	"os"
@@ -66,7 +66,7 @@ func TestSupervisionMutationsRequireHostAdmission(t *testing.T) {
 	}
 }
 
-func TestSupervisionStopRejectsMonitorFlagsBeforeStoppingResident(t *testing.T) {
+func TestSupervisionStopRejectsMonitorFlagsBeforeStoppingWakeup(t *testing.T) {
 	if runUnderNativeParent(t) {
 		return
 	}
@@ -83,10 +83,10 @@ func TestSupervisionStopRejectsMonitorFlagsBeforeStoppingResident(t *testing.T) 
 	if code != 2 {
 		t.Fatalf("explicit stop settings: %d %s", code, &output)
 	}
-	lease, err := resident.AcquireTaskLease(root, "task-1")
+	lease, err := wakeup.AcquireTaskLease(root, "task-1")
 	if err == nil {
 		lease.Close()
-		t.Fatal("rejected stop reached resident")
+		t.Fatal("rejected stop reached wakeup")
 	}
 }
 
@@ -104,7 +104,7 @@ func TestSupervisionStopFailureIncludesStopHelp(t *testing.T) {
 	}
 }
 
-func TestAdoptionRetryPreservesActiveTaskResident(t *testing.T) {
+func TestAdoptionRetryPreservesActiveTaskWakeup(t *testing.T) {
 	if runUnderNativeParent(t) {
 		return
 	}
@@ -134,16 +134,16 @@ func TestAdoptionRetryPreservesActiveTaskResident(t *testing.T) {
 	if got := invoke(t, root, "", args...); got != "task: \"task-1\"\nstate: in_flight\ngeneration: \"gen-1\"\n" {
 		t.Fatalf("confirmed retry: %s", got)
 	}
-	if lease, err := resident.AcquireTaskLease(root, "task-1"); err == nil {
+	if lease, err := wakeup.AcquireTaskLease(root, "task-1"); err == nil {
 		lease.Close()
-		t.Fatal("adoption retry stopped resident")
+		t.Fatal("adoption retry stopped wakeup")
 	}
 
 	mismatch := append([]string{}, args...)
 	mismatch[4] = "different-generation"
 	expectLifecycleError(t, root, 1, mismatch...)
-	if lease, err := resident.AcquireTaskLease(root, "task-1"); err == nil {
+	if lease, err := wakeup.AcquireTaskLease(root, "task-1"); err == nil {
 		lease.Close()
-		t.Fatal("mismatched retry stopped resident")
+		t.Fatal("mismatched retry stopped wakeup")
 	}
 }

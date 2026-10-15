@@ -28,7 +28,7 @@ func (server *Server) trackedLaunchResult(
 		return Response{}, cause
 	}
 	key := controllerKey{kind: taskController, id: input.TaskID}
-	if !slices.Contains(server.controllers.initialResidentTasks(), key) {
+	if !slices.Contains(server.controllers.initialWakeupTasks(), key) {
 		return Response{}, cause
 	}
 	inspection, cancel := context.WithTimeout(context.WithoutCancel(ctx), launchInspectionTimeout)
@@ -145,7 +145,7 @@ func (registry *controllerRegistry) launchRegistrationStatus(
 		entry.endpoint == endpoint && entry.specification == specification {
 		return registrationActive
 	}
-	if _, pending := registry.awaitingInitialResident[key]; pending {
+	if _, pending := registry.awaitingInitialWakeup[key]; pending {
 		return registrationPending
 	}
 	return registrationStopped

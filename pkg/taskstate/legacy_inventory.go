@@ -9,15 +9,15 @@ import (
 	"os"
 	"strings"
 
-	"github.com/roman/concierge/pkg/crew"
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
+	"github.com/roman/concierge/pkg/workerregistry"
 )
 
 type legacyParts struct {
 	row        LegacyBacklogRow
-	metadata   *firstmate.Metadata
-	worker     *crew.Record
+	metadata   *taskmeta.Metadata
+	worker     *workerregistry.Record
 	completion *legacyCompletion
 	receipt    *legacyReceipt
 }
@@ -53,7 +53,7 @@ func inventoryLegacy(root *os.Root) ([]Task, error) {
 	if err := collectLegacyFiles(root, "tasks", parts); err != nil {
 		return nil, err
 	}
-	if err := collectLegacyFiles(root, "crew", parts); err != nil {
+	if err := collectLegacyFiles(root, "workerregistry", parts); err != nil {
 		return nil, err
 	}
 	if err := checkLegacyWorkerIdentities(parts); err != nil {
@@ -122,7 +122,7 @@ func collectLegacyFiles(root *os.Root, directory string, parts map[string]*legac
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if directory == "crew" && name == ".lock" {
+		if directory == "workerregistry" && name == ".lock" {
 			continue
 		}
 		id, kind, err := legacyFileKind(directory, name)
@@ -150,7 +150,7 @@ func collectLegacyFiles(root *os.Root, directory string, parts map[string]*legac
 
 func legacyFileKind(directory, name string) (string, string, error) {
 	var id, kind string
-	if directory == "crew" && strings.HasSuffix(name, ".json") {
+	if directory == "workerregistry" && strings.HasSuffix(name, ".json") {
 		id, kind = strings.TrimSuffix(name, ".json"), "worker"
 	} else if directory == "tasks" {
 		for _, suffix := range []struct{ name, kind string }{
@@ -162,7 +162,7 @@ func legacyFileKind(directory, name string) (string, string, error) {
 			}
 		}
 	}
-	if _, err := firstmate.ParseTaskID(id); err != nil || len(id) > maximumTaskIDBytes {
+	if _, err := taskmeta.ParseTaskID(id); err != nil || len(id) > maximumTaskIDBytes {
 		return "", "", fmt.Errorf("unsupported legacy %s entry %q", directory, name)
 	}
 	return id, kind, nil
@@ -174,14 +174,14 @@ func addLegacyFile(part *legacyParts, id, kind string, data []byte) error {
 		if err := checkLegacyMetadataKeys(data); err != nil {
 			return err
 		}
-		taskID, _ := firstmate.ParseTaskID(id)
-		metadata, err := firstmate.Parse(data, taskID)
+		taskID, _ := taskmeta.ParseTaskID(id)
+		metadata, err := taskmeta.Parse(data, taskID)
 		if err != nil {
 			return err
 		}
 		part.metadata = &metadata
 	case "worker":
-		var record crew.Record
+		var record workerregistry.Record
 		if err := decodeLegacyJSON(data, &record); err != nil {
 			return fmt.Errorf("invalid worker record: %w", err)
 		}
@@ -259,7 +259,7 @@ func joinLegacyTask(part legacyParts) (Task, error) {
 				return Task{}, ErrInvalidTask
 			}
 		}
-		if firstmate.ValidateSpawnGeneration(marker.SpawnGeneration) != nil ||
+		if taskmeta.ValidateSpawnGeneration(marker.SpawnGeneration) != nil ||
 			(marker.Mode != Close && marker.Mode != Retain) {
 			return Task{}, ErrInvalidTask
 		}

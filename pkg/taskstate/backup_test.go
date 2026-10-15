@@ -21,14 +21,14 @@ func TestBackupLegacyCopiesTaskStateAndManifest(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(source, "tasks"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(source, "crew"), 0o700); err != nil {
+	if err := os.Mkdir(filepath.Join(source, "workerregistry"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		"backlog.md":                "# Backlog\n",
-		"tasks/task-1.meta":         "endpoint_task_id=task-1\n",
-		"tasks/task-1.receipt.json": `{"task_id":"task-1"}`,
-		"crew/task-1.json":          `{"task_id":"task-1"}`,
+		"backlog.md":                 "# Backlog\n",
+		"tasks/task-1.meta":          "endpoint_task_id=task-1\n",
+		"tasks/task-1.receipt.json":  `{"task_id":"task-1"}`,
+		"workerregistry/task-1.json": `{"task_id":"task-1"}`,
 	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(source, name), []byte(content), 0o600); err != nil {

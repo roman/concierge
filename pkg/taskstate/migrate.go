@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/stateversion"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 const migrationOwnerName = ".migration-owner"
@@ -23,7 +23,7 @@ const migrationOwnerContent = "tincan-taskstate-v2\n"
 // MigrateLegacy backs up and converts a quiescent version 1 task-state root.
 // Earlier task writers do not hold the version gate and must be stopped first.
 func MigrateLegacy(ctx context.Context, rootPath, backupPath string) error {
-	if _, err := firstmate.ParseAbsolutePath(backupPath); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(backupPath); err != nil {
 		return err
 	}
 	guard, err := stateversion.AcquireMigration(ctx, rootPath)
@@ -60,7 +60,7 @@ func MigrateLegacy(ctx context.Context, rootPath, backupPath string) error {
 
 // RecoverLegacyMigration verifies the backup and records before finishing a pending switch.
 func RecoverLegacyMigration(ctx context.Context, rootPath, backupPath string) error {
-	if _, err := firstmate.ParseAbsolutePath(backupPath); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(backupPath); err != nil {
 		return err
 	}
 	guard, err := stateversion.AcquireRecovery(ctx, rootPath)

@@ -1,24 +1,24 @@
-package resident
+package wakeup
 
 import (
 	"errors"
 	"os"
 	"path/filepath"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"golang.org/x/sys/unix"
 )
 
-var ErrAlreadyRunning = errors.New("resident controller already owns this task")
+var ErrAlreadyRunning = errors.New("wakeup controller already owns this task")
 
 type TaskLease struct{ file *os.File }
 
 // AcquireTaskLease excludes a second controller for the same task.
 func AcquireTaskLease(root, taskID string) (*TaskLease, error) {
 	if !filepath.IsAbs(root) || filepath.Clean(root) != root {
-		return nil, firstmate.ErrInvalidPath
+		return nil, taskmeta.ErrInvalidPath
 	}
-	if _, err := firstmate.ParseTaskID(taskID); err != nil {
+	if _, err := taskmeta.ParseTaskID(taskID); err != nil {
 		return nil, err
 	}
 	directory, err := os.Open(root)

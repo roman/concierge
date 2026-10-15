@@ -55,7 +55,7 @@ func TestCreateAndFinishKeepRecordAndBacklogViewTogether(t *testing.T) {
 	}
 	definition := taskstate.Definition{
 		ID:    "task-1",
-		Title: "Ship work",
+		Title: "Complete work",
 		Repo:  "exmachina",
 		Kind:  "worker",
 	}
@@ -83,7 +83,7 @@ func TestCreateAndFinishKeepRecordAndBacklogViewTogether(t *testing.T) {
 		t.Fatalf("record = %#v, %v", stored.Snapshot(), err)
 	}
 	view, err := os.ReadFile(filepath.Join(root, "backlog.md"))
-	if err != nil || !strings.Contains(string(view), "- [x] task-1 - Ship work") {
+	if err != nil || !strings.Contains(string(view), "- [x] task-1 - Complete work") {
 		t.Fatalf("backlog view = %q, %v", view, err)
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskprotocol"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/tincan/pkg/inbox"
@@ -41,7 +41,7 @@ type ReplyDelivery struct {
 func (service *Service) SendReply(
 	ctx context.Context, messageRoot string, input ReplyInput,
 ) (ReplyDelivery, error) {
-	if err := firstmate.ValidateSpawnGeneration(input.Generation); err != nil {
+	if err := taskmeta.ValidateSpawnGeneration(input.Generation); err != nil {
 		return ReplyDelivery{}, err
 	}
 	if strings.TrimSpace(input.Key) == "" {

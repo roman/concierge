@@ -240,7 +240,7 @@ func TestCheckpointDoesNotMaskHeldLaunch(t *testing.T) {
 	server, input := checkpointLaunchFixture(t, "trust")
 	ctx := context.Background()
 	if _, err := server.store.Update(ctx, input.TaskID, func(task taskstate.Task) (taskstate.Task, error) {
-		return task.PlaceHold(taskstate.Hold{Kind: "captain", Reason: "Wait for review"})
+		return task.PlaceHold(taskstate.Hold{Kind: "primary", Reason: "Wait for review"})
 	}); err != nil {
 		t.Fatal(err)
 	}

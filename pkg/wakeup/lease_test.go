@@ -1,4 +1,4 @@
-package resident
+package wakeup
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestTaskLeaseAllowsOneResidentController(t *testing.T) {
+func TestTaskLeaseAllowsOneWakeupController(t *testing.T) {
 	root := t.TempDir()
 	first, err := AcquireTaskLease(root, "task-1")
 	if err != nil {

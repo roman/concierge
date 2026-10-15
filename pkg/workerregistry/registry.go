@@ -1,5 +1,5 @@
-// Package crew stores the launch identity for local task workers.
-package crew
+// Package workerregistry stores the launch identity for local task workers.
+package workerregistry
 
 import (
 	"crypto/rand"
@@ -18,14 +18,14 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 var (
-	ErrInvalidRecord = errors.New("invalid crew record")
-	ErrConflict      = errors.New("crew record already has different launch details")
-	ErrLockTimeout   = errors.New("crew registry lock timed out")
+	ErrInvalidRecord = errors.New("invalid worker registry record")
+	ErrConflict      = errors.New("worker registry record already has different launch details")
+	ErrLockTimeout   = errors.New("worker registry lock timed out")
 )
 
 const maximumRecordBytes = 1 << 20
@@ -51,7 +51,7 @@ type Registry struct{ root string }
 
 // New selects an absolute Tincan state root without creating files.
 func New(root string) (*Registry, error) {
-	path, err := firstmate.ParseAbsolutePath(root)
+	path, err := taskmeta.ParseAbsolutePath(root)
 	if err != nil {
 		return nil, err
 	}
@@ -87,22 +87,22 @@ func ValidateLaunch(name string, arguments []string) error {
 }
 
 func validRecord(record Record) bool {
-	if _, err := firstmate.ParseTaskID(record.TaskID); err != nil {
+	if _, err := taskmeta.ParseTaskID(record.TaskID); err != nil {
 		return false
 	}
 	if ValidateLaunch(record.Name, record.AgentArgs) != nil || !safeAtom(record.Kind) ||
-		firstmate.ValidateSpawnGeneration(record.SpawnGeneration) != nil {
+		taskmeta.ValidateSpawnGeneration(record.SpawnGeneration) != nil {
 		return false
 	}
 	if record.PendingAdoption && (record.PendingGeneration != "" || record.PendingLaunch != "") {
 		return false
 	}
 	if record.PendingLaunch != "" &&
-		firstmate.ValidateSpawnGeneration(record.PendingLaunch) != nil {
+		taskmeta.ValidateSpawnGeneration(record.PendingLaunch) != nil {
 		return false
 	}
 	if record.PendingGeneration != "" &&
-		(firstmate.ValidateSpawnGeneration(record.PendingGeneration) != nil ||
+		(taskmeta.ValidateSpawnGeneration(record.PendingGeneration) != nil ||
 			record.PendingGeneration == record.SpawnGeneration) {
 		return false
 	}
@@ -113,10 +113,10 @@ func validRecord(record Record) bool {
 	if _, err := herdr.ParseTarget(record.HerdrSession, record.PaneID); err != nil {
 		return false
 	}
-	if _, err := firstmate.ParseAbsolutePath(record.Project); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(record.Project); err != nil {
 		return false
 	}
-	if _, err := firstmate.ParseAbsolutePath(record.Worktree); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(record.Worktree); err != nil {
 		return false
 	}
 	return true
@@ -189,7 +189,7 @@ func (registry *Registry) ensureDirectory(name string) error {
 	return syncRoot(root)
 }
 
-func (registry *Registry) openCrew() (*os.Root, error) {
+func (registry *Registry) openWorkerRegistry() (*os.Root, error) {
 	if registry == nil || registry.root == "" {
 		return nil, ErrInvalidRecord
 	}
@@ -198,8 +198,8 @@ func (registry *Registry) openCrew() (*os.Root, error) {
 		return nil, err
 	}
 	defer root.Close()
-	crewRoot, _, err := openSelectedDirectory(root, "crew")
-	return crewRoot, err
+	workerRegistryRoot, _, err := openSelectedDirectory(root, "workerregistry")
+	return workerRegistryRoot, err
 }
 
 func readRecord(root *os.Root, taskID string) (Record, error) {
@@ -259,7 +259,7 @@ func listRecords(root *os.Root) ([]Record, error) {
 			continue
 		}
 		taskID := strings.TrimSuffix(entry.Name(), ".json")
-		if _, err := firstmate.ParseTaskID(taskID); err != nil {
+		if _, err := taskmeta.ParseTaskID(taskID); err != nil {
 			return nil, fmt.Errorf("%w: invalid filename %s", ErrInvalidRecord, entry.Name())
 		}
 		record, err := readRecord(root, taskID)
@@ -307,7 +307,7 @@ func (registry *Registry) Register(record Record) error {
 	return registry.register(record, nil)
 }
 
-// registerAfter reserves crew identity before preparing task metadata.
+// registerAfter reserves worker launch identity before preparing task metadata.
 // The caller holds the task metadata lock until this method returns.
 func (registry *Registry) registerAfter(record Record, prepare func() error) error {
 	if prepare == nil {
@@ -328,10 +328,10 @@ func (registry *Registry) register(record Record, prepare func() error) error {
 	if len(data) > maximumRecordBytes {
 		return fmt.Errorf("%w: record exceeds 1 MiB", ErrInvalidRecord)
 	}
-	if err := registry.ensureDirectory("crew"); err != nil {
+	if err := registry.ensureDirectory("workerregistry"); err != nil {
 		return err
 	}
-	root, err := registry.openCrew()
+	root, err := registry.openWorkerRegistry()
 	if err != nil {
 		return err
 	}
@@ -419,10 +419,10 @@ func (registry *Registry) register(record Record, prepare func() error) error {
 
 // Get reads the registered launch identity for one task.
 func (registry *Registry) Get(taskID string) (Record, error) {
-	if _, err := firstmate.ParseTaskID(taskID); err != nil {
+	if _, err := taskmeta.ParseTaskID(taskID); err != nil {
 		return Record{}, ErrInvalidRecord
 	}
-	root, err := registry.openCrew()
+	root, err := registry.openWorkerRegistry()
 	if err != nil {
 		return Record{}, err
 	}
@@ -430,9 +430,9 @@ func (registry *Registry) Get(taskID string) (Record, error) {
 	return readRecord(root, taskID)
 }
 
-// List reads all registered crew in task ID order.
+// List reads all registered workers in task ID order.
 func (registry *Registry) List() ([]Record, error) {
-	root, err := registry.openCrew()
+	root, err := registry.openWorkerRegistry()
 	if errors.Is(err, os.ErrNotExist) {
 		return []Record{}, nil
 	}

@@ -1,4 +1,4 @@
-package resident
+package wakeup
 
 import (
 	"context"

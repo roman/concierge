@@ -54,7 +54,7 @@ func (server *Server) withTaskEndpoint(
 	if err != nil {
 		return Response{}, err
 	}
-	// Historical receipts do not act on the current worker or its resident.
+	// Historical receipts do not act on the current worker or its wakeup.
 	if endpoint == nil {
 		return execute()
 	}

@@ -41,7 +41,7 @@ Initial launch and native resume load the worktree environment after pane shell
 startup. A worktree with `.envrc` uses `direnv exec WORKTREE`. Otherwise, a flake
 with a default devShell for the host system uses `nix develop WORKTREE -c`.
 Repositories without either keep the native launch. Flake evaluation errors stop
-launch instead of silently starting outside the environment. Ship
+launch instead of silently starting outside the environment. Add
 `.envrc.template` for optional local direnv setup; a fresh worktree needs no
 `.envrc` when its flake provides the default devShell.
 
@@ -50,15 +50,15 @@ This repository's `.mcp.json` starts `gopls mcp` for Claude through direnv when
 
 The host validates the request before reserving it. It captures the native
 session ID from Herdr, adopts the worker, publishes its assignment, and registers
-the task resident. Missing native session metadata leaves the launch unresolved.
+the task wakeup. Missing native session metadata leaves the launch unresolved.
 Worker prompts contain the captured command paths, roots, recipient, and a check
 of the inherited generation. They contain no assignment body.
 
-The host continues tracked initial launches and retries the first resident
+The host continues tracked initial launches and retries the first wakeup
 registration without a model request. A host restart reconstructs this work from
 task records. A supervision stop removes the task from periodic recovery for the
 current host lifetime. A later explicit retry can resume the same pending launch.
-An active resident's failure does not create a fresh automatic restart budget.
+An active wakeup's failure does not create a fresh automatic restart budget.
 
 Exact pending retries must preserve every request field. A completed or retired
 launch requires inspection instead of another launch. A disconnected client

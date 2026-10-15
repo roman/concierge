@@ -14,8 +14,8 @@ import (
 	"sort"
 	"unicode/utf8"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/stateversion"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 var ErrBackupPublicationUnconfirmed = errors.New(
@@ -45,11 +45,11 @@ type BackupManifest struct {
 // the source. Operators may remove that directory after confirming no backup
 // process still uses it.
 func BackupLegacy(ctx context.Context, sourcePath, destinationPath string) (BackupManifest, error) {
-	source, err := firstmate.ParseAbsolutePath(sourcePath)
+	source, err := taskmeta.ParseAbsolutePath(sourcePath)
 	if err != nil {
 		return BackupManifest{}, err
 	}
-	destination, err := firstmate.ParseAbsolutePath(destinationPath)
+	destination, err := taskmeta.ParseAbsolutePath(destinationPath)
 	if err != nil {
 		return BackupManifest{}, err
 	}

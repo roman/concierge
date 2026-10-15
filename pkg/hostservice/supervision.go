@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
-	"github.com/roman/concierge/pkg/resident"
 	"github.com/roman/concierge/pkg/supervise"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/wakeup"
 	"github.com/roman/tincan/pkg/inbox"
 )
 
@@ -67,7 +67,7 @@ func validateSupervisionInput(operation Operation, input *SupervisionRequest) er
 		return errors.New("supervision requires exactly one task or pane")
 	}
 	if input.TaskID != "" {
-		if _, err := firstmate.ParseTaskID(input.TaskID); err != nil {
+		if _, err := taskmeta.ParseTaskID(input.TaskID); err != nil {
 			return err
 		}
 	} else {
@@ -171,8 +171,8 @@ func (server *Server) supervisionWithMode(
 	}
 	specification := supervisionSpecification(input, server.config.Supervision)
 	start := server.controllers.start
-	if mode == initialResidentStart {
-		start = server.controllers.startInitialResident
+	if mode == initialWakeupStart {
+		start = server.controllers.startInitialWakeup
 	}
 	if _, err := start(ctx, key, endpoint, specification, prepare); err != nil {
 		return Response{}, err
@@ -185,7 +185,7 @@ func (server *Server) prepareTaskController(
 	taskID string,
 	endpoint controllerEndpoint,
 ) (preparedController, error) {
-	lease, err := resident.AcquireTaskLease(server.config.Root, taskID)
+	lease, err := wakeup.AcquireTaskLease(server.config.Root, taskID)
 	if err != nil {
 		return preparedController{}, err
 	}
@@ -223,10 +223,10 @@ func (server *Server) prepareTaskController(
 	if err != nil {
 		return fail(err)
 	}
-	controller := resident.Controller{
+	controller := wakeup.Controller{
 		Worker:      worker,
 		Supervision: server.config.Supervision,
-		Watcher: resident.Watcher{
+		Watcher: wakeup.Watcher{
 			Store:     messages,
 			Recipient: recipient,
 			Target:    taskID,
@@ -293,10 +293,10 @@ func (server *Server) restoreTaskControllers(ctx context.Context) error {
 	}
 	for _, task := range tasks {
 		snapshot := task.Snapshot()
-		if snapshot.LaunchIntent == nil && !initialResidentEligible(snapshot) {
+		if snapshot.LaunchIntent == nil && !initialWakeupEligible(snapshot) {
 			continue
 		}
-		if err := server.controllers.awaitInitialResident(controllerKey{kind: taskController, id: task.ID()}); err != nil {
+		if err := server.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: task.ID()}); err != nil {
 			return err
 		}
 	}

@@ -9,9 +9,9 @@ import (
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
-var errInitialResidentStopped = errors.New("initial resident registration is no longer pending")
+var errInitialWakeupStopped = errors.New("initial wakeup registration is no longer pending")
 
-func (registry *controllerRegistry) awaitInitialResident(key controllerKey) error {
+func (registry *controllerRegistry) awaitInitialWakeup(key controllerKey) error {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 	if registry.closed || registry.ctx.Err() != nil {
@@ -20,34 +20,34 @@ func (registry *controllerRegistry) awaitInitialResident(key controllerKey) erro
 	if entry := registry.entries[key]; entry != nil && entry.active {
 		return nil
 	}
-	registry.awaitingInitialResident[key] = struct{}{}
+	registry.awaitingInitialWakeup[key] = struct{}{}
 	return nil
 }
 
-func (registry *controllerRegistry) initialResidentTasks() []controllerKey {
+func (registry *controllerRegistry) initialWakeupTasks() []controllerKey {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
-	keys := make([]controllerKey, 0, len(registry.awaitingInitialResident))
-	for key := range registry.awaitingInitialResident {
+	keys := make([]controllerKey, 0, len(registry.awaitingInitialWakeup))
+	for key := range registry.awaitingInitialWakeup {
 		keys = append(keys, key)
 	}
 	return keys
 }
 
-func (registry *controllerRegistry) forgetInitialResident(key controllerKey) {
+func (registry *controllerRegistry) forgetInitialWakeup(key controllerKey) {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
-	delete(registry.awaitingInitialResident, key)
+	delete(registry.awaitingInitialWakeup, key)
 }
 
-func initialResidentEligible(snapshot taskstate.Snapshot) bool {
+func initialWakeupEligible(snapshot taskstate.Snapshot) bool {
 	return snapshot.State == taskstate.InFlight && snapshot.Worker != nil &&
 		!snapshot.Worker.PendingAdoption &&
 		snapshot.Completion == nil
 }
 
 func (server *Server) reconcileInitialTasks(ctx context.Context) {
-	for _, key := range server.controllers.initialResidentTasks() {
+	for _, key := range server.controllers.initialWakeupTasks() {
 		if ctx.Err() != nil {
 			return
 		}
@@ -55,7 +55,7 @@ func (server *Server) reconcileInitialTasks(ctx context.Context) {
 		err := server.reconcileInitialTask(attempt, key)
 		cancel()
 		if err != nil && !errors.Is(err, errControllerBusy) &&
-			!errors.Is(err, errInitialResidentStopped) &&
+			!errors.Is(err, errInitialWakeupStopped) &&
 			ctx.Err() == nil {
 			server.report(fmt.Errorf("restore task %s: %w", key.id, err))
 		}
@@ -70,7 +70,7 @@ func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKe
 	defer release()
 	task, err := server.store.Read(ctx, key.id)
 	if errors.Is(err, taskstate.ErrTaskNotFound) {
-		server.controllers.forgetInitialResident(key)
+		server.controllers.forgetInitialWakeup(key)
 		return nil
 	}
 	if err != nil {
@@ -90,8 +90,8 @@ func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKe
 		if err != nil {
 			return err
 		}
-	} else if !initialResidentEligible(snapshot) {
-		server.controllers.forgetInitialResident(key)
+	} else if !initialWakeupEligible(snapshot) {
+		server.controllers.forgetInitialWakeup(key)
 		return nil
 	}
 	release()
@@ -99,7 +99,7 @@ func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKe
 		ctx,
 		Supervise,
 		SupervisionRequest{TaskID: key.id},
-		initialResidentStart,
+		initialWakeupStart,
 	)
 	return err
 }
@@ -117,12 +117,12 @@ func (server *Server) runInitialReconciliation(ctx context.Context) {
 	}
 }
 
-func (registry *controllerRegistry) startInitialResident(
+func (registry *controllerRegistry) startInitialWakeup(
 	ctx context.Context,
 	key controllerKey,
 	endpoint controllerEndpoint,
 	specification string,
 	prepare func(context.Context) (preparedController, error),
 ) (bool, error) {
-	return registry.startWithMode(ctx, key, endpoint, specification, prepare, initialResidentStart)
+	return registry.startWithMode(ctx, key, endpoint, specification, prepare, initialWakeupStart)
 }

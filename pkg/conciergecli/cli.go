@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/hostservice"
 	"github.com/roman/concierge/pkg/primary"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskops"
 )
 
@@ -175,7 +175,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	if err != nil {
 		return fail(stdout, 1, err, "provide an absolute --root path")
 	}
-	if _, err := firstmate.ParseAbsolutePath(root); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(root); err != nil {
 		return fail(stdout, 2, err, "use an absolute, clean --root path")
 	}
 	switch selected.Command() {

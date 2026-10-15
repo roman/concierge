@@ -202,7 +202,7 @@ func TestResolveRetainAfterNewWorkerStarts(t *testing.T) {
 	}
 	store, _ := taskstate.NewStore(root)
 	if _, err := store.Update(ctx, "task-1", func(task taskstate.Task) (taskstate.Task, error) {
-		return task.PlaceHold(taskstate.Hold{Reason: "More work", Kind: "captain"})
+		return task.PlaceHold(taskstate.Hold{Reason: "More work", Kind: "primary"})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestResolveRetainAfterNewWorkerStarts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := store.Update(ctx, "task-1", func(task taskstate.Task) (taskstate.Task, error) {
-		return task.PlaceHold(taskstate.Hold{Reason: "Third pass", Kind: "captain"})
+		return task.PlaceHold(taskstate.Hold{Reason: "Third pass", Kind: "primary"})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestResolveRejectsChangedCompletionMode(t *testing.T) {
 	concierge, _ := inbox.ParseRecipient("concierge")
 	store, _ := taskstate.NewStore(root)
 	if _, err := store.Update(ctx, "task-1", func(task taskstate.Task) (taskstate.Task, error) {
-		return task.PlaceHold(taskstate.Hold{Reason: "More work", Kind: "captain"})
+		return task.PlaceHold(taskstate.Hold{Reason: "More work", Kind: "primary"})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestResolveCanRetainAfterRejectedClose(t *testing.T) {
 	reply := sendBoundReply(t, root, messageRoot, "gen-1")
 	store, _ := taskstate.NewStore(root)
 	if _, err := store.Update(ctx, "task-1", func(task taskstate.Task) (taskstate.Task, error) {
-		return task.PlaceHold(taskstate.Hold{Reason: "More work", Kind: "captain"})
+		return task.PlaceHold(taskstate.Hold{Reason: "More work", Kind: "primary"})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -359,7 +359,7 @@ func TestResolveRejectsRetainDateAfterRetirement(t *testing.T) {
 	reply := sendBoundReply(t, root, messageRoot, "gen-1")
 	store, _ := taskstate.NewStore(root)
 	if _, err := store.Update(ctx, "task-1", func(task taskstate.Task) (taskstate.Task, error) {
-		return task.PlaceHold(taskstate.Hold{Reason: "More work", Kind: "captain"})
+		return task.PlaceHold(taskstate.Hold{Reason: "More work", Kind: "primary"})
 	}); err != nil {
 		t.Fatal(err)
 	}

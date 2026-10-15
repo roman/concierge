@@ -3,9 +3,9 @@ package taskops
 import (
 	"context"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/presentation"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
@@ -16,7 +16,7 @@ func (service *Service) Stop(
 	taskID, generation string,
 	client herdr.Client,
 ) error {
-	if err := firstmate.ValidateSpawnGeneration(generation); err != nil {
+	if err := taskmeta.ValidateSpawnGeneration(generation); err != nil {
 		return err
 	}
 	_, err := service.store.WithTask(ctx, taskID, func(task *taskstate.LockedTask) error {
@@ -50,7 +50,7 @@ func (service *Service) Stop(
 
 // CheckStop validates the confirmed binding before stopping its supervision.
 func CheckStop(task taskstate.Task, generation string) error {
-	if err := firstmate.ValidateSpawnGeneration(generation); err != nil {
+	if err := taskmeta.ValidateSpawnGeneration(generation); err != nil {
 		return err
 	}
 	if task.HasReceipt(generation, taskstate.Close) ||

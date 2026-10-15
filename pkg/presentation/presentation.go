@@ -1,4 +1,4 @@
-// Package presentation serializes Herdr pane presentation changes with Firstmate.
+// Package presentation serializes Herdr pane presentation changes.
 package presentation
 
 import (
@@ -13,14 +13,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 // Native build gates override this path at link time to isolate build users.
-var presentationNamespace = "/tmp/firstmate-herdr-presentation"
+var presentationNamespace = "/tmp/concierge-herdr-presentation"
 
-// WithLock serializes a named session's presentation changes with Firstmate.
+// WithLock serializes a named session's presentation changes.
 func WithLock(
 	ctx context.Context, client herdr.Client, session string, operation func() error,
 ) error {
@@ -63,7 +63,7 @@ func withLockSocket(
 	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < timeout {
 		timeout = time.Until(deadline)
 	}
-	lock, err := firstmate.AcquirePathLock(path, timeout)
+	lock, err := taskmeta.AcquirePathLock(path, timeout)
 	if err != nil {
 		return fmt.Errorf("%w: presentation lock: %v", herdr.ErrCommand, err)
 	}

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskprotocol"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/tincan/pkg/inbox"
@@ -66,7 +66,7 @@ func (service *Service) receiveAssignment(
 	messageRoot, taskID, messageID, generation string,
 	operation assignmentOperation,
 ) (AssignmentStatus, error) {
-	if err := firstmate.ValidateSpawnGeneration(generation); err != nil {
+	if err := taskmeta.ValidateSpawnGeneration(generation); err != nil {
 		return AssignmentStatus{}, err
 	}
 	id, err := inbox.ParseMessageID(messageID)

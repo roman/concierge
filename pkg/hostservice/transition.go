@@ -5,8 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"time"
 
 	"github.com/roman/concierge/pkg/taskstate"
@@ -112,7 +112,7 @@ func validateRequest(request Request) error {
 		if input.Generation == "" || input.Mode != "" || input.ClosedOn != "" || input.Hold != nil {
 			return errors.New("operation requires only a task ID and generation")
 		}
-		return firstmate.ValidateSpawnGeneration(input.Generation)
+		return taskmeta.ValidateSpawnGeneration(input.Generation)
 	case Finish:
 		if input.Hold != nil || input.Generation == "" {
 			return errors.New("finish requires a generation and no hold")
@@ -120,7 +120,7 @@ func validateRequest(request Request) error {
 		if input.Mode != taskstate.Close && input.Mode != taskstate.Retain {
 			return errors.New("finish mode must be close or retain")
 		}
-		if err := firstmate.ValidateSpawnGeneration(input.Generation); err != nil {
+		if err := taskmeta.ValidateSpawnGeneration(input.Generation); err != nil {
 			return err
 		}
 		if input.Mode == taskstate.Close {

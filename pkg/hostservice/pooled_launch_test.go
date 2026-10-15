@@ -141,7 +141,7 @@ esac
 				}
 				reconstructed.controllers = newControllerRegistry(ctx)
 				defer reconstructed.controllers.close()
-				if err := reconstructed.controllers.awaitInitialResident(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
+				if err := reconstructed.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
 					t.Fatal(err)
 				}
 				if err := reconstructed.reconcileInitialTask(ctx, controllerKey{kind: taskController, id: input.TaskID}); err != nil {

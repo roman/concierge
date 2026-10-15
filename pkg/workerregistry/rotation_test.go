@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"encoding/json"
@@ -79,7 +79,7 @@ func TestCurrentTaskRecoversPendingGeneration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(root, "crew", "task-1.json"), encoded, 0o600); err != nil {
+			if err := os.WriteFile(filepath.Join(root, "workerregistry", "task-1.json"), encoded, 0o600); err != nil {
 				t.Fatal(err)
 			}
 			metadataPath := filepath.Join(root, "tasks", "task-1.meta")
@@ -116,7 +116,7 @@ func TestCurrentTaskRefusesUnrelatedGenerationDuringRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "crew", "task-1.json"), encoded, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "workerregistry", "task-1.json"), encoded, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	metadataPath := filepath.Join(root, "tasks", "task-1.meta")
@@ -156,7 +156,7 @@ func TestCurrentTaskRefusesChangedIdentityDuringRecovery(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(root, "crew", "task-1.json"), encoded, 0o600); err != nil {
+			if err := os.WriteFile(filepath.Join(root, "workerregistry", "task-1.json"), encoded, 0o600); err != nil {
 				t.Fatal(err)
 			}
 			metadataPath := filepath.Join(root, "tasks", "task-1.meta")

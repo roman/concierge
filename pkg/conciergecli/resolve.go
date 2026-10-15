@@ -7,8 +7,8 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/hostservice"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/tincan/pkg/inbox"
 )
@@ -19,7 +19,7 @@ func (command *cli) runResolve(ctx context.Context, root string, output io.Write
 		return fail(output, 2, err, "use a valid primary --recipient name")
 	}
 	if command.hostExpectations.MessageRoot != "" {
-		if _, err := firstmate.ParseAbsolutePath(command.hostExpectations.MessageRoot); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(command.hostExpectations.MessageRoot); err != nil {
 			return fail(output, 2, err, "use an absolute, clean --message-root path")
 		}
 	}

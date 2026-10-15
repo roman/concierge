@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 // LockedTask permits durable transitions during one synchronous operation.
@@ -99,7 +99,7 @@ func (store *Store) WithTask(
 }
 
 func (store *Store) withTaskPinned(
-	ctx context.Context, root *os.Root, id firstmate.TaskID, operation func(*LockedTask) error,
+	ctx context.Context, root *os.Root, id taskmeta.TaskID, operation func(*LockedTask) error,
 ) (Task, error) {
 	var current Task
 	err := withTaskLock(ctx, root, id, func() error {

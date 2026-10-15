@@ -1,5 +1,5 @@
-// Package resident watches durable Tincan mailboxes for controller-owned wakes.
-package resident
+// Package wakeup watches durable Tincan mailboxes for controller-owned wakes.
+package wakeup
 
 import (
 	"context"

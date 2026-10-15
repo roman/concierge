@@ -31,17 +31,17 @@ func (runner *closeRunner) RunSession(
 	args ...string,
 ) ([]byte, []byte, error) {
 	runner.calls = append(runner.calls, session+":"+strings.Join(args, " "))
-	if session != "crew" || len(args) < 2 {
+	if session != "work" || len(args) < 2 {
 		return nil, nil, errors.New("wrong session or arguments")
 	}
 	switch args[0] + " " + args[1] {
 	case "session list":
 		return []byte(
-			`{"sessions":[{"name":"crew","running":true,"socket_path":"` + runner.socket + `"}]}`,
+			`{"sessions":[{"name":"work","running":true,"socket_path":"` + runner.socket + `"}]}`,
 		), nil, nil
 	case "workspace list":
 		return []byte(
-			`{"result":{"workspaces":[{"workspace_id":"ws-captain","focused":true,"active_tab_id":"` + runner.activeTab + `"}]}}`,
+			`{"result":{"workspaces":[{"workspace_id":"ws-primary","focused":true,"active_tab_id":"` + runner.activeTab + `"}]}}`,
 		), nil, nil
 	case "tab list":
 		return []byte(
@@ -49,16 +49,16 @@ func (runner *closeRunner) RunSession(
 		), nil, nil
 	case "tab get":
 		return []byte(
-			`{"result":{"tab":{"tab_id":"tab-captain","workspace_id":"ws-captain"}}}`,
+			`{"result":{"tab":{"tab_id":"tab-primary","workspace_id":"ws-primary"}}}`,
 		), nil, nil
 	case "tab focus":
-		if args[2] != "tab-captain" {
+		if args[2] != "tab-primary" {
 			return nil, nil, errors.New("wrong tab")
 		}
 		if runner.focusFails {
 			return nil, nil, errors.New("focus failed")
 		}
-		runner.activeTab = "tab-captain"
+		runner.activeTab = "tab-primary"
 		return []byte(`{"result":{}}`), nil, nil
 	case "pane get":
 		if !runner.paneExists {
@@ -88,8 +88,8 @@ func (runner *closeRunner) RunSession(
 func newCloseRunner(t *testing.T) *closeRunner {
 	t.Helper()
 	return &closeRunner{
-		socket:        filepath.Join(t.TempDir(), "crew.sock"),
-		activeTab:     "tab-captain",
+		socket:        filepath.Join(t.TempDir(), "work.sock"),
+		activeTab:     "tab-primary",
 		paneWorkspace: "ws-worker",
 		paneTab:       "tab-worker",
 		paneExists:    true,
@@ -101,7 +101,7 @@ func TestCloseBoundPanePreservesFocus(t *testing.T) {
 	runner := newCloseRunner(t)
 	runner.shiftOnClose = true
 	namespace := filepath.Join(t.TempDir(), "locks")
-	target, _ := herdr.ParseTarget("crew", "pane-worker")
+	target, _ := herdr.ParseTarget("work", "pane-worker")
 	err := closeBoundPane(
 		context.Background(),
 		herdr.Client{SessionRunner: runner},
@@ -111,47 +111,47 @@ func TestCloseBoundPanePreservesFocus(t *testing.T) {
 		func() error { return nil },
 		namespace,
 	)
-	if err != nil || runner.paneExists || runner.activeTab != "tab-captain" {
+	if err != nil || runner.paneExists || runner.activeTab != "tab-primary" {
 		t.Fatalf("close err=%v pane=%v focus=%s", err, runner.paneExists, runner.activeTab)
 	}
-	if !containsCall(runner.calls, "crew:tab focus tab-captain --session crew") {
+	if !containsCall(runner.calls, "work:tab focus tab-primary --session work") {
 		t.Fatalf("focus was not restored: %v", runner.calls)
 	}
 }
 
 func TestCloseBoundPaneRefusesActiveViewedTab(t *testing.T) {
 	runner := newCloseRunner(t)
-	runner.paneWorkspace = "ws-captain"
-	runner.paneTab = "tab-captain"
+	runner.paneWorkspace = "ws-primary"
+	runner.paneTab = "tab-primary"
 	namespace := filepath.Join(t.TempDir(), "locks")
-	target, _ := herdr.ParseTarget("crew", "pane-worker")
+	target, _ := herdr.ParseTarget("work", "pane-worker")
 	err := closeBoundPane(
 		context.Background(),
 		herdr.Client{SessionRunner: runner},
 		target,
-		"ws-captain",
-		"tab-captain",
+		"ws-primary",
+		"tab-primary",
 		func() error { return nil },
 		namespace,
 	)
 	if err == nil || !runner.paneExists ||
-		containsCall(runner.calls, "crew:pane close pane-worker --session crew") {
+		containsCall(runner.calls, "work:pane close pane-worker --session work") {
 		t.Fatalf("unsafe close err=%v pane=%v calls=%v", err, runner.paneExists, runner.calls)
 	}
 }
 
 func TestCloseBoundPaneAllowsActiveTabWithoutViewer(t *testing.T) {
 	runner := newCloseRunner(t)
-	runner.paneWorkspace = "ws-captain"
-	runner.paneTab = "tab-captain"
+	runner.paneWorkspace = "ws-primary"
+	runner.paneTab = "tab-primary"
 	runner.viewer = "no_foreground_client"
-	target, _ := herdr.ParseTarget("crew", "pane-worker")
+	target, _ := herdr.ParseTarget("work", "pane-worker")
 	err := closeBoundPane(
 		context.Background(),
 		herdr.Client{SessionRunner: runner},
 		target,
-		"ws-captain",
-		"tab-captain",
+		"ws-primary",
+		"tab-primary",
 		func() error { return nil },
 		filepath.Join(t.TempDir(), "locks"),
 	)
@@ -162,7 +162,7 @@ func TestCloseBoundPaneAllowsActiveTabWithoutViewer(t *testing.T) {
 
 func TestCloseBoundPaneRefusesChangedLocation(t *testing.T) {
 	runner := newCloseRunner(t)
-	target, _ := herdr.ParseTarget("crew", "pane-worker")
+	target, _ := herdr.ParseTarget("work", "pane-worker")
 	err := closeBoundPane(
 		context.Background(),
 		herdr.Client{SessionRunner: runner},
@@ -180,7 +180,7 @@ func TestCloseBoundPaneRefusesChangedLocation(t *testing.T) {
 func TestCloseBoundPaneRequiresConfirmedAbsence(t *testing.T) {
 	runner := newCloseRunner(t)
 	runner.closeFails = true
-	target, _ := herdr.ParseTarget("crew", "pane-worker")
+	target, _ := herdr.ParseTarget("work", "pane-worker")
 	err := closeBoundPane(
 		context.Background(),
 		herdr.Client{SessionRunner: runner},
@@ -197,7 +197,7 @@ func TestCloseBoundPaneRequiresConfirmedAbsence(t *testing.T) {
 
 func TestCloseBoundPaneRechecksTaskBeforeMutation(t *testing.T) {
 	runner := newCloseRunner(t)
-	target, _ := herdr.ParseTarget("crew", "pane-worker")
+	target, _ := herdr.ParseTarget("work", "pane-worker")
 	checks := 0
 	namespace := filepath.Join(t.TempDir(), "locks")
 	err := closeBoundPane(context.Background(), herdr.Client{SessionRunner: runner}, target,
@@ -209,7 +209,7 @@ func TestCloseBoundPaneRechecksTaskBeforeMutation(t *testing.T) {
 			return nil
 		}, namespace)
 	if err == nil || checks != 3 || !runner.paneExists ||
-		containsCall(runner.calls, "crew:pane close pane-worker --session crew") {
+		containsCall(runner.calls, "work:pane close pane-worker --session work") {
 		t.Fatalf(
 			"binding recheck err=%v checks=%d pane=%v calls=%v",
 			err,
@@ -238,7 +238,7 @@ func TestCloseBoundPaneRetriesFocusRestorationAfterPaneGone(t *testing.T) {
 	runner.shiftOnClose = true
 	runner.focusFails = true
 	namespace := filepath.Join(t.TempDir(), "locks")
-	target, _ := herdr.ParseTarget("crew", "pane-worker")
+	target, _ := herdr.ParseTarget("work", "pane-worker")
 	first := closeBoundPane(context.Background(), herdr.Client{SessionRunner: runner}, target,
 		"ws-worker", "tab-worker", func() error { return nil }, namespace)
 	if first == nil || runner.paneExists {
@@ -261,7 +261,7 @@ func TestCloseBoundPaneRetriesFocusRestorationAfterPaneGone(t *testing.T) {
 	runner.viewer = "no_foreground_client"
 	second := closeBoundPane(context.Background(), herdr.Client{SessionRunner: runner}, target,
 		"ws-worker", "tab-worker", func() error { return nil }, namespace)
-	if second != nil || runner.activeTab != "tab-captain" {
+	if second != nil || runner.activeTab != "tab-primary" {
 		t.Fatalf("retry err=%v focus=%s", second, runner.activeTab)
 	}
 	entries, err = os.ReadDir(namespace)
@@ -270,7 +270,7 @@ func TestCloseBoundPaneRetriesFocusRestorationAfterPaneGone(t *testing.T) {
 	}
 	count := 0
 	for _, call := range runner.calls {
-		if call == "crew:pane close pane-worker --session crew" {
+		if call == "work:pane close pane-worker --session work" {
 			count++
 		}
 	}
@@ -282,7 +282,7 @@ func TestCloseBoundPaneRetriesFocusRestorationAfterPaneGone(t *testing.T) {
 func TestCloseBoundPaneAcceptsSilentSuccessfulClose(t *testing.T) {
 	runner := newCloseRunner(t)
 	runner.silentClose = true
-	target, _ := herdr.ParseTarget("crew", "pane-worker")
+	target, _ := herdr.ParseTarget("work", "pane-worker")
 	err := closeBoundPane(context.Background(), herdr.Client{SessionRunner: runner}, target,
 		"ws-worker", "tab-worker", func() error { return nil }, filepath.Join(t.TempDir(), "locks"))
 	if err != nil || runner.paneExists {
@@ -297,11 +297,11 @@ func TestCloseBoundPaneDiscardsPreparedJournalWhenPaneStillExists(t *testing.T) 
 	if err := securePresentationNamespace(namespace); err != nil {
 		t.Fatal(err)
 	}
-	target, _ := herdr.ParseTarget("crew", "pane-worker")
+	target, _ := herdr.ParseTarget("work", "pane-worker")
 	path := journalPath(namespace, target, runner.socket)
 	if _, err := publishCloseJournal(path, closeJournal{
-		Session: "crew", Pane: "pane-worker", Socket: runner.socket,
-		Workspace: "ws-worker", Tab: "tab-worker", Focus: focus{"ws-captain", "tab-captain"},
+		Session: "work", Pane: "pane-worker", Socket: runner.socket,
+		Workspace: "ws-worker", Tab: "tab-worker", Focus: focus{"ws-primary", "tab-primary"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestCloseBoundPaneDiscardsPreparedJournalWhenPaneStillExists(t *testing.T) 
 			runner.activeTab,
 		)
 	}
-	if containsCall(runner.calls, "crew:tab focus tab-captain --session crew") {
+	if containsCall(runner.calls, "work:tab focus tab-primary --session work") {
 		t.Fatalf("stale focus was restored: %v", runner.calls)
 	}
 }

@@ -16,7 +16,7 @@ func workerForTransition() Worker {
 func taskForTransition(t *testing.T) Task {
 	t.Helper()
 	task, err := NewQueued(Definition{
-		ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship",
+		ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestTaskRejectsStaleResultAndHeldClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	held, err := adopted.PlaceHold(Hold{Reason: "Waiting", Kind: "captain"})
+	held, err := adopted.PlaceHold(Hold{Reason: "Waiting", Kind: "primary"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestTaskRejectsStaleResultAndHeldClose(t *testing.T) {
 	) {
 		t.Fatalf("stale result accepted: %v", err)
 	}
-	heldRunning, err := running.PlaceHold(Hold{Reason: "Waiting", Kind: "captain"})
+	heldRunning, err := running.PlaceHold(Hold{Reason: "Waiting", Kind: "primary"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestTaskRecoversAcceptedResultBeforeQueueTransition(t *testing.T) {
 	worker := workerForTransition()
 	worker.Workspace, worker.Tab = "workspace-1", "tab-1"
 	task, err := NewMigrated(Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      InFlight, Worker: &worker,
 		Completion: &Completion{Generation: "gen-1", Mode: Close, Phase: Accepted},
 	})
@@ -166,11 +166,11 @@ func TestTaskAdoptionRecoveryKeepsPublishedEndpoint(t *testing.T) {
 func TestTaskRecoversRetiredResultBeforeQueueTransition(t *testing.T) {
 	for _, mode := range []CompletionMode{Close, Retain} {
 		t.Run(string(mode), func(t *testing.T) {
-			definition := Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"}
+			definition := Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"}
 			closedOn := "2026-10-11"
 			expectedState := Done
 			if mode == Retain {
-				definition.Hold = &Hold{Reason: "Waiting", Kind: "captain"}
+				definition.Hold = &Hold{Reason: "Waiting", Kind: "primary"}
 				closedOn = ""
 				expectedState = Queued
 			}
@@ -192,7 +192,7 @@ func TestTaskRecoversRetiredResultBeforeQueueTransition(t *testing.T) {
 
 func TestTaskRejectsCancellationAndMalformedReservation(t *testing.T) {
 	done, err := NewMigrated(Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      Done,
 	})
 	if err != nil {
@@ -210,7 +210,7 @@ func TestTaskRejectsCancellationAndMalformedReservation(t *testing.T) {
 		t.Fatalf("malformed reservation error = %v", err)
 	}
 	retained, err := NewMigrated(Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      Queued, Receipt: &Receipt{Generation: "gen-1", Mode: Retain},
 	})
 	if err != nil {
@@ -239,7 +239,7 @@ func TestTaskRejectsCancellationAndMalformedReservation(t *testing.T) {
 
 func TestTaskRetirementPreservesEarlierReceipts(t *testing.T) {
 	task, err := NewMigrated(Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"},
 		State:      Queued, Receipt: &Receipt{Generation: "gen-1", Mode: Retain},
 	})
 	if err != nil {
@@ -259,7 +259,7 @@ func TestTaskRetirementPreservesEarlierReceipts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	held, err := running.PlaceHold(Hold{Reason: "More work", Kind: "captain"})
+	held, err := running.PlaceHold(Hold{Reason: "More work", Kind: "primary"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,8 +290,8 @@ func TestTaskRetirementPreservesEarlierReceipts(t *testing.T) {
 
 func TestTaskRetirementKeepsMatchingReceipt(t *testing.T) {
 	task, err := NewMigrated(Snapshot{
-		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship",
-			Hold: &Hold{Reason: "More work", Kind: "captain"}},
+		Definition: Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task",
+			Hold: &Hold{Reason: "More work", Kind: "primary"}},
 		State: Queued, Receipt: &Receipt{Generation: "gen-1", Mode: Retain},
 		Completion: &Completion{Generation: "gen-1", Mode: Retain, Phase: Retired},
 	})
@@ -319,7 +319,7 @@ func TestResultRetriesValidateClosingDate(t *testing.T) {
 					snapshot.Definition.Closed = "2026-10-11"
 					validDate = snapshot.Definition.Closed
 				} else if stage != "released_receipt" {
-					snapshot.Definition.Hold = &Hold{Reason: "Waiting", Kind: "captain"}
+					snapshot.Definition.Hold = &Hold{Reason: "Waiting", Kind: "primary"}
 				}
 				switch stage {
 				case "accepted":

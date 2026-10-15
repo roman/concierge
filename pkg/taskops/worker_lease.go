@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/worktree"
 	"github.com/roman/tincan/pkg/inbox"
@@ -24,7 +24,7 @@ func NewWithWorkerTools(
 ) (*Service, error) {
 	for _, executable := range []string{tools.Pool.Executable, tools.Git.Executable} {
 		if executable != "" {
-			if _, err := firstmate.ParseAbsolutePath(executable); err != nil {
+			if _, err := taskmeta.ParseAbsolutePath(executable); err != nil {
 				return nil, err
 			}
 		}

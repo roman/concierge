@@ -21,7 +21,7 @@ func TestMigrateLegacyPublishesVerifiedRecords(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-queued - Waiting (repo: exmachina) (kind: ship)\n## Done\n- [x] task-done - Finished (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-queued - Waiting (repo: exmachina) (kind: task)\n## Done\n- [x] task-done - Finished (repo: exmachina) (kind: task)\n",
 	)
 	if err := os.Symlink("/nix/store/example", filepath.Join(root, "profile")); err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestMigrateLegacyLeavesVersionOneAfterPreflightFailure(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## In flight\n- **task-1** - Running (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## In flight\n- **task-1** - Running (repo: exmachina) (kind: task)\n",
 	)
 	backupPath := filepath.Join(parent, "backup")
 	if err := MigrateLegacy(context.Background(), root, backupPath); err == nil {
@@ -93,11 +93,11 @@ func TestMigrateLegacyReplacesStaleRecordsFromEarlierAttempt(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-1 - Current (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-1 - Current (repo: exmachina) (kind: task)\n",
 	)
 	writeLegacyFile(t, root, "records/.migration-owner", "tincan-taskstate-v2\n")
 	stale, err := NewQueued(
-		Definition{ID: "task-1", Title: "Stale", Repo: "exmachina", Kind: "ship"},
+		Definition{ID: "task-1", Title: "Stale", Repo: "exmachina", Kind: "task"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +130,7 @@ func TestMigrateLegacyRejectsUnownedRecordsBeforeBackup(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: task)\n",
 	)
 	writeLegacyFile(t, root, "records/user.json", "keep")
 	backupPath := filepath.Join(parent, "backup")
@@ -156,7 +156,7 @@ func TestMigrateLegacyResumesPublishedBackup(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: task)\n",
 	)
 	backupPath := filepath.Join(parent, "backup")
 	if _, err := BackupLegacy(context.Background(), root, backupPath); err != nil {
@@ -184,7 +184,7 @@ func TestMigrateLegacyRejectsChangedLiveLink(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: task)\n",
 	)
 	link := filepath.Join(root, "profile")
 	if err := os.Symlink("/nix/store/old", link); err != nil {
@@ -221,7 +221,7 @@ func TestMigrateLegacyRejectsNewLiveFileAfterBackup(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: task)\n",
 	)
 	backupPath := filepath.Join(parent, "backup")
 	if _, err := BackupLegacy(context.Background(), root, backupPath); err != nil {
@@ -247,7 +247,7 @@ func TestMigrateLegacyRejectsChangedBackupDirectory(t *testing.T) {
 				t,
 				root,
 				"backlog.md",
-				"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: ship)\n",
+				"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: task)\n",
 			)
 			if err := os.Mkdir(filepath.Join(root, "empty"), 0o700); err != nil {
 				t.Fatal(err)
@@ -291,13 +291,13 @@ func testRecoverLegacyMigrationConfirmsPendingVersion(t *testing.T, version stri
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-1 - Work (repo: exmachina) (kind: task)\n",
 	)
 	backupPath := filepath.Join(parent, "backup")
 	if _, err := BackupLegacy(context.Background(), root, backupPath); err != nil {
 		t.Fatal(err)
 	}
-	task, err := NewQueued(Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"})
+	task, err := NewQueued(Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,14 +333,14 @@ func TestRecoverLegacyMigrationKeepsPendingOnMismatch(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-1 - Current (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-1 - Current (repo: exmachina) (kind: task)\n",
 	)
 	backupPath := filepath.Join(parent, "backup")
 	if _, err := BackupLegacy(context.Background(), root, backupPath); err != nil {
 		t.Fatal(err)
 	}
 	task, err := NewQueued(
-		Definition{ID: "task-1", Title: "Stale", Repo: "exmachina", Kind: "ship"},
+		Definition{ID: "task-1", Title: "Stale", Repo: "exmachina", Kind: "task"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -399,16 +399,21 @@ func TestRecoverLegacyMigrationRejectsDamagedBackup(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(root, "tasks"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.Mkdir(filepath.Join(root, "crew"), 0o700); err != nil {
+			if err := os.Mkdir(filepath.Join(root, "workerregistry"), 0o700); err != nil {
 				t.Fatal(err)
 			}
 			writeLegacyFile(
 				t,
 				root,
 				"backlog.md",
-				"# Tasks\n## In flight\n- **task-1** - Work (repo: exmachina) (kind: ship)\n",
+				"# Tasks\n## In flight\n- **task-1** - Work (repo: exmachina) (kind: task)\n",
 			)
-			writeLegacyJSON(t, root, "crew/task-1.json", legacyCrewRecord("task-1", "gen-1"))
+			writeLegacyJSON(
+				t,
+				root,
+				"workerregistry/task-1.json",
+				legacyWorkerRegistryRecord("task-1", "gen-1"),
+			)
 			writeLegacyFile(t, root, "tasks/task-1.meta", legacyTaskMetadata("task-1", "gen-1"))
 			if err := os.Symlink("/nix/store/example", filepath.Join(root, "profile")); err != nil {
 				t.Fatal(err)
@@ -450,16 +455,21 @@ func TestRecoverLegacyMigrationRejectsChangedLiveMetadata(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "tasks"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(root, "crew"), 0o700); err != nil {
+	if err := os.Mkdir(filepath.Join(root, "workerregistry"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	writeLegacyFile(
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## In flight\n- **task-1** - Work (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## In flight\n- **task-1** - Work (repo: exmachina) (kind: task)\n",
 	)
-	writeLegacyJSON(t, root, "crew/task-1.json", legacyCrewRecord("task-1", "gen-1"))
+	writeLegacyJSON(
+		t,
+		root,
+		"workerregistry/task-1.json",
+		legacyWorkerRegistryRecord("task-1", "gen-1"),
+	)
 	metadata := legacyTaskMetadata("task-1", "gen-1")
 	writeLegacyFile(t, root, "tasks/task-1.meta", metadata)
 	backupPath := filepath.Join(parent, "backup")

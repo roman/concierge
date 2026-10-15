@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/roman/concierge/pkg/hostservice"
-	"github.com/roman/concierge/pkg/resident"
 	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/wakeup"
 	"github.com/roman/tincan/pkg/inbox"
 	"io"
 	"strconv"
@@ -21,33 +21,33 @@ func taskSupervisionFixture(t *testing.T) (string, string, string) {
 	t.Helper()
 	root, messageRoot, _ := assignmentSendFixture(t)
 	directory := os.Getenv("PATH")
-	record := filepath.Join(directory, "resident-calls")
+	record := filepath.Join(directory, "wakeup-calls")
 	script := `#!/bin/sh
 [ "$HERDR_SESSION" = work ] || exit 71
-printf '%s|%s\n' "$HERDR_SESSION" "$*" >> "$TEST_RESIDENT_CALLS"
+printf '%s|%s\n' "$HERDR_SESSION" "$*" >> "$TEST_WAKEUP_CALLS"
 [ "$TEST_ADOPTION_FAIL" = 1 ] && exit 72
 case "$1 $2" in
  'pane get')
-  if [ "$TEST_RESIDENT_BLOCK" = 1 ]; then exec "$TEST_SLEEP" 60; fi
+  if [ "$TEST_WAKEUP_BLOCK" = 1 ]; then exec "$TEST_SLEEP" 60; fi
   printf '{"result":{"pane":{"pane_id":"pane-1","foreground_cwd":"%s","workspace_id":"workspace-1","tab_id":"tab-1"}}}\n' "$TEST_WORKTREE" ;;
  'agent get')
-  if [ "$TEST_RESIDENT_MISSING" = 1 ] && [ ! -f "$TEST_RESIDENT_STARTED" ]; then printf '%s\n' '{"error":{"code":"agent_not_found"}}'; exit 1; fi
+  if [ "$TEST_WAKEUP_MISSING" = 1 ] && [ ! -f "$TEST_WAKEUP_STARTED" ]; then printf '%s\n' '{"error":{"code":"agent_not_found"}}'; exit 1; fi
   printf '%s\n' '{"result":{"agent":{"pane_id":"pane-1","agent_status":"idle","agent":"codex"}}}' ;;
  'pane process-info') printf '%s\n' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"pane-1","shell_pid":100,"foreground_processes":[{"pid":101,"name":"codex","argv0":"codex"}]}}}' ;;
- 'agent start') printf started > "$TEST_RESIDENT_STARTED"; printf '%s\n' '{"result":{}}' ;;
- 'agent prompt') [ "$TEST_RESIDENT_NOTIFYFAIL" = 1 ] && exit 73; printf '%s\n' '{"result":{}}' ;;
+ 'agent start') printf started > "$TEST_WAKEUP_STARTED"; printf '%s\n' '{"result":{}}' ;;
+ 'agent prompt') [ "$TEST_WAKEUP_NOTIFYFAIL" = 1 ] && exit 73; printf '%s\n' '{"result":{}}' ;;
  *) exit 74 ;;
 esac
 `
 	if err := os.WriteFile(filepath.Join(directory, "herdr"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("TEST_RESIDENT_CALLS", record)
-	t.Setenv("TEST_RESIDENT_STARTED", filepath.Join(directory, "started"))
+	t.Setenv("TEST_WAKEUP_CALLS", record)
+	t.Setenv("TEST_WAKEUP_STARTED", filepath.Join(directory, "started"))
 	t.Setenv("TEST_ADOPTION_FAIL", "")
-	t.Setenv("TEST_RESIDENT_MISSING", "")
-	t.Setenv("TEST_RESIDENT_NOTIFYFAIL", "")
-	t.Setenv("TEST_RESIDENT_BLOCK", "")
+	t.Setenv("TEST_WAKEUP_MISSING", "")
+	t.Setenv("TEST_WAKEUP_NOTIFYFAIL", "")
+	t.Setenv("TEST_WAKEUP_BLOCK", "")
 	return root, messageRoot, record
 }
 
@@ -106,10 +106,10 @@ func TestSuperviseTaskUsesBoundDoorbellAndReleasesLease(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			root, messageRoot, record := taskSupervisionFixture(t)
 			if mode == "restart" {
-				t.Setenv("TEST_RESIDENT_MISSING", "1")
+				t.Setenv("TEST_WAKEUP_MISSING", "1")
 			}
 			if mode == "notify failure" {
-				t.Setenv("TEST_RESIDENT_NOTIFYFAIL", "1")
+				t.Setenv("TEST_WAKEUP_NOTIFYFAIL", "1")
 			}
 			messages, _ := inbox.New(messageRoot)
 			recipient, _ := inbox.ParseRecipient("task-1")
@@ -125,9 +125,9 @@ func TestSuperviseTaskUsesBoundDoorbellAndReleasesLease(t *testing.T) {
 					t.Fatalf("start: %s", got)
 				}
 			}
-			if lease, err := resident.AcquireTaskLease(root, "task-1"); err == nil {
+			if lease, err := wakeup.AcquireTaskLease(root, "task-1"); err == nil {
 				lease.Close()
-				t.Fatal("client exit stopped resident")
+				t.Fatal("client exit stopped wakeup")
 			}
 			var calls []byte
 			deadline := time.NewTimer(time.Second)
@@ -176,7 +176,7 @@ func TestSuperviseTaskUsesBoundDoorbellAndReleasesLease(t *testing.T) {
 			if got := invoke(t, root, "", "supervise", "stop", "task", "task-1"); got != "task: \"task-1\"\nsupervision: stopped\n" {
 				t.Fatal(got)
 			}
-			lease, err := resident.AcquireTaskLease(root, "task-1")
+			lease, err := wakeup.AcquireTaskLease(root, "task-1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -192,7 +192,7 @@ func TestSuperviseTaskRejectsInvalidConfigAndDuplicateController(t *testing.T) {
 	root, messageRoot, record := taskSupervisionFixture(t)
 	args := taskSupervisionArgs(root, messageRoot)[2:]
 	expectLifecycleError(t, root, 2, append(args, "--interval", "0s")...)
-	lease, err := resident.AcquireTaskLease(root, "task-1")
+	lease, err := wakeup.AcquireTaskLease(root, "task-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestSuperviseTaskInitialFailurePreventsWatcher(t *testing.T) {
 	) {
 		t.Fatalf("watcher after failed health: %v", err)
 	}
-	lease, err := resident.AcquireTaskLease(root, "task-1")
+	lease, err := wakeup.AcquireTaskLease(root, "task-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestSuperviseTaskMailboxStartupFailureDoesNotReportActive(t *testing.T) {
 	if strings.Contains(failed, "supervision: active") {
 		t.Fatal(failed)
 	}
-	lease, err := resident.AcquireTaskLease(root, "task-1")
+	lease, err := wakeup.AcquireTaskLease(root, "task-1")
 	if err != nil {
 		t.Fatal(err)
 	}

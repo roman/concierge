@@ -1,10 +1,8 @@
-package firstmate
+package taskmeta
 
 import (
-	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -253,83 +251,6 @@ func TestTaskLockConcurrentRelease(t *testing.T) {
 	}
 }
 
-func TestTaskLockBashInteroperability(t *testing.T) {
-	source := os.Getenv("FIRSTMATE_SOURCE")
-	if source == "" {
-		t.Skip("set FIRSTMATE_SOURCE to run Bash interoperability test")
-	}
-	state, id, path := testLockInputs(t)
-	library := filepath.Join(source, "bin", "fm-wake-lib.sh")
-	if _, err := os.Stat(library); err != nil {
-		t.Fatal(err)
-	}
-	first, err := AcquireTaskLock(state, id, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	check := exec.Command("bash", "-c",
-		". \"$1\"; if fm_lock_try_acquire \"$2\"; then fm_lock_release \"$2\"; exit 1; fi",
-		"bash", library, path)
-	check.Env = append(os.Environ(), "FM_STATE_OVERRIDE="+state.String())
-	if output, err := check.CombinedOutput(); err != nil {
-		t.Fatalf("Bash ignored Go lock: %v: %s", err, output)
-	}
-	if err := first.Release(); err != nil {
-		t.Fatal(err)
-	}
-	ready := filepath.Join(state.String(), "bash-ready")
-	release := filepath.Join(state.String(), "bash-release")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	holder := exec.CommandContext(
-		ctx,
-		"bash",
-		"-c",
-		". \"$1\"; fm_lock_try_acquire \"$2\" || exit 2; : > \"$3\"; while [ ! -e \"$4\" ]; do sleep 0.01; done; fm_lock_release \"$2\"",
-		"bash",
-		library,
-		path,
-		ready,
-		release,
-	)
-	holder.Env = append(os.Environ(), "FM_STATE_OVERRIDE="+state.String())
-	if err := holder.Start(); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		_ = os.WriteFile(release, nil, 0600)
-		if holder.ProcessState == nil {
-			_ = holder.Wait()
-		}
-	}()
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if _, err := os.Stat(ready); err == nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("Bash did not acquire lock")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if _, err := AcquireTaskLock(state, id, 50*time.Millisecond); !errors.Is(err, ErrLockTimeout) {
-		t.Fatalf("Go ignored Bash lock: %v", err)
-	}
-	if err := os.WriteFile(release, nil, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := holder.Wait(); err != nil {
-		t.Fatal(err)
-	}
-	last, err := AcquireTaskLock(state, id, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := last.Release(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestTaskLockMissingPIDGrace(t *testing.T) {
 	for _, test := range []struct {
 		name string
@@ -504,45 +425,6 @@ func TestTaskLockPreservesSuccessorLink(t *testing.T) {
 	}
 	if target, err := os.Readlink(path); err != nil || target != successorOwner {
 		t.Fatalf("successor link = %q, %v", target, err)
-	}
-}
-
-func TestTaskLockBashStaleRecovery(t *testing.T) {
-	source := os.Getenv("FIRSTMATE_SOURCE")
-	if source == "" {
-		t.Skip("set FIRSTMATE_SOURCE to run Bash interoperability test")
-	}
-	state, id, path := testLockInputs(t)
-	library := filepath.Join(source, "bin", "fm-wake-lib.sh")
-	if _, err := os.Stat(library); err != nil {
-		t.Fatal(err)
-	}
-	bashCreate := exec.Command(
-		"bash",
-		"-c",
-		". \"$1\"; owner=$(mktemp -d \"$2.owner.XXXXXX\") || exit; printf '99999999\\n' > \"$owner/pid\"; ln -s \"$owner\" \"$2\"",
-		"bash",
-		library,
-		path,
-	)
-	bashCreate.Env = append(os.Environ(), "FM_STATE_OVERRIDE="+state.String())
-	if output, err := bashCreate.CombinedOutput(); err != nil {
-		t.Fatalf("Bash stale fixture: %v: %s", err, output)
-	}
-	goLock, err := AcquireTaskLock(state, id, time.Second)
-	if err != nil {
-		t.Fatalf("Go could not recover Bash lock: %v", err)
-	}
-	if err := goLock.Release(); err != nil {
-		t.Fatal(err)
-	}
-	createDeadLink(t, path)
-	bashRecover := exec.Command("bash", "-c",
-		". \"$1\"; fm_lock_try_acquire \"$2\" || exit 2; fm_lock_release \"$2\"",
-		"bash", library, path)
-	bashRecover.Env = append(os.Environ(), "FM_STATE_OVERRIDE="+state.String())
-	if output, err := bashRecover.CombinedOutput(); err != nil {
-		t.Fatalf("Bash could not recover Go-format lock: %v: %s", err, output)
 	}
 }
 
@@ -747,47 +629,5 @@ func TestTaskLockConcurrentInterruptedRecovery(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-	}
-}
-
-func TestTaskLockBashInterruptedRecovery(t *testing.T) {
-	source := os.Getenv("FIRSTMATE_SOURCE")
-	if source == "" {
-		t.Skip("set FIRSTMATE_SOURCE to run Bash interoperability test")
-	}
-	state, id, path := testLockInputs(t)
-	library := filepath.Join(source, "bin", "fm-wake-lib.sh")
-	if _, err := os.Stat(library); err != nil {
-		t.Fatal(err)
-	}
-	bashCreate := exec.Command(
-		"bash",
-		"-c",
-		". \"$1\"; owner=$(mktemp -d \"$2.owner.XXXXXX\") || exit; printf '99999999\\n' > \"$owner/pid\"; ln -s \"$owner\" \"$2\"; mv \"$owner\" \"$owner.reaped.99999999\"",
-		"bash",
-		library,
-		path,
-	)
-	bashCreate.Env = append(os.Environ(), "FM_STATE_OVERRIDE="+state.String())
-	if output, err := bashCreate.CombinedOutput(); err != nil {
-		t.Fatalf("Bash tombstone fixture: %v: %s", err, output)
-	}
-	time.Sleep(2100 * time.Millisecond)
-	goLock, err := AcquireTaskLock(state, id, time.Second)
-	if err != nil {
-		t.Fatalf("Go could not recover Bash tombstone: %v", err)
-	}
-	if err := goLock.Release(); err != nil {
-		t.Fatal(err)
-	}
-	createDeadLink(t, path)
-	createDeadLink(t, path+".steal")
-	createDeadLink(t, path+".steal.steal")
-	bashRecover := exec.Command("bash", "-c",
-		". \"$1\"; fm_lock_try_acquire \"$2\" || exit 2; fm_lock_release \"$2\"",
-		"bash", library, path)
-	bashRecover.Env = append(os.Environ(), "FM_STATE_OVERRIDE="+state.String())
-	if output, err := bashRecover.CombinedOutput(); err != nil {
-		t.Fatalf("Bash could not recover Go-format steal markers: %v: %s", err, output)
 	}
 }

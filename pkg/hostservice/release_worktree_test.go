@@ -40,7 +40,7 @@ func TestWorktreeReleaseRequiresGenerationAndReturnedReceipt(t *testing.T) {
 		State:      taskstate.LeaseReturned,
 	}
 	snapshot := taskstate.Snapshot{
-		Definition: taskstate.Definition{ID: "task-1", Title: "Work", Repo: "repo", Kind: "ship"},
+		Definition: taskstate.Definition{ID: "task-1", Title: "Work", Repo: "repo", Kind: "task"},
 		State:      taskstate.Queued,
 		Receipt:    &taskstate.Receipt{Generation: "gen-1", Mode: taskstate.Retain, Lease: lease},
 	}
@@ -94,7 +94,7 @@ func TestHostReleaseHistoricalLeasePreservesCurrentWorker(t *testing.T) {
 			AgentArgs:  []string{"resume", "native-session"},
 		}
 		task, err := taskstate.NewQueued(
-			taskstate.Definition{ID: "task-1", Title: "Work", Repo: "repo", Kind: "ship"},
+			taskstate.Definition{ID: "task-1", Title: "Work", Repo: "repo", Kind: "task"},
 		)
 		if err != nil {
 			t.Fatal(err)

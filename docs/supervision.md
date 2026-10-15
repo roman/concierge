@@ -44,17 +44,17 @@ their notification omits that unavailable source.
 
 Manual pane supervision uses the host session and the supplied launch arguments.
 Task supervision uses the recorded session. Neither supervisor creates a pane.
-A successful supervise command returns after the resident is ready. The host
-keeps the resident running after the client exits. An identical start request
-returns the active result. Stop cancels and joins the resident without closing
+A successful supervise command returns after the wakeup is ready. The host
+keeps the wakeup running after the client exits. An identical start request
+returns the active result. Stop cancels and joins the wakeup without closing
 its worker. Stop forbids monitor flags. Explicit monitor flags on a start request
 assert the corresponding host settings.
 
 Manual supervision and raw Start reject task-bound panes. Control interrupt resolves an
-agent alias to its pane before reserving the endpoint. An active resident blocks
+agent alias to its pane before reserving the endpoint. An active wakeup blocks
 raw control of its pane. Adoption reserves the task and endpoint. An identical
 adoption retry can verify a matching active task worker without stopping its
-resident. A manual resident blocks adoption. Restart arguments must include the
+wakeup. A manual wakeup blocks adoption. Restart arguments must include the
 agent's resume identity when work needs to continue after a restart.
 
 Lifecycle hooks can call `primary claim`, `primary verify`, and `primary release`

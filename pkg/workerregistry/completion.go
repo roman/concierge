@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/presentation"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 // CompletionMode selects the backlog state after a worker is retired.
@@ -40,25 +40,25 @@ type CompletionReceipt struct {
 
 // Completion keeps one task's records and pending transition under its metadata lock.
 type Completion struct {
-	id         firstmate.TaskID
-	taskRoot   *os.Root
-	crewRoot   *os.Root
-	check      func() error
-	crewPath   string
-	crewInfo   os.FileInfo
-	marker     completionMarker
-	markerInfo os.FileInfo
-	metadata   firstmate.Metadata
-	metaInfo   os.FileInfo
-	record     Record
-	recordInfo os.FileInfo
+	id                 taskmeta.TaskID
+	taskRoot           *os.Root
+	workerRegistryRoot *os.Root
+	check              func() error
+	workerRegistryPath string
+	workerRegistryInfo os.FileInfo
+	marker             completionMarker
+	markerInfo         os.FileInfo
+	metadata           taskmeta.Metadata
+	metaInfo           os.FileInfo
+	record             Record
+	recordInfo         os.FileInfo
 }
 
-func markerName(id firstmate.TaskID) string { return id.String() + ".completion.json" }
+func markerName(id taskmeta.TaskID) string { return id.String() + ".completion.json" }
 
-func receiptName(id firstmate.TaskID) string { return id.String() + ".receipt.json" }
+func receiptName(id taskmeta.TaskID) string { return id.String() + ".receipt.json" }
 
-func completionPending(root *os.Root, id firstmate.TaskID) (bool, error) {
+func completionPending(root *os.Root, id taskmeta.TaskID) (bool, error) {
 	_, err := root.Lstat(markerName(id))
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -75,28 +75,31 @@ func (registry *Registry) WithCompletion(taskID string, operation func(*Completi
 	if operation == nil {
 		return ErrInvalidRecord
 	}
-	id, err := firstmate.ParseTaskID(taskID)
+	id, err := taskmeta.ParseTaskID(taskID)
 	if err != nil {
 		return err
 	}
 	return registry.withLockedTask(taskID, func(taskRoot *os.Root, check func() error) error {
-		crewRoot, err := registry.openCrew()
+		workerRegistryRoot, err := registry.openWorkerRegistry()
 		if err != nil {
 			return err
 		}
-		defer crewRoot.Close()
-		crewDirectory, err := crewRoot.Open(".")
+		defer workerRegistryRoot.Close()
+		workerRegistryDirectory, err := workerRegistryRoot.Open(".")
 		if err != nil {
 			return err
 		}
-		crewInfo, err := crewDirectory.Stat()
-		crewDirectory.Close()
+		workerRegistryInfo, err := workerRegistryDirectory.Stat()
+		workerRegistryDirectory.Close()
 		if err != nil {
 			return err
 		}
 		completion := &Completion{
-			id: id, taskRoot: taskRoot, crewRoot: crewRoot, check: check,
-			crewPath: filepath.Join(registry.root, "crew"), crewInfo: crewInfo,
+			id: id, taskRoot: taskRoot, workerRegistryRoot: workerRegistryRoot, check: check,
+			workerRegistryPath: filepath.Join(
+				registry.root,
+				"workerregistry",
+			), workerRegistryInfo: workerRegistryInfo,
 		}
 		if err := completion.checkCurrent(); err != nil {
 			return err
@@ -112,11 +115,11 @@ func (completion *Completion) checkCurrent() error {
 	if err := completion.check(); err != nil {
 		return err
 	}
-	if !sameDirectory(completion.crewInfo, completion.crewPath) {
-		return fmt.Errorf("%w: crew directory changed", ErrStaleRecord)
+	if !sameDirectory(completion.workerRegistryInfo, completion.workerRegistryPath) {
+		return fmt.Errorf("%w: workerregistry directory changed", ErrStaleRecord)
 	}
 	if completion.metaInfo != nil {
-		metadata, selected, err := firstmate.ReadTaskWithInfoFromRoot(
+		metadata, selected, err := taskmeta.ReadTaskWithInfoFromRoot(
 			completion.taskRoot, completion.id,
 		)
 		if err != nil || !os.SameFile(selected, completion.metaInfo) ||
@@ -125,10 +128,13 @@ func (completion *Completion) checkCurrent() error {
 		}
 	}
 	if completion.recordInfo != nil {
-		record, selected, err := readRecordWithInfo(completion.crewRoot, completion.id.String())
+		record, selected, err := readRecordWithInfo(
+			completion.workerRegistryRoot,
+			completion.id.String(),
+		)
 		if err != nil || !os.SameFile(selected, completion.recordInfo) ||
 			!reflect.DeepEqual(record, completion.record) {
-			return fmt.Errorf("%w: crew record changed", ErrStaleRecord)
+			return fmt.Errorf("%w: worker registry record changed", ErrStaleRecord)
 		}
 	}
 	if completion.markerInfo != nil {
@@ -141,7 +147,7 @@ func (completion *Completion) checkCurrent() error {
 	return nil
 }
 
-// CheckCurrent confirms the selected task and crew records still name active directories.
+// CheckCurrent confirms the selected task and worker registry records still name active directories.
 func (completion *Completion) CheckCurrent() error {
 	if completion == nil {
 		return ErrInvalidRecord
@@ -155,7 +161,7 @@ func (completion *Completion) load() error {
 		return err
 	}
 	completion.marker, completion.markerInfo = marker, info
-	metadata, metaInfo, err := firstmate.ReadTaskWithInfoFromRoot(
+	metadata, metaInfo, err := taskmeta.ReadTaskWithInfoFromRoot(
 		completion.taskRoot, completion.id,
 	)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -165,7 +171,10 @@ func (completion *Completion) load() error {
 		completion.metadata = metadata
 		completion.metaInfo = metaInfo
 	}
-	record, recordInfo, err := readRecordWithInfo(completion.crewRoot, completion.id.String())
+	record, recordInfo, err := readRecordWithInfo(
+		completion.workerRegistryRoot,
+		completion.id.String(),
+	)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -175,17 +184,17 @@ func (completion *Completion) load() error {
 	}
 	if info == nil && completion.recordInfo != nil &&
 		record.PendingGeneration != "" && record.PendingLaunch == "" {
-		if _, err := recoverPendingGeneration(completion.taskRoot, completion.crewRoot,
+		if _, err := recoverPendingGeneration(completion.taskRoot, completion.workerRegistryRoot,
 			completion.id, record); err != nil {
 			return err
 		}
-		completion.metadata, completion.metaInfo, err = firstmate.ReadTaskWithInfoFromRoot(
+		completion.metadata, completion.metaInfo, err = taskmeta.ReadTaskWithInfoFromRoot(
 			completion.taskRoot, completion.id)
 		if err != nil {
 			return err
 		}
 		completion.record, completion.recordInfo, err = readRecordWithInfo(
-			completion.crewRoot, completion.id.String())
+			completion.workerRegistryRoot, completion.id.String())
 		if err != nil {
 			return err
 		}
@@ -221,7 +230,7 @@ func (completion *Completion) load() error {
 
 func readCompletionMarker(
 	root *os.Root,
-	id firstmate.TaskID,
+	id taskmeta.TaskID,
 ) (completionMarker, os.FileInfo, error) {
 	selected, err := root.Lstat(markerName(id))
 	if err != nil {
@@ -245,7 +254,7 @@ func readCompletionMarker(
 	}
 	var marker completionMarker
 	if json.Unmarshal(data, &marker) != nil || marker.TaskID != id.String() ||
-		firstmate.ValidateSpawnGeneration(marker.SpawnGeneration) != nil ||
+		taskmeta.ValidateSpawnGeneration(marker.SpawnGeneration) != nil ||
 		!validCompletionMode(marker.Mode) {
 		return completionMarker{}, nil, ErrInvalidRecord
 	}
@@ -355,16 +364,16 @@ func (completion *Completion) Retire(
 		}
 	}
 	if completion.recordInfo != nil {
-		if err := withCrewLock(completion.crewRoot, func() error {
+		if err := withWorkerRegistryLock(completion.workerRegistryRoot, func() error {
 			if err := completion.checkCurrent(); err != nil {
 				return err
 			}
-			current, err := readRecord(completion.crewRoot, completion.id.String())
+			current, err := readRecord(completion.workerRegistryRoot, completion.id.String())
 			if err != nil || !reflect.DeepEqual(current, completion.record) {
 				return ErrStaleRecord
 			}
 			return removeSelected(
-				completion.crewRoot, completion.id.String()+".json", completion.recordInfo,
+				completion.workerRegistryRoot, completion.id.String()+".json", completion.recordInfo,
 			)
 		}); err != nil {
 			return err
@@ -485,7 +494,7 @@ func (registry *Registry) WithRetiredReceipt(
 	if operation == nil {
 		return ErrInvalidRecord
 	}
-	id, err := firstmate.ParseTaskID(taskID)
+	id, err := taskmeta.ParseTaskID(taskID)
 	if err != nil {
 		return err
 	}
@@ -498,12 +507,15 @@ func (registry *Registry) WithRetiredReceipt(
 				return ErrStaleRecord
 			}
 		}
-		crewRoot, err := registry.openCrew()
+		workerRegistryRoot, err := registry.openWorkerRegistry()
 		if err != nil {
 			return err
 		}
-		defer crewRoot.Close()
-		if _, err := crewRoot.Lstat(id.String() + ".json"); !errors.Is(err, os.ErrNotExist) {
+		defer workerRegistryRoot.Close()
+		if _, err := workerRegistryRoot.Lstat(id.String() + ".json"); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
 			return ErrStaleRecord
 		}
 		selected, err := taskRoot.Lstat(receiptName(id))
@@ -528,7 +540,7 @@ func (registry *Registry) WithRetiredReceipt(
 		}
 		var receipt CompletionReceipt
 		if json.Unmarshal(data, &receipt) != nil || receipt.TaskID != taskID ||
-			firstmate.ValidateSpawnGeneration(receipt.SpawnGeneration) != nil ||
+			taskmeta.ValidateSpawnGeneration(receipt.SpawnGeneration) != nil ||
 			!validCompletionMode(receipt.Mode) {
 			return ErrInvalidRecord
 		}

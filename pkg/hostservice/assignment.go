@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/tincan/pkg/inbox"
 )
@@ -30,7 +30,7 @@ func validateAssignmentInput(input *AssignmentRequest) error {
 	if input == nil {
 		return errors.New("send requires an assignment")
 	}
-	if _, err := firstmate.ParseTaskID(input.TaskID); err != nil {
+	if _, err := taskmeta.ParseTaskID(input.TaskID); err != nil {
 		return err
 	}
 	if strings.TrimSpace(input.Body) == "" {

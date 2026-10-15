@@ -13,7 +13,7 @@ func TestStoreAllowsIndependentPendingPoolAcquisitions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, id := range []string{"task-1", "task-2"} {
-		task, err := NewQueued(Definition{ID: id, Title: "Work", Repo: "repo", Kind: "ship"})
+		task, err := NewQueued(Definition{ID: id, Title: "Work", Repo: "repo", Kind: "task"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +75,7 @@ func TestHeldHistoricalLeaseBlocksNewPathClaims(t *testing.T) {
 				}
 				for _, id := range []string{"task-1", "task-2"} {
 					candidate, err := NewQueued(
-						Definition{ID: id, Title: "Next", Repo: "repo", Kind: "ship"},
+						Definition{ID: id, Title: "Next", Repo: "repo", Kind: "task"},
 					)
 					if err != nil {
 						t.Fatal(err)
@@ -134,7 +134,7 @@ func TestWorkerLeaseSurvivesRestartAndRetirement(t *testing.T) {
 			closedOn := "2026-10-13"
 			if mode == Retain {
 				closedOn = ""
-				task, err = task.PlaceHold(Hold{Reason: "Review result", Kind: "captain"})
+				task, err = task.PlaceHold(Hold{Reason: "Review result", Kind: "primary"})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -190,7 +190,7 @@ func TestAbandonedLeaseCaptureChecksEveryPathOwner(t *testing.T) {
 				}
 				if owner != "task-1" {
 					other, err := NewQueued(
-						Definition{ID: owner, Title: "Other", Repo: "repo", Kind: "ship"},
+						Definition{ID: owner, Title: "Other", Repo: "repo", Kind: "task"},
 					)
 					if err != nil {
 						t.Fatal(err)

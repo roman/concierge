@@ -123,7 +123,7 @@ func TestSendReplyRepairsAcknowledgementAfterResultAndNewWorker(t *testing.T) {
 				if state == "new worker" {
 					mode, closedOn = taskstate.Retain, ""
 					if _, err := service.store.Update(ctx, "task-1", func(task taskstate.Task) (taskstate.Task, error) {
-						return task.PlaceHold(taskstate.Hold{Reason: "Another pass", Kind: "captain"})
+						return task.PlaceHold(taskstate.Hold{Reason: "Another pass", Kind: "primary"})
 					}); err != nil {
 						t.Fatal(err)
 					}

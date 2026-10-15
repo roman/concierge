@@ -16,10 +16,10 @@ type supervisionCommands struct {
 	Stop struct {
 		Task struct {
 			TaskID string `arg:"" help:"Task ID."`
-		} `cmd:"" help:"Stop a task resident without stopping its worker."`
+		} `cmd:"" help:"Stop a task wakeup without stopping its worker."`
 		Pane struct {
 			Pane string `required:"" help:"Herdr pane ID."`
-		} `cmd:"" help:"Stop a manual pane resident."`
+		} `cmd:"" help:"Stop a manual pane wakeup."`
 	} `cmd:"" help:"Stop host-owned supervision."`
 	Session          string        `help:"Expected host session for manual panes." env:"HERDR_SESSION"`
 	Interval         time.Duration `help:"Time between health checks." default:"5s"`

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 const workerLaunchGeneration = "CONCIERGE_SPAWN_GENERATION"
@@ -22,7 +22,7 @@ func (command *cli) validateWorkerLaunch(selected string) error {
 		return nil
 	}
 	launch := os.Getenv(workerLaunchGeneration)
-	if err := firstmate.ValidateSpawnGeneration(launch); err != nil {
+	if err := taskmeta.ValidateSpawnGeneration(launch); err != nil {
 		return fmt.Errorf(
 			"%s is missing or invalid in the worker launch context",
 			workerLaunchGeneration,

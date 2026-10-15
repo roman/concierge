@@ -74,7 +74,7 @@ func TestInitializePreservesExistingTasks(t *testing.T) {
 	if err := Initialize(context.Background(), root); err != nil {
 		t.Fatal(err)
 	}
-	task, err := NewQueued(Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship"})
+	task, err := NewQueued(Definition{ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task"})
 	if err != nil {
 		t.Fatal(err)
 	}

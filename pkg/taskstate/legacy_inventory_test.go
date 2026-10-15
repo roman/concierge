@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/roman/concierge/pkg/crew"
+	"github.com/roman/concierge/pkg/workerregistry"
 )
 
 func TestInventoryLegacyJoinsWorkerAndRetirement(t *testing.T) {
@@ -16,9 +16,14 @@ func TestInventoryLegacyJoinsWorkerAndRetirement(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-queued - Waiting (repo: exmachina) (kind: ship)\n## In flight\n- **task-active** - Running (repo: exmachina) (kind: ship)\n## Done\n- [x] task-retired - Cleaning (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-queued - Waiting (repo: exmachina) (kind: task)\n## In flight\n- **task-active** - Running (repo: exmachina) (kind: task)\n## Done\n- [x] task-retired - Cleaning (repo: exmachina) (kind: task)\n",
 	)
-	writeLegacyJSON(t, root, "crew/task-active.json", legacyCrewRecord("task-active", "gen-2"))
+	writeLegacyJSON(
+		t,
+		root,
+		"workerregistry/task-active.json",
+		legacyWorkerRegistryRecord("task-active", "gen-2"),
+	)
 	writeLegacyFile(t, root, "tasks/task-active.meta", legacyTaskMetadata("task-active", "gen-2"))
 	writeLegacyJSON(t, root, "tasks/task-active.receipt.json", map[string]string{
 		"task_id": "task-active", "spawn_generation": "gen-1", "mode": "retain",
@@ -62,48 +67,63 @@ func TestInventoryLegacyRejectsInconsistentWorker(t *testing.T) {
 		backlog string
 		setup   func(*testing.T, string)
 	}{
-		{name: "orphan crew", setup: func(t *testing.T, root string) {
-			writeLegacyJSON(t, root, "crew/other.json", legacyCrewRecord("other", "gen-1"))
+		{name: "orphan workerregistry", setup: func(t *testing.T, root string) {
+			writeLegacyJSON(
+				t,
+				root,
+				"workerregistry/other.json",
+				legacyWorkerRegistryRecord("other", "gen-1"),
+			)
 		}},
 		{name: "missing metadata", setup: func(t *testing.T, root string) {
-			writeLegacyJSON(t, root, "crew/task-1.json", legacyCrewRecord("task-1", "gen-1"))
+			writeLegacyJSON(
+				t,
+				root,
+				"workerregistry/task-1.json",
+				legacyWorkerRegistryRecord("task-1", "gen-1"),
+			)
 		}},
 		{name: "generation mismatch", setup: func(t *testing.T, root string) {
-			writeLegacyJSON(t, root, "crew/task-1.json", legacyCrewRecord("task-1", "gen-1"))
+			writeLegacyJSON(
+				t,
+				root,
+				"workerregistry/task-1.json",
+				legacyWorkerRegistryRecord("task-1", "gen-1"),
+			)
 			writeLegacyFile(t, root, "tasks/task-1.meta", legacyTaskMetadata("task-1", "gen-2"))
 		}},
 		{name: "orphan metadata", setup: func(t *testing.T, root string) {
 			writeLegacyFile(t, root, "tasks/task-1.meta", legacyTaskMetadata("task-1", "gen-1"))
 		}},
-		{name: "unknown crew field", setup: func(t *testing.T, root string) {
-			data, err := json.Marshal(legacyCrewRecord("task-1", "gen-1"))
+		{name: "unknown workerregistry field", setup: func(t *testing.T, root string) {
+			data, err := json.Marshal(legacyWorkerRegistryRecord("task-1", "gen-1"))
 			if err != nil {
 				t.Fatal(err)
 			}
 			writeLegacyFile(
 				t,
 				root,
-				"crew/task-1.json",
+				"workerregistry/task-1.json",
 				string(data[:len(data)-1])+`,"extra":"lost"}`,
 			)
 			writeLegacyFile(t, root, "tasks/task-1.meta", legacyTaskMetadata("task-1", "gen-1"))
 		}},
-		{name: "duplicate crew field", setup: func(t *testing.T, root string) {
-			data, err := json.Marshal(legacyCrewRecord("task-1", "gen-1"))
+		{name: "duplicate workerregistry field", setup: func(t *testing.T, root string) {
+			data, err := json.Marshal(legacyWorkerRegistryRecord("task-1", "gen-1"))
 			if err != nil {
 				t.Fatal(err)
 			}
 			writeLegacyFile(
 				t,
 				root,
-				"crew/task-1.json",
+				"workerregistry/task-1.json",
 				string(data[:len(data)-1])+`,"task_id":"task-1"}`,
 			)
 			writeLegacyFile(t, root, "tasks/task-1.meta", legacyTaskMetadata("task-1", "gen-1"))
 		}},
 		{
 			name:    "invalid completion endpoint",
-			backlog: "# Tasks\n## Done\n- [x] task-1 - Finished (repo: exmachina) (kind: ship)\n",
+			backlog: "# Tasks\n## Done\n- [x] task-1 - Finished (repo: exmachina) (kind: task)\n",
 			setup: func(t *testing.T, root string) {
 				writeLegacyJSON(t, root, "tasks/task-1.completion.json", map[string]string{
 					"task_id": "task-1", "spawn_generation": "gen-1", "session": "bad/name",
@@ -123,7 +143,7 @@ func TestInventoryLegacyRejectsInconsistentWorker(t *testing.T) {
 			root := legacyInventoryRoot(t)
 			backlog := test.backlog
 			if backlog == "" {
-				backlog = "# Tasks\n## In flight\n- **task-1** - Running (repo: exmachina) (kind: ship)\n"
+				backlog = "# Tasks\n## In flight\n- **task-1** - Running (repo: exmachina) (kind: task)\n"
 			}
 			writeLegacyFile(
 				t,
@@ -150,16 +170,16 @@ func TestInventoryLegacyPreservesPendingWorkerTransitions(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Queued\n- [ ] task-adopting - Waiting (repo: exmachina) (kind: ship)\n## In flight\n- **task-rotating** - Running (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Queued\n- [ ] task-adopting - Waiting (repo: exmachina) (kind: task)\n## In flight\n- **task-rotating** - Running (repo: exmachina) (kind: task)\n",
 	)
-	adopting := legacyCrewRecord("task-adopting", "gen-1")
+	adopting := legacyWorkerRegistryRecord("task-adopting", "gen-1")
 	adopting.PendingAdoption = true
-	writeLegacyJSON(t, root, "crew/task-adopting.json", adopting)
-	rotating := legacyCrewRecord("task-rotating", "gen-1")
+	writeLegacyJSON(t, root, "workerregistry/task-adopting.json", adopting)
+	rotating := legacyWorkerRegistryRecord("task-rotating", "gen-1")
 	rotating.Name, rotating.PaneID = "worker-2", "pane-2"
 	rotating.PendingGeneration = "gen-2"
 	rotating.PendingLaunch = "gen-2"
-	writeLegacyJSON(t, root, "crew/task-rotating.json", rotating)
+	writeLegacyJSON(t, root, "workerregistry/task-rotating.json", rotating)
 	writeLegacyFile(
 		t,
 		root,
@@ -191,9 +211,14 @@ func TestInventoryLegacyPreservesInterruptedCleanup(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## Done\n- [x] task-1 - Finished (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## Done\n- [x] task-1 - Finished (repo: exmachina) (kind: task)\n",
 	)
-	writeLegacyJSON(t, root, "crew/task-1.json", legacyCrewRecord("task-1", "gen-1"))
+	writeLegacyJSON(
+		t,
+		root,
+		"workerregistry/task-1.json",
+		legacyWorkerRegistryRecord("task-1", "gen-1"),
+	)
 	writeLegacyJSON(t, root, "tasks/task-1.completion.json", map[string]string{
 		"task_id": "task-1", "spawn_generation": "gen-1", "session": "work",
 		"pane": "pane-1", "mode": "close",
@@ -220,9 +245,14 @@ func TestInventoryLegacyPreservesAcceptedResult(t *testing.T) {
 		t,
 		root,
 		"backlog.md",
-		"# Tasks\n## In flight\n- **task-1** - Running (repo: exmachina) (kind: ship)\n",
+		"# Tasks\n## In flight\n- **task-1** - Running (repo: exmachina) (kind: task)\n",
 	)
-	writeLegacyJSON(t, root, "crew/task-1.json", legacyCrewRecord("task-1", "gen-1"))
+	writeLegacyJSON(
+		t,
+		root,
+		"workerregistry/task-1.json",
+		legacyWorkerRegistryRecord("task-1", "gen-1"),
+	)
 	writeLegacyFile(t, root, "tasks/task-1.meta", legacyTaskMetadata("task-1", "gen-1"))
 	writeLegacyJSON(t, root, "tasks/task-1.completion.json", map[string]string{
 		"task_id": "task-1", "spawn_generation": "gen-1", "session": "work",
@@ -259,13 +289,18 @@ func TestInventoryLegacyRejectsDuplicateWorkerIdentity(t *testing.T) {
 				t,
 				root,
 				"backlog.md",
-				"# Tasks\n## In flight\n- **task-1** - First (repo: exmachina) (kind: ship)\n- **task-2** - Second (repo: exmachina) (kind: ship)\n",
+				"# Tasks\n## In flight\n- **task-1** - First (repo: exmachina) (kind: task)\n- **task-2** - Second (repo: exmachina) (kind: task)\n",
 			)
-			writeLegacyJSON(t, root, "crew/task-1.json", legacyCrewRecord("task-1", "gen-1"))
+			writeLegacyJSON(
+				t,
+				root,
+				"workerregistry/task-1.json",
+				legacyWorkerRegistryRecord("task-1", "gen-1"),
+			)
 			writeLegacyFile(t, root, "tasks/task-1.meta", legacyTaskMetadata("task-1", "gen-1"))
-			other := legacyCrewRecord("task-2", "gen-2")
+			other := legacyWorkerRegistryRecord("task-2", "gen-2")
 			other.Name, other.PaneID = test.otherName, test.otherPane
-			writeLegacyJSON(t, root, "crew/task-2.json", other)
+			writeLegacyJSON(t, root, "workerregistry/task-2.json", other)
 			writeLegacyFile(t, root, "tasks/task-2.meta", strings.ReplaceAll(
 				legacyTaskMetadata("task-2", "gen-2"), "pane-1", test.otherPane,
 			))
@@ -284,7 +319,7 @@ func TestInventoryLegacyRejectsDuplicateWorkerIdentity(t *testing.T) {
 func legacyInventoryRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	for _, name := range []string{"tasks", "crew"} {
+	for _, name := range []string{"tasks", "workerregistry"} {
 		if err := os.Mkdir(filepath.Join(root, name), 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -308,8 +343,8 @@ func writeLegacyJSON(t *testing.T, root, name string, content any) {
 	writeLegacyFile(t, root, name, string(data))
 }
 
-func legacyCrewRecord(taskID, generation string) crew.Record {
-	return crew.Record{
+func legacyWorkerRegistryRecord(taskID, generation string) workerregistry.Record {
+	return workerregistry.Record{
 		TaskID: taskID, Name: "worker-1", Kind: "codex", PaneID: "pane-1",
 		HerdrSession: "work", Project: "/project", Worktree: "/worktree",
 		SpawnGeneration: generation, AgentArgs: []string{"resume", "thread-1"},
@@ -318,7 +353,7 @@ func legacyCrewRecord(taskID, generation string) crew.Record {
 
 func legacyTaskMetadata(taskID, generation string) string {
 	return "window=work:pane-1\nendpoint_task_id=" + taskID +
-		"\nworktree=/worktree\nproject=/project\nharness=codex\nkind=ship\nspawn_gen=" +
+		"\nworktree=/worktree\nproject=/project\nharness=codex\nkind=task\nspawn_gen=" +
 		generation + "\nbackend=herdr\nherdr_session=work\nherdr_workspace_id=workspace-1\n" +
 		"herdr_tab_id=tab-1\nherdr_pane_id=pane-1\n"
 }

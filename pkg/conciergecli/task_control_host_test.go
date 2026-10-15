@@ -96,7 +96,7 @@ func TestUnadmittedStopNeverCallsHerdr(t *testing.T) {
 			t.Setenv("PATH", directory)
 			t.Setenv("TEST_CALLS", calls)
 			if mode == "unauthorized" {
-				recipient, _ := inbox.ParseRecipient("firstmate")
+				recipient, _ := inbox.ParseRecipient("taskmeta")
 				serveConfiguredTaskRoot(
 					t,
 					hostservice.Config{

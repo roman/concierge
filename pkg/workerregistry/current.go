@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"errors"
@@ -8,24 +8,24 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
-var ErrStaleRecord = errors.New("crew record does not match current task")
+var ErrStaleRecord = errors.New("worker registry record does not match current task")
 
 // CurrentTask keeps one validated worker binding under its task metadata lock.
 type CurrentTask struct {
-	record     Record
-	metadata   firstmate.Metadata
-	id         firstmate.TaskID
-	taskRoot   *os.Root
-	crewRoot   *os.Root
-	taskPath   string
-	crewPath   string
-	taskInfo   os.FileInfo
-	crewInfo   os.FileInfo
-	metaInfo   os.FileInfo
-	recordInfo os.FileInfo
+	record             Record
+	metadata           taskmeta.Metadata
+	id                 taskmeta.TaskID
+	taskRoot           *os.Root
+	workerRegistryRoot *os.Root
+	taskPath           string
+	workerRegistryPath string
+	taskInfo           os.FileInfo
+	workerRegistryInfo os.FileInfo
+	metaInfo           os.FileInfo
+	recordInfo         os.FileInfo
 }
 
 // Record returns the current launch details.
@@ -35,18 +35,18 @@ func (task *CurrentTask) Record() Record {
 	return record
 }
 
-// CheckCurrent rejects task or crew replacement after a blocking operation.
+// CheckCurrent rejects task or workerregistry replacement after a blocking operation.
 func (task *CurrentTask) CheckCurrent() error {
 	if task == nil || !sameDirectory(task.taskInfo, task.taskPath) ||
-		!sameDirectory(task.crewInfo, task.crewPath) {
+		!sameDirectory(task.workerRegistryInfo, task.workerRegistryPath) {
 		return ErrStaleRecord
 	}
-	metadata, metaInfo, err := firstmate.ReadTaskWithInfoFromRoot(task.taskRoot, task.id)
+	metadata, metaInfo, err := taskmeta.ReadTaskWithInfoFromRoot(task.taskRoot, task.id)
 	if err != nil || !os.SameFile(metaInfo, task.metaInfo) ||
 		!reflect.DeepEqual(metadata, task.metadata) {
 		return ErrStaleRecord
 	}
-	record, recordInfo, err := readRecordWithInfo(task.crewRoot, task.id.String())
+	record, recordInfo, err := readRecordWithInfo(task.workerRegistryRoot, task.id.String())
 	if err != nil || !os.SameFile(recordInfo, task.recordInfo) ||
 		!reflect.DeepEqual(record, task.record) {
 		return ErrStaleRecord
@@ -54,7 +54,7 @@ func (task *CurrentTask) CheckCurrent() error {
 	return nil
 }
 
-// WithCurrentTask holds the task metadata lock while a caller uses its crew record.
+// WithCurrentTask holds the task metadata lock while a caller uses its worker registry record.
 func (registry *Registry) WithCurrentTask(
 	taskID string, operation func(*CurrentTask) error,
 ) error {
@@ -83,11 +83,11 @@ func (registry *Registry) withCurrentTask(
 	if registry == nil || registry.root == "" || operation == nil {
 		return ErrInvalidRecord
 	}
-	id, err := firstmate.ParseTaskID(taskID)
+	id, err := taskmeta.ParseTaskID(taskID)
 	if err != nil {
 		return err
 	}
-	state, err := firstmate.ParseAbsolutePath(filepath.Join(registry.root, "tasks"))
+	state, err := taskmeta.ParseAbsolutePath(filepath.Join(registry.root, "tasks"))
 	if err != nil {
 		return err
 	}
@@ -101,26 +101,29 @@ func (registry *Registry) withCurrentTask(
 		return err
 	}
 	defer taskRoot.Close()
-	crewRoot, crewInfo, err := openSelectedDirectory(registryRoot, "crew")
+	workerRegistryRoot, workerRegistryInfo, err := openSelectedDirectory(
+		registryRoot,
+		"workerregistry",
+	)
 	if err != nil {
 		return err
 	}
-	defer crewRoot.Close()
-	lock, err := firstmate.AcquireTaskLock(state, id, 2*time.Second)
+	defer workerRegistryRoot.Close()
+	lock, err := taskmeta.AcquireTaskLock(state, id, 2*time.Second)
 	if err != nil {
 		return err
 	}
 	defer func() { result = errors.Join(result, lock.Release()) }()
 	if !sameDirectory(taskInfo, state.String()) ||
-		!sameDirectory(crewInfo, filepath.Join(registry.root, "crew")) {
-		return fmt.Errorf("%w: task or crew directory changed", ErrStaleRecord)
+		!sameDirectory(workerRegistryInfo, filepath.Join(registry.root, "workerregistry")) {
+		return fmt.Errorf("%w: task or workerregistry directory changed", ErrStaleRecord)
 	}
 	if pending, err := completionPending(taskRoot, id); err != nil {
 		return err
 	} else if pending {
 		return fmt.Errorf("%w: task completion is pending", ErrStaleRecord)
 	}
-	record, err := readRecord(crewRoot, taskID)
+	record, err := readRecord(workerRegistryRoot, taskID)
 	if err != nil {
 		return err
 	}
@@ -131,16 +134,16 @@ func (registry *Registry) withCurrentTask(
 		return fmt.Errorf("%w: worker launch is pending", ErrStaleRecord)
 	}
 	if record.PendingGeneration != "" {
-		record, err = recoverPendingGeneration(taskRoot, crewRoot, id, record)
+		record, err = recoverPendingGeneration(taskRoot, workerRegistryRoot, id, record)
 		if err != nil {
 			return err
 		}
 	}
-	metadata, metaInfo, err := firstmate.ReadTaskWithInfoFromRoot(taskRoot, id)
+	metadata, metaInfo, err := taskmeta.ReadTaskWithInfoFromRoot(taskRoot, id)
 	if err != nil {
 		return err
 	}
-	record, recordInfo, err := readRecordWithInfo(crewRoot, taskID)
+	record, recordInfo, err := readRecordWithInfo(workerRegistryRoot, taskID)
 	if err != nil {
 		return err
 	}
@@ -148,18 +151,18 @@ func (registry *Registry) withCurrentTask(
 		return fmt.Errorf("%w: %s", ErrStaleRecord, taskID)
 	}
 	return operation(&CurrentTask{
-		record: record, metadata: metadata, id: id, taskRoot: taskRoot, crewRoot: crewRoot,
-		taskPath: state.String(), crewPath: filepath.Join(registry.root, "crew"),
-		taskInfo: taskInfo, crewInfo: crewInfo, metaInfo: metaInfo, recordInfo: recordInfo,
+		record: record, metadata: metadata, id: id, taskRoot: taskRoot, workerRegistryRoot: workerRegistryRoot,
+		taskPath: state.String(), workerRegistryPath: filepath.Join(registry.root, "workerregistry"),
+		taskInfo: taskInfo, workerRegistryInfo: workerRegistryInfo, metaInfo: metaInfo, recordInfo: recordInfo,
 	})
 }
 
-func matchesTask(record Record, metadata firstmate.Metadata) bool {
+func matchesTask(record Record, metadata taskmeta.Metadata) bool {
 	return sameTaskIdentity(record, metadata) &&
 		record.SpawnGeneration == metadata.SpawnGeneration()
 }
 
-func sameTaskIdentity(record Record, metadata firstmate.Metadata) bool {
+func sameTaskIdentity(record Record, metadata taskmeta.Metadata) bool {
 	return record.Project == metadata.Project().String() &&
 		record.Worktree == metadata.Worktree().String() &&
 		record.Kind == metadata.Harness() &&
@@ -206,7 +209,7 @@ func (registry *Registry) withLockedTask(
 	if registry == nil || registry.root == "" || operation == nil {
 		return ErrInvalidRecord
 	}
-	id, err := firstmate.ParseTaskID(taskID)
+	id, err := taskmeta.ParseTaskID(taskID)
 	if err != nil {
 		return err
 	}
@@ -221,11 +224,11 @@ func (registry *Registry) withLockedTask(
 	}
 	defer taskRoot.Close()
 	path := filepath.Join(registry.root, "tasks")
-	state, err := firstmate.ParseAbsolutePath(path)
+	state, err := taskmeta.ParseAbsolutePath(path)
 	if err != nil {
 		return err
 	}
-	lock, err := firstmate.AcquireTaskLock(state, id, 2*time.Second)
+	lock, err := taskmeta.AcquireTaskLock(state, id, 2*time.Second)
 	if err != nil {
 		return err
 	}

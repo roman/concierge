@@ -33,7 +33,7 @@ var legacyTags = []struct {
 	{"created", regexp.MustCompile(`\s*\(since\s+(\d{4}-\d{2}-\d{2})\)$`)},
 	{"closed", regexp.MustCompile(`\s*\((?:merged|reported|done|closed)\s+(\d{4}-\d{2}-\d{2})\)$`)},
 	{"hold", regexp.MustCompile(`\s*\(hold:\s*([^()]+)\)$`)},
-	{"hold-kind", regexp.MustCompile(`\s*\(hold-kind:\s*(captain|external|load|parked|future)\)$`)},
+	{"hold-kind", regexp.MustCompile(`\s*\(hold-kind:\s*(primary|external|load|parked|future)\)$`)},
 	{"hold-until", regexp.MustCompile(`\s*\(hold-until:\s*(\d{4}-\d{2}-\d{2})\)$`)},
 }
 
@@ -252,8 +252,6 @@ func applyLegacyTag(definition *Definition, name, value string) error {
 
 func legacyLeadingKind(title string) string {
 	for _, candidate := range []struct{ prefix, kind string }{
-		{"PERSISTENT SECONDMATE", "secondmate"},
-		{"SHIP", "ship"},
 		{"SCOUT", "scout"},
 		{"DOCS-ONLY", "docs"},
 	} {

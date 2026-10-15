@@ -83,7 +83,7 @@ func fixture(t *testing.T, configure func(*Server)) (*Server, string, string) {
 
 func intakeRequest() Request {
 	return Request{Operation: Intake, Intake: &taskstate.Definition{
-		ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "ship", Body: "Task body",
+		ID: "task-1", Title: "Work", Repo: "exmachina", Kind: "task", Body: "Task body",
 	}}
 }
 
@@ -232,8 +232,8 @@ func TestIntakeRetryAfterLostResponse(t *testing.T) {
 func TestCallReportsUnknownResponses(t *testing.T) {
 	for _, response := range []string{
 		"", `{}`, `{"outcome":"unknown"}`, `{"outcome":"completed"}`, `{"outcome":"failed"}`,
-		`{"outcome":"completed","task":{"definition":{"id":"task-1","title":"Different","repo":"exmachina","kind":"ship","body":"Task body"},"state":"queued"}}`,
-		`{"outcome":"completed","error":"failed","task":{"definition":{"id":"task-1","title":"Work","repo":"exmachina","kind":"ship","body":"Task body"},"state":"queued"}}`,
+		`{"outcome":"completed","task":{"definition":{"id":"task-1","title":"Different","repo":"exmachina","kind":"task","body":"Task body"},"state":"queued"}}`,
+		`{"outcome":"completed","error":"failed","task":{"definition":{"id":"task-1","title":"Work","repo":"exmachina","kind":"task","body":"Task body"},"state":"queued"}}`,
 	} {
 		t.Run(response, func(t *testing.T) {
 			dir, err := os.MkdirTemp("", "concierge-lost-")

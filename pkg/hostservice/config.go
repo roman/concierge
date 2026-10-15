@@ -5,8 +5,8 @@ import (
 	"github.com/roman/concierge/pkg/supervise"
 	"io"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/tincan/pkg/inbox"
 )
@@ -36,7 +36,7 @@ type Expectations struct {
 func (config Config) validate() error {
 	for _, executable := range []string{config.GitExecutable, config.TreehouseExecutable} {
 		if executable != "" {
-			if _, err := firstmate.ParseAbsolutePath(executable); err != nil {
+			if _, err := taskmeta.ParseAbsolutePath(executable); err != nil {
 				return err
 			}
 		}
@@ -45,7 +45,7 @@ func (config Config) validate() error {
 		return err
 	}
 	for _, path := range []string{config.Root, config.MessageRoot, config.HerdrExecutable} {
-		if _, err := firstmate.ParseAbsolutePath(path); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return err
 		}
 	}

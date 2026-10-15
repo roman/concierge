@@ -12,7 +12,7 @@ func TestListQuotesTaskValues(t *testing.T) {
 	tasks := make([]taskstate.Task, 0, 2)
 	for _, definition := range []taskstate.Definition{
 		{ID: "task-a", Title: "true", Repo: "null", Kind: "audit"},
-		{ID: "task-b", Title: "A: B # C, \"review\"", Repo: "tincan", Kind: "ship"},
+		{ID: "task-b", Title: "A: B # C, \"review\"", Repo: "tincan", Kind: "task"},
 	} {
 		task, err := taskstate.NewQueued(definition)
 		if err != nil {
@@ -26,7 +26,7 @@ func TestListQuotesTaskValues(t *testing.T) {
 	}
 	want := "count: 2\ntasks[2]{id,state,kind,repo,title}:\n" +
 		"  \"task-a\",queued,\"audit\",\"null\",\"true\"\n" +
-		"  \"task-b\",queued,\"ship\",\"tincan\",\"A: B # C, \\\"review\\\"\"\n"
+		"  \"task-b\",queued,\"task\",\"tincan\",\"A: B # C, \\\"review\\\"\"\n"
 	if output.String() != want {
 		t.Fatalf("list = %q, want %q", output.String(), want)
 	}
@@ -35,9 +35,9 @@ func TestListQuotesTaskValues(t *testing.T) {
 func TestListSeparatesHeldAndDoneTasks(t *testing.T) {
 	tasks := make([]taskstate.Task, 0, 2)
 	for _, snapshot := range []taskstate.Snapshot{
-		{Definition: taskstate.Definition{ID: "held", Title: "Waiting", Repo: "tincan", Kind: "ship",
+		{Definition: taskstate.Definition{ID: "held", Title: "Waiting", Repo: "tincan", Kind: "task",
 			Hold: &taskstate.Hold{Reason: "review"}}, State: taskstate.Queued},
-		{Definition: taskstate.Definition{ID: "done", Title: "Finished", Repo: "tincan", Kind: "ship",
+		{Definition: taskstate.Definition{ID: "done", Title: "Finished", Repo: "tincan", Kind: "task",
 			Closed: "2026-10-11", Hold: &taskstate.Hold{Reason: "historical"}}, State: taskstate.Done},
 	} {
 		task, err := taskstate.NewMigrated(snapshot)
@@ -66,9 +66,9 @@ func TestTaskShowsCompleteRecord(t *testing.T) {
 	priority := 2
 	task, err := taskstate.NewMigrated(taskstate.Snapshot{
 		Definition: taskstate.Definition{
-			ID: "task-a", Title: "true", Body: "first\nsecond", Repo: "tincan", Kind: "ship",
+			ID: "task-a", Title: "true", Body: "first\nsecond", Repo: "tincan", Kind: "task",
 			Dependencies: []taskstate.Dependency{{Type: "blocked-by", ID: "task-b"}},
-			Hold:         &taskstate.Hold{Reason: "review", Kind: "captain", Until: "2026-10-12"},
+			Hold:         &taskstate.Hold{Reason: "review", Kind: "primary", Until: "2026-10-12"},
 			Priority:     &priority, Created: "2026-10-10", Closed: "2026-10-11",
 		},
 		State: taskstate.Done,
@@ -88,9 +88,9 @@ func TestTaskShowsCompleteRecord(t *testing.T) {
 		"  blocked_by: \"task-b\"\n" +
 		"  held: yes\n" +
 		"  hold_reason: \"review\"\n" +
-		"  hold_kind: \"captain\"\n" +
+		"  hold_kind: \"primary\"\n" +
 		"  hold_until: \"2026-10-12\"\n" +
-		"  kind: \"ship\"\n" +
+		"  kind: \"task\"\n" +
 		"  repo: \"tincan\"\n" +
 		"  priority: 2\n" +
 		"  created: 2026-10-10\n" +
@@ -105,7 +105,7 @@ func TestTaskShowsCompleteRecord(t *testing.T) {
 func TestSummaryTruncatesTitleAndBody(t *testing.T) {
 	task, err := taskstate.NewQueued(taskstate.Definition{
 		ID: "task-a", Title: strings.Repeat("é", 81), Body: strings.Repeat("x", 400),
-		Repo: "tincan", Kind: "ship",
+		Repo: "tincan", Kind: "task",
 	})
 	if err != nil {
 		t.Fatal(err)

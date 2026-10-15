@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 // LaunchPhase records an external effect before its submission.
@@ -222,7 +222,7 @@ func (task Task) AbandonInitialLaunch(generation string) (Task, error) {
 	if _, ok := task.LaunchAbandonment(generation); ok {
 		return task, nil
 	}
-	if firstmate.ValidateSpawnGeneration(generation) != nil || task.State() != Queued ||
+	if taskmeta.ValidateSpawnGeneration(generation) != nil || task.State() != Queued ||
 		task.record.Worker != nil {
 		return Task{}, ErrInvalidTransition
 	}
@@ -269,7 +269,7 @@ func validLaunchIntent(selected record) bool {
 		return true
 	}
 	if (selected.State != Queued && selected.State != InFlight) || selected.Completion != nil ||
-		firstmate.ValidateSpawnGeneration(intent.Generation) != nil ||
+		taskmeta.ValidateSpawnGeneration(intent.Generation) != nil ||
 		(intent.Harness != "codex" && intent.Harness != "claude") ||
 		!validAtom(
 			intent.Name,
@@ -296,7 +296,7 @@ func validLaunchIntent(selected record) bool {
 		return false
 	}
 	for _, path := range paths {
-		if _, err := firstmate.ParseAbsolutePath(path); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return false
 		}
 	}
@@ -378,7 +378,7 @@ func validLaunchIntent(selected record) bool {
 func validLaunchAbandonments(selected record) bool {
 	seen := map[string]bool{}
 	for _, receipt := range selected.AbandonedLaunches {
-		if firstmate.ValidateSpawnGeneration(receipt.Generation) != nil ||
+		if taskmeta.ValidateSpawnGeneration(receipt.Generation) != nil ||
 			seen[receipt.Generation] ||
 			!singleLine(receipt.Branch) ||
 			strings.HasPrefix(receipt.Branch, "-") {
@@ -405,10 +405,10 @@ func validLaunchAbandonments(selected record) bool {
 			return false
 		}
 		if receipt.Worktree != "" {
-			if _, err := firstmate.ParseAbsolutePath(receipt.Worktree); err != nil {
+			if _, err := taskmeta.ParseAbsolutePath(receipt.Worktree); err != nil {
 				return false
 			}
-		} else if _, err := firstmate.ParseAbsolutePath(receipt.Project); err != nil {
+		} else if _, err := taskmeta.ParseAbsolutePath(receipt.Project); err != nil {
 			return false
 		}
 		if receipt.Lease != (WorktreeLease{}) &&

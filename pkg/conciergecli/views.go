@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/taskview"
 	"github.com/roman/tincan/pkg/inbox"
@@ -67,7 +67,7 @@ func (command *cli) runBrief(ctx context.Context, root string, output io.Writer)
 	if err != nil {
 		return fail(output, 1, err, "provide an absolute --message-root path")
 	}
-	if _, err := firstmate.ParseAbsolutePath(messageRoot); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(messageRoot); err != nil {
 		return fail(output, 2, err, "use an absolute, clean --message-root path")
 	}
 	store, err := taskstate.NewStore(root)

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/supervise"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/tincan/pkg/inbox"
 )
@@ -40,7 +40,7 @@ func (service *Service) SupervisedWorker(
 	if service == nil || service.store == nil {
 		return nil, taskstate.ErrInvalidTask
 	}
-	if _, err := firstmate.ParseTaskID(taskID); err != nil {
+	if _, err := taskmeta.ParseTaskID(taskID); err != nil {
 		return nil, err
 	}
 	recipient, err := inbox.ParseRecipient(taskID)

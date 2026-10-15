@@ -1,4 +1,4 @@
-package firstmate
+package taskmeta
 
 import (
 	"errors"

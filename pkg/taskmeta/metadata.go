@@ -1,5 +1,5 @@
-// Package firstmate reads local Firstmate task metadata for guarded operations.
-package firstmate
+// Package taskmeta validates task identity and reads local task metadata.
+package taskmeta
 
 import (
 	"errors"
@@ -12,15 +12,15 @@ import (
 )
 
 var (
-	ErrInvalidTaskID    = errors.New("invalid Firstmate task ID")
+	ErrInvalidTaskID    = errors.New("invalid task ID")
 	ErrInvalidPath      = errors.New("invalid absolute path")
-	ErrInvalidMetadata  = errors.New("invalid Firstmate task metadata")
+	ErrInvalidMetadata  = errors.New("invalid task metadata")
 	ErrMetadataConflict = errors.New("task metadata already has different content")
 )
 
 const maximumTaskMetadataBytes = 1 << 20
 
-// TaskID is a validated Firstmate task selector.
+// TaskID is a validated task selector.
 type TaskID struct{ value string }
 
 // ParseTaskID validates a task ID before it is used to select metadata.
@@ -256,7 +256,7 @@ func validSpawnGeneration(value string) bool {
 	return value != "" && value[0] != '.' && validCharacters(value, allowed)
 }
 
-// ValidateSpawnGeneration checks the Firstmate task incarnation format.
+// ValidateSpawnGeneration checks the task incarnation format.
 func ValidateSpawnGeneration(value string) error {
 	if !validSpawnGeneration(value) {
 		return ErrInvalidMetadata

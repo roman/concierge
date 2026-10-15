@@ -3,13 +3,13 @@ package hostservice
 import (
 	"context"
 	"errors"
-	"github.com/roman/concierge/pkg/resident"
+	"github.com/roman/concierge/pkg/wakeup"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
-func TestControllerRegistryKeepsResidentAcrossClientExit(t *testing.T) {
+func TestControllerRegistryKeepsWakeupAcrossClientExit(t *testing.T) {
 	registry := newControllerRegistry(context.Background())
 	defer registry.close()
 	caller, cancel := context.WithCancel(context.Background())
@@ -34,7 +34,7 @@ func TestControllerRegistryKeepsResidentAcrossClientExit(t *testing.T) {
 	cancel()
 	select {
 	case <-stopped:
-		t.Fatal("client cancellation stopped resident")
+		t.Fatal("client cancellation stopped wakeup")
 	default:
 	}
 	already, err = registry.start(context.Background(), key, endpoint, "binding", prepare)
@@ -53,7 +53,7 @@ func TestControllerRegistryKeepsResidentAcrossClientExit(t *testing.T) {
 	select {
 	case <-stopped:
 	default:
-		t.Fatal("stop returned before resident joined")
+		t.Fatal("stop returned before wakeup joined")
 	}
 }
 
@@ -152,7 +152,7 @@ func TestControllerRegistryRejectsActivationAfterCancellation(t *testing.T) {
 			defer registry.close()
 			key := controllerKey{kind: taskController, id: "task-1"}
 			root := t.TempDir()
-			lease, err := resident.AcquireTaskLease(root, "task-1")
+			lease, err := wakeup.AcquireTaskLease(root, "task-1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -191,7 +191,7 @@ func TestControllerRegistryRejectsActivationAfterCancellation(t *testing.T) {
 			if ran.Load() || closes.Load() != 1 {
 				t.Fatalf("runner started=%v cleanup count=%d", ran.Load(), closes.Load())
 			}
-			replacement, err := resident.AcquireTaskLease(root, "task-1")
+			replacement, err := wakeup.AcquireTaskLease(root, "task-1")
 			if err != nil {
 				t.Fatalf("cleanup retained lease: %v", err)
 			}
@@ -471,7 +471,7 @@ func TestControllerRegistryCanceledQuiesceJoinsCleanupBeforeRelease(t *testing.T
 	operationRelease()
 }
 
-func TestControllerRegistryQuiesceRejectsUnrelatedResident(t *testing.T) {
+func TestControllerRegistryQuiesceRejectsUnrelatedWakeup(t *testing.T) {
 	registry := newControllerRegistry(context.Background())
 	defer registry.close()
 	endpoint := controllerEndpoint{session: "work", pane: "pane-1"}
@@ -496,11 +496,11 @@ func TestControllerRegistryQuiesceRejectsUnrelatedResident(t *testing.T) {
 		if release != nil {
 			release()
 		}
-		t.Fatalf("unrelated resident: %v", err)
+		t.Fatalf("unrelated wakeup: %v", err)
 	}
 }
 
-func TestAdoptionReservationPreservesMatchingTaskResident(t *testing.T) {
+func TestAdoptionReservationPreservesMatchingTaskWakeup(t *testing.T) {
 	registry := newControllerRegistry(context.Background())
 	defer registry.close()
 	key := controllerKey{kind: taskController, id: "task-1"}
@@ -521,7 +521,7 @@ func TestAdoptionReservationPreservesMatchingTaskResident(t *testing.T) {
 	}
 	select {
 	case <-stopped:
-		t.Fatal("adoption canceled resident")
+		t.Fatal("adoption canceled wakeup")
 	default:
 	}
 	if _, err := registry.quiesce(context.Background(), key, endpoint); !errors.Is(
@@ -531,7 +531,7 @@ func TestAdoptionReservationPreservesMatchingTaskResident(t *testing.T) {
 		t.Fatalf("adoption allowed concurrent stop: %v", err)
 	}
 	if err := registry.stop(context.Background(), key); !errors.Is(err, errControllerBusy) {
-		t.Fatalf("adoption allowed resident stop: %v", err)
+		t.Fatalf("adoption allowed wakeup stop: %v", err)
 	}
 	if _, err := registry.reserveAdoption(key, controllerEndpoint{session: "other", pane: "pane-2"}); !errors.Is(
 		err,
@@ -543,11 +543,11 @@ func TestAdoptionReservationPreservesMatchingTaskResident(t *testing.T) {
 	release()
 	if already, err := registry.start(context.Background(), key, endpoint, "binding", prepare); err != nil ||
 		!already {
-		t.Fatalf("adoption released resident: %v %v", already, err)
+		t.Fatalf("adoption released wakeup: %v %v", already, err)
 	}
 }
 
-func TestAdoptionReservationRejectsManualResident(t *testing.T) {
+func TestAdoptionReservationRejectsManualWakeup(t *testing.T) {
 	registry := newControllerRegistry(context.Background())
 	defer registry.close()
 	endpoint := controllerEndpoint{session: "work", pane: "pane-1"}

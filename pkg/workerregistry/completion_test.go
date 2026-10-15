@@ -1,4 +1,4 @@
-package crew
+package workerregistry
 
 import (
 	"context"
@@ -67,7 +67,7 @@ func TestCompletionAcceptsResultBeforePaneDeparture(t *testing.T) {
 	}
 	for _, path := range []string{
 		filepath.Join(root, "tasks", "task-1.meta"),
-		filepath.Join(root, "crew", "task-1.json"),
+		filepath.Join(root, "workerregistry", "task-1.json"),
 		filepath.Join(root, "tasks", "task-1.completion.json"),
 	} {
 		if _, err := os.Lstat(path); err != nil {
@@ -127,7 +127,7 @@ func TestCompletionRetiresOnlyAfterExactPaneDeparture(t *testing.T) {
 			}
 			for _, path := range []string{
 				filepath.Join(root, "tasks", "task-1.meta"),
-				filepath.Join(root, "crew", "task-1.json"),
+				filepath.Join(root, "workerregistry", "task-1.json"),
 			} {
 				_, statErr := os.Lstat(path)
 				if errors.Is(statErr, os.ErrNotExist) != test.wantGone {
@@ -212,7 +212,7 @@ func TestPendingCompletionBlocksDispatchAndAdoption(t *testing.T) {
 	}
 	adoption := Adoption{
 		TaskID: "task-1", Session: "work", Pane: "pane-1", Name: "worker-1",
-		Project: "/project", Worktree: "/project-worktree", Kind: "crewmate",
+		Project: "/project", Worktree: "/project-worktree", Kind: "task",
 		AgentArgs: []string{"resume", "thread-1"},
 	}
 	if err := registry.AdoptLocalTask(
@@ -310,8 +310,8 @@ func TestCompletionResumesInterruptedRecordRemoval(t *testing.T) {
 				if err := completion.Clear(); !errors.Is(err, ErrConflict) {
 					t.Fatalf("premature clear error = %v", err)
 				}
-				if _, err := os.Lstat(filepath.Join(root, "crew", "task-1.json")); err != nil {
-					t.Fatalf("crew record changed after refusal: %v", err)
+				if _, err := os.Lstat(filepath.Join(root, "workerregistry", "task-1.json")); err != nil {
+					t.Fatalf("worker registry record changed after refusal: %v", err)
 				}
 				if !test.removeMeta {
 					if _, err := os.Lstat(filepath.Join(root, "tasks", "task-1.meta")); err != nil {
@@ -327,7 +327,7 @@ func TestCompletionResumesInterruptedRecordRemoval(t *testing.T) {
 			}
 			for _, path := range []string{
 				filepath.Join(root, "tasks", "task-1.meta"),
-				filepath.Join(root, "crew", "task-1.json"),
+				filepath.Join(root, "workerregistry", "task-1.json"),
 			} {
 				if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("record remains at %s: %v", path, err)
@@ -354,16 +354,16 @@ func TestCompletionRefusesReplacedIdentityDuringPaneLookup(t *testing.T) {
 			if err := os.Mkdir(filepath.Join(root, "tasks"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-		}, []string{"old-tasks/task-1.meta", "crew/task-1.json"}},
-		{"crew directory", func(t *testing.T, root string) {
+		}, []string{"old-tasks/task-1.meta", "workerregistry/task-1.json"}},
+		{"workerregistry directory", func(t *testing.T, root string) {
 			t.Helper()
-			if err := os.Rename(filepath.Join(root, "crew"), filepath.Join(root, "old-crew")); err != nil {
+			if err := os.Rename(filepath.Join(root, "workerregistry"), filepath.Join(root, "old-workerregistry")); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.Mkdir(filepath.Join(root, "crew"), 0o700); err != nil {
+			if err := os.Mkdir(filepath.Join(root, "workerregistry"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-		}, []string{"tasks/task-1.meta", "old-crew/task-1.json"}},
+		}, []string{"tasks/task-1.meta", "old-workerregistry/task-1.json"}},
 		{"metadata file", func(t *testing.T, root string) {
 			t.Helper()
 			path := filepath.Join(root, "tasks", "task-1.meta")
@@ -377,7 +377,7 @@ func TestCompletionRefusesReplacedIdentityDuringPaneLookup(t *testing.T) {
 			if err := os.WriteFile(path, data, 0o600); err != nil {
 				t.Fatal(err)
 			}
-		}, []string{"tasks/task-1.meta", "tasks/task-1.meta.old", "crew/task-1.json"}},
+		}, []string{"tasks/task-1.meta", "tasks/task-1.meta.old", "workerregistry/task-1.json"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := t.TempDir()

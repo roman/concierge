@@ -1,7 +1,7 @@
 package taskstate
 
 import (
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"slices"
 )
 
@@ -12,7 +12,7 @@ func (task Task) ReserveLaunch(candidate string) (Task, error) {
 		worker.PendingAdoption ||
 		worker.PendingGeneration != "" ||
 		task.record.Completion != nil ||
-		firstmate.ValidateSpawnGeneration(candidate) != nil {
+		taskmeta.ValidateSpawnGeneration(candidate) != nil {
 		return Task{}, ErrInvalidTransition
 	}
 	if worker.PendingLaunch != "" {

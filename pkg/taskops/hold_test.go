@@ -15,7 +15,7 @@ import (
 func TestHoldReleaseAndRetainLifecycle(t *testing.T) {
 	service, _, _ := runningWorkerService(t)
 	ctx := context.Background()
-	hold := taskstate.Hold{Reason: "Review changes", Kind: "captain", Until: "2026-10-15"}
+	hold := taskstate.Hold{Reason: "Review changes", Kind: "primary", Until: "2026-10-15"}
 	held, err := service.PlaceHold(ctx, "task-1", hold)
 	if err != nil || held.Definition().Hold == nil || *held.Definition().Hold != hold {
 		t.Fatalf("hold: %#v %v", held.Definition(), err)
@@ -75,7 +75,7 @@ func TestHoldOperationsPreserveMutationAndRepairProjection(t *testing.T) {
 			service, _, _ := runningWorkerService(t)
 			root := service.root
 			ctx := context.Background()
-			hold := taskstate.Hold{Reason: "Waiting", Kind: "captain"}
+			hold := taskstate.Hold{Reason: "Waiting", Kind: "primary"}
 			if action == "release" {
 				if _, err := service.PlaceHold(ctx, "task-1", hold); err != nil {
 					t.Fatal(err)

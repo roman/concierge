@@ -1,4 +1,4 @@
-package resident
+package wakeup
 
 import (
 	"context"
@@ -16,7 +16,7 @@ type Controller struct {
 
 func (controller Controller) Run(ctx context.Context, ready chan<- struct{}) error {
 	if controller.Worker == nil {
-		return errors.New("resident controller needs a worker")
+		return errors.New("wakeup controller needs a worker")
 	}
 	childContext, cancel := context.WithCancel(ctx)
 	defer cancel()

@@ -33,9 +33,8 @@ herdr agent read PANE_ID --session SESSION --source visible --lines 80 --format 
 concierge control --session SESSION status PANE_ID
 ```
 
-Use this skill for local root supervision. Secondmates and Relay are outside
-this workflow. The root SessionStart hook claims one primary Claude or Codex
-session. A secondary session leaves task intake, worker control, and primary
+Use this skill for local root supervision. The root SessionStart hook claims
+one primary Claude or Codex session. A secondary session leaves task intake, worker control, and primary
 wakes to the owner. Codex SessionEnd releases ownership. Primary identity checks
 use native Linux or Darwin process identity. A claim from another PID namespace stays held until
 release. Confirm that a crashed owner ended before removing its primary record.
@@ -170,7 +169,7 @@ syntax failures through the existing launch intent before retrying.
 Inspect `backlog show TASK_ID --full` and `worker show TASK_ID` after a failed or
 interrupted launch. Do not create another pane or start another agent to repair
 an unknown outcome. An exact retry preserves all request fields. The host
-continues tracked initial launches and retries resident registration. Explicit
+continues tracked initial launches and retries wakeup registration. Explicit
 stop disables automatic admission until an explicit launch retry. A completed
 or retired launch requires inspection before a different request.
 

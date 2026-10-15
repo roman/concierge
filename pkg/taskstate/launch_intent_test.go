@@ -164,7 +164,7 @@ func TestLaunchReservationProtectsResourcesAcrossTasks(t *testing.T) {
 			store, _ := NewStore(versionTwoRoot(t))
 			first := taskForTransition(t)
 			second, _ := NewQueued(
-				Definition{ID: "task-2", Title: "Other", Repo: "exmachina", Kind: "ship"},
+				Definition{ID: "task-2", Title: "Other", Repo: "exmachina", Kind: "task"},
 			)
 			for _, task := range []Task{first, second} {
 				if err := store.Create(context.Background(), task); err != nil {
@@ -301,7 +301,7 @@ func TestInitialLaunchEndpointRejectsAnotherTasksPane(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, id := range []string{"task-1", "task-2"} {
-		task, err := NewQueued(Definition{ID: id, Title: id, Repo: "exmachina", Kind: "ship"})
+		task, err := NewQueued(Definition{ID: id, Title: id, Repo: "exmachina", Kind: "task"})
 		if err != nil {
 			t.Fatal(err)
 		}

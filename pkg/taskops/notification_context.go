@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/tincan/pkg/inbox"
 )
@@ -17,7 +17,7 @@ type CommandPaths struct {
 
 func (paths CommandPaths) validate() error {
 	for _, path := range []string{paths.Concierge, paths.Tincan} {
-		if _, err := firstmate.ParseAbsolutePath(path); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return fmt.Errorf(
 				"worker notifications require configured absolute Concierge and Tincan executable paths: %w",
 				err,
@@ -50,7 +50,7 @@ func workerGenerationCheck(generation string) string {
 }
 
 func (service *Service) workerProtocol(taskID, messageRoot string) (string, error) {
-	if _, err := firstmate.ParseAbsolutePath(messageRoot); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(messageRoot); err != nil {
 		return "", fmt.Errorf("worker protocol message root: %w", err)
 	}
 	commands := service.workerCommands

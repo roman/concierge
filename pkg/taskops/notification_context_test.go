@@ -13,7 +13,7 @@ import (
 )
 
 func TestWorkerProtocolIncludesConfiguredCommands(t *testing.T) {
-	for _, caller := range []string{"assignment", "resident"} {
+	for _, caller := range []string{"assignment", "wakeup"} {
 		t.Run(caller, func(t *testing.T) {
 			service, runner, messageRoot := runningWorkerService(t)
 			runner.agentStatus = herdr.Idle
@@ -131,7 +131,7 @@ func TestTaskNotificationRequiresConfiguredPathsWithoutLosingDelivery(t *testing
 		t.Fatal(err)
 	}
 	if err := worker.Prompt(context.Background(), "task-1", notify.DoorbellText); err == nil {
-		t.Fatal("unconfigured resident notification accepted")
+		t.Fatal("unconfigured wakeup notification accepted")
 	}
 	if runner.prompts != 0 {
 		t.Fatal("unconfigured notification submitted")

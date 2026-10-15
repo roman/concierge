@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/worktree"
@@ -94,7 +94,7 @@ func (server *Server) launch(ctx context.Context, input LaunchRequest) (Response
 		return tracked, inspectionErr
 	}
 	release()
-	if _, err := server.supervisionWithMode(ctx, Supervise, SupervisionRequest{TaskID: input.TaskID}, initialResidentStart); err != nil {
+	if _, err := server.supervisionWithMode(ctx, Supervise, SupervisionRequest{TaskID: input.TaskID}, initialWakeupStart); err != nil {
 		return server.launchRegistrationFailure(input, response, err)
 	}
 	return response, nil
@@ -106,7 +106,7 @@ func (server *Server) executeInitialLaunch(
 	input LaunchRequest,
 	admission launchAdmission,
 ) (Response, error) {
-	if _, err := firstmate.ParseAbsolutePath(server.config.GitExecutable); err != nil {
+	if _, err := taskmeta.ParseAbsolutePath(server.config.GitExecutable); err != nil {
 		return Response{}, errors.New("host launch requires an absolute Git executable")
 	}
 	if server.config.Session == "" {
@@ -135,7 +135,7 @@ func (server *Server) executeInitialLaunch(
 		)
 	}
 	if input.Worktree == "" {
-		if _, err := firstmate.ParseAbsolutePath(server.config.TreehouseExecutable); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(server.config.TreehouseExecutable); err != nil {
 			return Response{}, errors.New("host launch requires an absolute treehouse executable")
 		}
 	}
@@ -160,7 +160,7 @@ func (server *Server) executeInitialLaunch(
 		}
 	}
 	if admission == operatorLaunch {
-		if err := server.controllers.awaitInitialResident(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
+		if err := server.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
 			return Response{}, err
 		}
 	}

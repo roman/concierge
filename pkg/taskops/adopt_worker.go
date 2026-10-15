@@ -7,8 +7,8 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/roman/concierge/pkg/firstmate"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/taskview"
 )
@@ -40,11 +40,11 @@ func (service *Service) adoptWorker(
 	client herdr.Client,
 	reserve func(context.Context, string, taskstate.Worker) (taskstate.Task, error),
 ) (taskstate.Task, error) {
-	if err := firstmate.ValidateSpawnGeneration(input.Generation); err != nil {
+	if err := taskmeta.ValidateSpawnGeneration(input.Generation); err != nil {
 		return taskstate.Task{}, fmt.Errorf("invalid adoption generation: %w", err)
 	}
 	for _, path := range []string{input.Project, input.Worktree} {
-		if _, err := firstmate.ParseAbsolutePath(path); err != nil {
+		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return taskstate.Task{}, err
 		}
 	}
