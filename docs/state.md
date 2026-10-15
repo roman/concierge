@@ -27,6 +27,14 @@ readable projection rebuilt by task operations. Edit tasks through the command.
 A failed projection can leave a committed task change; inspect the task and
 retry the same request after correcting the storage error.
 
+`operator-actions.json` stores open operator requests and reminder timestamps.
+Operator commands serialize changes with `.operator-actions.lock` and replace
+the ledger atomically. These commands require initialized version 2 state.
+An absent ledger represents no requests and no previous reminders. Malformed
+or unreadable ledgers stop the command. Resolved requests are removed; pending
+worker retirement is derived from task records. Back up this ledger with the
+state root to preserve outstanding requests and reminder intervals.
+
 ### Migrate existing task state
 
 Stop all legacy task writers and controllers first. Keep them stopped until

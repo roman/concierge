@@ -91,6 +91,10 @@ func (command *briefIncludeCommands) run(root, selected string, output io.Writer
 }
 
 func lockProjectSettings(directory string) (func(), error) {
+	return lockSettings(directory, ".projects.lock")
+}
+
+func lockSettings(directory, name string) (func(), error) {
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		return nil, err
 	}
@@ -99,7 +103,7 @@ func lockProjectSettings(directory string) (func(), error) {
 		return nil, err
 	}
 	defer root.Close()
-	file, err := lockfile.Open(root, ".projects.lock")
+	file, err := lockfile.Open(root, name)
 	if err != nil {
 		return nil, err
 	}

@@ -43,6 +43,11 @@ func runRecordView(ctx context.Context, root, selected, taskID string, output io
 		err = taskview.WriteLocalTasks(output, tasks)
 	case "task pending":
 		err = taskview.WritePendingCompletions(output, tasks)
+		if err == nil {
+			if err := writeOpenOperatorActions(ctx, root, output); err != nil {
+				return fail(output, 1, err, operatorHelp)
+			}
+		}
 	}
 	if err != nil {
 		return 1
@@ -97,6 +102,9 @@ func (command *cli) runBrief(ctx context.Context, root string, output io.Writer)
 	}
 	if err := taskview.WriteBrief(output, tasks, wakes, taskview.BriefOptions{Limit: command.Brief.Limit, Recipient: recipient, Root: root, MessageRoot: messageRoot, Executable: executable}); err != nil {
 		return 1
+	}
+	if err := writeOpenOperatorActions(ctx, root, output); err != nil {
+		return fail(output, 1, err, operatorHelp)
 	}
 	return 0
 }
