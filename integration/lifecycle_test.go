@@ -21,6 +21,9 @@ import (
 )
 
 func TestWorkerReplyResolutionSurvivesClientRestart(t *testing.T) {
+	for _, name := range []string{"CONCIERGE_HOME", "TINCAN_HOME", "TINCAN_HERDR", "HERDR_SESSION"} {
+		t.Setenv(name, "")
+	}
 	if nativetest.RunUnderParent(t) {
 		return
 	}
@@ -78,6 +81,8 @@ func TestWorkerReplyResolutionSurvivesClientRestart(t *testing.T) {
 	worktree := filepath.Join(project, "worktree")
 	root := filepath.Join(temporaryRoot, ".concierge")
 	messages := filepath.Join(temporaryRoot, ".tincan")
+	t.Setenv("CONCIERGE_HOME", root)
+	t.Setenv("TINCAN_HOME", messages)
 	for _, directory := range []string{worktree, root, messages} {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
 			t.Fatal(err)
