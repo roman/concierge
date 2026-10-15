@@ -138,11 +138,16 @@ func validateRequest(request Request) error {
 	return nil
 }
 
-func (server *Server) execute(ctx context.Context, request Request) (taskstate.Task, error) {
+func (server *Server) execute(
+	ctx context.Context,
+	request Request,
+	reportRemovedLink func(string),
+) (taskstate.Task, error) {
 	if request.Operation == Intake {
 		return server.create(ctx, *request.Intake)
 	}
 	input := request.Transition
+	service := server.service.WithRemovedStoreLinkReporter(reportRemovedLink)
 	switch request.Operation {
 	case Start:
 		return server.service.Start(ctx, input.TaskID)
@@ -161,9 +166,9 @@ func (server *Server) execute(ctx context.Context, request Request) (taskstate.T
 	case Cancel:
 		return server.service.CancelAdoption(ctx, input.TaskID)
 	case ReleaseWorktree:
-		return server.service.ReleaseWorktree(ctx, input.TaskID, input.Generation)
+		return service.ReleaseWorktree(ctx, input.TaskID, input.Generation)
 	case Cleanup:
-		return server.service.Retire(
+		return service.Retire(
 			ctx,
 			input.TaskID,
 			input.Generation,

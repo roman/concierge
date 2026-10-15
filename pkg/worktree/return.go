@@ -3,6 +3,8 @@ package worktree
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -16,6 +18,9 @@ func (client Client) VerifyReturn(ctx context.Context, specification Specificati
 
 func (client Client) verifyReturnContents(ctx context.Context, specification Specification) error {
 	if err := client.checkCheckoutIndex(ctx, specification); err != nil {
+		return err
+	}
+	if err := client.removeIgnoredStoreLinks(ctx, specification.Path); err != nil {
 		return err
 	}
 	// A reset can remove .gitignore before cleaning files that were ignored.
@@ -33,6 +38,52 @@ func (client Client) verifyReturnContents(ctx context.Context, specification Spe
 	}
 	if status != "" {
 		return fmt.Errorf("%w: return requires a clean checkout without ignored files", ErrIdentity)
+	}
+	return nil
+}
+
+func (client Client) removeIgnoredStoreLinks(ctx context.Context, directory string) error {
+	entries, err := client.git(
+		ctx,
+		directory,
+		"ls-files",
+		"--others",
+		"--ignored",
+		"--exclude-standard",
+		"-z",
+	)
+	if err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(directory)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	for _, name := range strings.Split(entries, "\x00") {
+		if name == "" {
+			continue
+		}
+		info, err := root.Lstat(name)
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+		target, err := root.Readlink(name)
+		if err != nil {
+			return err
+		}
+		if !strings.HasPrefix(filepath.Clean(target), "/nix/store/") {
+			continue
+		}
+		if err := root.Remove(name); err != nil {
+			return err
+		}
+		if client.RemovedStoreLink != nil {
+			client.RemovedStoreLink(filepath.Join(directory, name))
+		}
 	}
 	return nil
 }

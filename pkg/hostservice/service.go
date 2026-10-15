@@ -69,18 +69,19 @@ type StopResult struct {
 }
 
 type Response struct {
-	Checkpoint  *NativeCheckpoint    `json:"checkpoint,omitempty"`
-	Abandoned   *AbandonedLaunch     `json:"abandoned,omitempty"`
-	Status      *StatusResult        `json:"status,omitempty"`
-	Supervision *SupervisionResult   `json:"supervision,omitempty"`
-	Control     *ControlResult       `json:"control,omitempty"`
-	Assignment  *AssignmentResult    `json:"assignment,omitempty"`
-	Stopped     *StopResult          `json:"stopped,omitempty"`
-	Resolution  *taskops.ReplyResult `json:"resolution,omitempty"`
-	Outcome     Outcome              `json:"outcome"`
-	Task        *TaskResult          `json:"task,omitempty"`
-	Error       string               `json:"error,omitempty"`
-	Transition  *taskstate.Snapshot  `json:"transition,omitempty"`
+	RemovedStoreLinks []string             `json:"removed_store_links,omitempty"`
+	Checkpoint        *NativeCheckpoint    `json:"checkpoint,omitempty"`
+	Abandoned         *AbandonedLaunch     `json:"abandoned,omitempty"`
+	Status            *StatusResult        `json:"status,omitempty"`
+	Supervision       *SupervisionResult   `json:"supervision,omitempty"`
+	Control           *ControlResult       `json:"control,omitempty"`
+	Assignment        *AssignmentResult    `json:"assignment,omitempty"`
+	Stopped           *StopResult          `json:"stopped,omitempty"`
+	Resolution        *taskops.ReplyResult `json:"resolution,omitempty"`
+	Outcome           Outcome              `json:"outcome"`
+	Task              *TaskResult          `json:"task,omitempty"`
+	Error             string               `json:"error,omitempty"`
+	Transition        *taskstate.Snapshot  `json:"transition,omitempty"`
 }
 
 // Server binds operations to roots selected by the host process.

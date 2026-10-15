@@ -85,6 +85,16 @@ func (command *backlogCommands) runLifecycle(
 				"run concierge host serve outside the model sandbox; this client needs approved unsandboxed execution or verified socket permission; inspect the task and retry the identical request",
 			)
 		}
+		if len(response.RemovedStoreLinks) > 0 {
+			if _, err := fmt.Fprintf(output, "removed_store_links[%d]:\n", len(response.RemovedStoreLinks)); err != nil {
+				return 1
+			}
+			for _, path := range response.RemovedStoreLinks {
+				if _, err := fmt.Fprintf(output, "  - %s\n", quote(path)); err != nil {
+					return 1
+				}
+			}
+		}
 		if response.Outcome != hostservice.Completed {
 			code := 1
 			if response.Outcome == hostservice.Invalid {

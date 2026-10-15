@@ -17,6 +17,13 @@ type WorkerTools struct {
 	Git      worktree.Client
 }
 
+// WithRemovedStoreLinkReporter scopes return diagnostics to one operation.
+func (service *Service) WithRemovedStoreLinkReporter(report func(string)) *Service {
+	operation := *service
+	operation.git.RemovedStoreLink = report
+	return &operation
+}
+
 func NewWithWorkerTools(
 	root string,
 	recipient inbox.Recipient,

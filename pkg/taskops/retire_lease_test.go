@@ -34,6 +34,17 @@ func TestRetireReleasesOnlyClosedResultLease(t *testing.T) {
 				t.Fatal(err)
 			}
 			closedOn := "2026-10-13"
+			link := filepath.Join(bound.Worktree, ".pre-commit-config.yaml")
+			if err := os.WriteFile(filepath.Join(bound.Project, ".git", "info", "exclude"), []byte(".pre-commit-config.yaml\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("/nix/store/missing-config", link); err != nil {
+				t.Fatal(err)
+			}
+			var removed []string
+			service = service.WithRemovedStoreLinkReporter(
+				func(path string) { removed = append(removed, path) },
+			)
 			if mode == taskstate.Retain {
 				closedOn = ""
 				if _, err := service.PlaceHold(ctx, "task-1", taskstate.Hold{Reason: "Review result"}); err != nil {
@@ -59,13 +70,34 @@ func TestRetireReleasesOnlyClosedResultLease(t *testing.T) {
 			want := taskstate.LeaseHeld
 			if mode == taskstate.Close {
 				want = taskstate.LeaseReturned
+				if _, err := os.Lstat(link); !os.IsNotExist(err) {
+					t.Fatalf("store link remains after return: %v", err)
+				}
+				if !reflect.DeepEqual(removed, []string{link}) {
+					t.Fatalf("removed links: %q", removed)
+				}
+			} else {
+				if len(removed) != 0 {
+					t.Fatalf("retained lease links removed: %q", removed)
+				}
+				if _, err := service.ReleaseWorktree(ctx, "task-1", "gen-1"); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(removed, []string{link}) {
+					t.Fatalf("released links: %q", removed)
+				}
+				want = taskstate.LeaseReturned
+				retired, err = service.store.Read(ctx, "task-1")
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			receipt := retired.Snapshot().Receipt
 			if receipt == nil || receipt.Lease.State != want || receipt.Lease.ID != bound.Lease.ID {
 				t.Fatalf("retired lease: %+v", receipt)
 			}
 			_, found, err := config.Pool.Find(ctx, bound.Project, bound.Lease.Holder)
-			if err != nil || found != (mode == taskstate.Retain) {
+			if err != nil || found {
 				t.Fatalf("lease held=%t; %v", found, err)
 			}
 			branch, err := exec.Command(config.Git.Executable, "-C", bound.Project, "rev-parse", "refs/heads/"+bound.Lease.Branch).

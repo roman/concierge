@@ -13,7 +13,8 @@ import (
 var ErrIdentity = errors.New("worktree identity conflict")
 
 type Client struct {
-	Executable string
+	Executable       string
+	RemovedStoreLink func(string)
 }
 
 type Specification struct {

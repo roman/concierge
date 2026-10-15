@@ -198,7 +198,12 @@ preserves a newer worker and its supervision. The lease ID and holder must still
 match. The pool must report no live processes. Return uses neither --force nor
 approval to discard changes. The result branch remains in the repository.
 
-Return requires a clean checkout, including ignored files. Hidden index flags,
+Before checking cleanliness, return removes ignored symlinks whose targets are
+inside `/nix/store`. Cleanup and explicit worktree release report each removed
+link in `removed_store_links`. Other ignored entries and untracked files still
+block return. Return never removes regular files or directories.
+
+Return requires a clean checkout after this removal. Hidden index flags,
 detached result commits, changed branches, and dirty work prevent return and
 keep the lease. Commit or move useful files before retrying. Treehouse can
 remove a task branch's ignore rules while parking its checkout, then delete

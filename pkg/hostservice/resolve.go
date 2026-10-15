@@ -99,8 +99,10 @@ func (server *Server) performOperation(ctx context.Context, request Request) (Re
 		}
 		return response, err
 	}
-	task, err := server.execute(ctx, request)
 	response := Response{}
+	task, err := server.execute(ctx, request, func(path string) {
+		response.RemovedStoreLinks = append(response.RemovedStoreLinks, path)
+	})
 	if task.ID() != "" {
 		if request.Operation == Intake {
 			response.Task = &TaskResult{Definition: task.Definition(), State: task.State()}
