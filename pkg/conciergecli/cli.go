@@ -21,18 +21,20 @@ import (
 var version = "dev"
 var revision = "dev"
 
-const cliHelp = "commands: host serve|status, launch TASK_ID, land TASK_ID [--operator-approved], project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
+const cliHelp = "commands: host serve|status|stop|restart, launch TASK_ID, land TASK_ID [--operator-approved], project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
 type cli struct {
 	hostExpectations        hostservice.Expectations
 	supervisionExpectations *hostservice.SupervisionSettings
 	Host                    struct {
-		Herdr            string        `help:"Host Herdr executable." default:"herdr" env:"TINCAN_HERDR"`
-		Session          string        `help:"Host session for manual pane control." env:"HERDR_SESSION"`
-		Interval         time.Duration `help:"Host time between health checks." default:"5s"`
-		RestartTolerance int           `help:"Host failed checks tolerated per window." default:"5"`
-		RestartWindow    time.Duration `help:"Host failed-check window." default:"1m"`
-		Serve            struct{}      `cmd:"" help:"Serve primary-owned operations until interrupted; run outside the model sandbox."`
+		Herdr            string               `help:"Host Herdr executable." default:"herdr" env:"TINCAN_HERDR"`
+		Session          string               `help:"Host session for manual pane control." env:"HERDR_SESSION"`
+		Interval         time.Duration        `help:"Host time between health checks." default:"5s"`
+		RestartTolerance int                  `help:"Host failed checks tolerated per window." default:"5"`
+		RestartWindow    time.Duration        `help:"Host failed-check window." default:"1m"`
+		Serve            struct{}             `cmd:"" help:"Serve primary-owned operations until interrupted; run outside the model sandbox."`
+		Restart          hostLifecycleCommand `cmd:"" help:"Safely replace the background host with this binary; leave workers running."`
+		Stop             hostLifecycleCommand `cmd:"" help:"Safely stop the background host; leave workers running."`
 		Status           struct {
 			Timeout time.Duration `default:"1s" help:"Maximum time for the readiness request."`
 		} `cmd:"" help:"Inspect host readiness and verify package and configuration without primary ownership."`
@@ -207,6 +209,16 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return command.runHostStatus(ctx, root, stdout)
 	case "host serve":
 		return command.runHost(ctx, root, stdout)
+	case "host restart":
+		return command.runHostLifecycle(
+			ctx,
+			root,
+			restartHost,
+			command.Host.Restart.Timeout,
+			stdout,
+		)
+	case "host stop":
+		return command.runHostLifecycle(ctx, root, stopHost, command.Host.Stop.Timeout, stdout)
 	case "state init":
 		return runStateInitialization(ctx, root, stdout)
 	case "state backup", "state migrate", "state recover":
