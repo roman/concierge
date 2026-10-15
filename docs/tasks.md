@@ -106,6 +106,11 @@ concierge task reply send task-1 --generation GEN --key answer-1 \
 `task send` stores a generation-bound assignment before notifying the worker.
 A `notification: deferred` result confirms delivery without an immediate prompt.
 Working workers, retry backoff, and exhausted prompt budgets defer notification.
+Claude workers also defer assignment prompts while the current turn summary
+above the input reports running background shells. Claude starts a new turn
+when a background shell finishes. Historical summaries and tool output do not
+defer prompts. A blocked worker or an unreadable screen retains the normal
+stall checks.
 Each pending assignment permits at most three automatic prompts. Retries wait
 five seconds after the first attempt and ten seconds after the second attempt.
 The budget survives host restarts and clears after the assignment is handled
@@ -113,6 +118,9 @@ or the worker generation changes.
 
 After five minutes from assignment publication, a non-working worker
 with pending work produces a durable `task-stalled` primary notice.
+An idle or done Claude worker with that current background-shell indicator
+defers the notice without resetting the deadline or consuming prompt attempts.
+Once the indicator clears, the original deadline applies again.
 The notice includes a bounded snapshot of the native screen and the assignment
 ID. Automatic prompts pause for that assignment. Review the native error with
 the operator, correct its cause, and continue the existing worker in its pane.

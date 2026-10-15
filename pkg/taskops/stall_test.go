@@ -3,6 +3,7 @@ package taskops
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,156 @@ import (
 	"github.com/roman/tincan/pkg/inbox"
 	"github.com/roman/tincan/pkg/notify"
 )
+
+func TestClaudeBackgroundShellSummary(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		screen string
+		want   bool
+	}{
+		{"one shell", "✻ Cogitated for 4s · done 12:28 AM · 1 shell still running\n\n────────\n❯ \n────────", true},
+		{"multiple shells", "✽ Worked for 1m · 12 shells still running\n\n────────\n❯ \n────────", true},
+		{"zero shells", "✻ Worked for 4s · 0 shells still running\n\n────────\n❯ \n────────", false},
+		{"tool output", "● 1 shell still running\n\n────────\n❯ \n────────", false},
+		{"historical summary", "✻ Worked for 4s · 1 shell still running\n● Native error\n\n────────\n❯ \n────────", false},
+		{"no current input", "✻ Worked for 4s · 1 shell still running", false},
+		{"user message", "✻ Worked for 4s · 1 shell still running\n❯ Quote the above", false},
+		{"completed turn", "✻ Worked for 4s · 1 shell still running\n❯ Next message\n● Done\n✻ Worked for 1s\n\n────────\n❯ \n────────", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := claudeBackgroundShellRunning(test.screen); got != test.want {
+				t.Fatalf("background shell = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
+func TestClaudeBackgroundShellDefersPromptsUntilItFinishes(t *testing.T) {
+	for _, state := range []herdr.AgentState{herdr.Done, herdr.Idle} {
+		t.Run(string(state), func(t *testing.T) {
+			service, runner, root := runningWorkerService(t)
+			runner.harness, runner.agentStatus = "claude", state
+			_, err := service.store.Update(
+				context.Background(),
+				"task-1",
+				func(current taskstate.Task) (taskstate.Task, error) {
+					snapshot := current.Snapshot()
+					snapshot.Worker.Harness = "claude"
+					return taskstate.NewMigrated(snapshot)
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runner.screen = "● Waiting.\n\n✻ Cogitated for 4s · done 12:28 AM · 1 shell still running\n\n────────\n❯ \n────────\n"
+			worker, err := service.SupervisedWorker(
+				"task-1",
+				root,
+				herdr.Client{SessionRunner: runner},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			first, err := worker.sendAssignment(
+				context.Background(),
+				"work",
+				"Do work",
+				worker.messages.Send,
+			)
+			if err != nil || first.Notification != NotificationDeferred || runner.prompts != 0 {
+				t.Fatalf(
+					"background wait prompted: %+v, %v; prompts=%d",
+					first,
+					err,
+					runner.prompts,
+				)
+			}
+			worker.now = func() time.Time { return first.Message.CreatedAt.Add(stallDeadline + time.Minute) }
+			if err := worker.Prompt(context.Background(), "task-1", notify.DoorbellText); err != nil {
+				t.Fatal(err)
+			}
+			current, err := service.store.Read(context.Background(), "task-1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			progress := current.Snapshot().Worker.PromptProgress
+			if progress.Attempts != 0 || progress.Alert != nil ||
+				!progress.StartedAt.Equal(first.Message.CreatedAt) {
+				t.Fatalf("background wait changed stall budget: %+v", progress)
+			}
+			// Historical shell text must not hide a later idle worker.
+			runner.screen += "\n● Background command completed\n✻ Cogitated for 2s · done 12:29 AM\n\n────────\n❯ \n────────\n"
+			if err := worker.Prompt(context.Background(), "task-1", notify.DoorbellText); err != nil {
+				t.Fatal(err)
+			}
+			notices, err := worker.messages.List(service.primaryRecipient)
+			if err != nil || len(notices) != 1 || runner.prompts != 0 {
+				t.Fatalf(
+					"finished shell hid a stall: %+v, %v; prompts=%d",
+					notices,
+					err,
+					runner.prompts,
+				)
+			}
+		})
+	}
+}
+
+func TestBackgroundShellTextDoesNotHideOtherStalls(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		harness   string
+		state     herdr.AgentState
+		readError error
+	}{
+		{"codex", "codex", herdr.Done, nil},
+		{"blocked claude", "claude", herdr.Blocked, nil},
+		{"unreadable claude", "claude", herdr.Done, errors.New("screen unavailable")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service, runner, root := runningWorkerService(t)
+			runner.harness, runner.agentStatus, runner.screenError = test.harness, test.state, test.readError
+			_, err := service.store.Update(
+				context.Background(),
+				"task-1",
+				func(current taskstate.Task) (taskstate.Task, error) {
+					snapshot := current.Snapshot()
+					snapshot.Worker.Harness = test.harness
+					return taskstate.NewMigrated(snapshot)
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runner.screen = "✻ Cogitated for 4s · 1 shell still running\n\n────────\n❯ \n────────\n"
+			worker, err := service.SupervisedWorker(
+				"task-1",
+				root,
+				herdr.Client{SessionRunner: runner},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			first, err := worker.sendAssignment(
+				context.Background(),
+				"work",
+				"Do work",
+				worker.messages.Send,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			worker.now = func() time.Time { return first.Message.CreatedAt.Add(stallDeadline) }
+			if err := worker.Prompt(context.Background(), "task-1", notify.DoorbellText); err != nil {
+				t.Fatal(err)
+			}
+			notices, err := worker.messages.List(service.primaryRecipient)
+			if err != nil || len(notices) != 1 {
+				t.Fatalf("stall hidden: %+v, %v", notices, err)
+			}
+		})
+	}
+}
 
 func TestStalledAssignmentBoundsPromptsAndAlertsPrimary(t *testing.T) {
 	service, runner, messageRoot := runningWorkerService(t)

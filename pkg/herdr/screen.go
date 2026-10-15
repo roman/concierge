@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// VisibleScreen reads bounded current terminal text for diagnostics only.
+// VisibleScreen reads bounded current terminal text.
 func (client Client) VisibleScreen(ctx context.Context, paneID string) (string, error) {
 	if !healthAtom(paneID, true) {
 		return "", fmt.Errorf("%w: invalid Herdr pane", ErrResponse)

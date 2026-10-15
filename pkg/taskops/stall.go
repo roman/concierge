@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -63,8 +64,12 @@ func (worker *SupervisedWorker) promptBoundWorker(
 	if progress.Alert != nil {
 		return worker.publishStallAlert(*task.Current().Snapshot().Worker)
 	}
-	if !now.Before(progress.StartedAt.Add(stallDeadline)) && agent.Status != herdr.Working {
-		screen, readErr := client.VisibleScreen(ctx, bound.Pane)
+	deadlineReached := !now.Before(progress.StartedAt.Add(stallDeadline))
+	var screen string
+	var readErr error
+	if agent.Status != herdr.Working &&
+		(deadlineReached || (agent.Kind == "claude" && notificationReady(agent))) {
+		screen, readErr = client.VisibleScreen(ctx, bound.Pane)
 		// Another native turn can begin during the read. Confirm its endpoint and state.
 		_, observed, err := worker.notificationEndpoint(ctx, task)
 		if err != nil {
@@ -73,9 +78,18 @@ func (worker *SupervisedWorker) promptBoundWorker(
 		if observed.Status == herdr.Working {
 			return NotificationDeferred, nil
 		}
+		agent = observed
+		// Claude wakes itself after a background shell ends. Keep the original
+		// deadline so a later idle or errored turn can still produce a stall alert.
+		if readErr == nil && agent.Kind == "claude" && notificationReady(agent) &&
+			claudeBackgroundShellRunning(screen) {
+			return NotificationDeferred, nil
+		}
+	}
+	if deadlineReached && agent.Status != herdr.Working {
 		alert := taskstate.StallAlert{
 			ObservedAt: now,
-			State:      observed.Status,
+			State:      agent.Status,
 			Screen:     diagnosticText(screen),
 		}
 		if readErr != nil {
@@ -104,6 +118,33 @@ func (worker *SupervisedWorker) promptBoundWorker(
 		return NotificationFailed, err
 	}
 	return worker.sendBoundNotification(ctx, client, agent, task)
+}
+
+var claudeRunningShellSummary = regexp.MustCompile(
+	`^[✻✽✶✳✢·] .+ · [1-9][0-9]* shells? still running$`,
+)
+
+func claudeBackgroundShellRunning(screen string) bool {
+	lines := strings.Split(screen, "\n")
+	for index := len(lines) - 1; index > 0; index-- {
+		if !strings.HasPrefix(strings.TrimSpace(lines[index]), "❯") {
+			continue
+		}
+		separator := strings.TrimSpace(lines[index-1])
+		if separator == "" || strings.Trim(separator, "─") != "" {
+			return false
+		}
+		// Only the summary immediately above the current input is live evidence.
+		// Earlier summaries and tool output can remain visible after completion.
+		for previous := index - 2; previous >= 0; previous-- {
+			line := strings.TrimSpace(lines[previous])
+			if line != "" {
+				return claudeRunningShellSummary.MatchString(line)
+			}
+		}
+		return false
+	}
+	return false
 }
 
 func notificationReady(agent herdr.Agent) bool {
