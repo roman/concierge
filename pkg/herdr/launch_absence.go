@@ -21,7 +21,7 @@ func (client Client) CheckLaunchAbsent(ctx context.Context, launch LaunchResourc
 		}
 		return ErrAgentPresent
 	}
-	output, err := client.run(ctx, "workspace", "list")
+	output, err := client.shared().Run(ctx, "workspace", "list")
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (client Client) checkLaunchWorkspaceAbsent(
 	workspace string,
 	launch LaunchResources,
 ) error {
-	output, err := client.run(ctx, "tab", "list", "--workspace", workspace)
+	output, err := client.shared().Run(ctx, "tab", "list", "--workspace", workspace)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (client Client) checkLaunchWorkspaceAbsent(
 	if launch.Pane == "" {
 		return nil
 	}
-	output, err = client.run(ctx, "pane", "list", "--workspace", workspace)
+	output, err = client.shared().Run(ctx, "pane", "list", "--workspace", workspace)
 	if err != nil {
 		return err
 	}

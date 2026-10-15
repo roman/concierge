@@ -10,7 +10,7 @@ func (client Client) VisibleScreen(ctx context.Context, paneID string) (string, 
 	if !healthAtom(paneID, true) {
 		return "", fmt.Errorf("%w: invalid Herdr pane", ErrResponse)
 	}
-	data, err := client.run(
+	data, err := client.shared().Run(
 		ctx,
 		"agent",
 		"read",

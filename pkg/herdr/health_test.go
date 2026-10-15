@@ -264,7 +264,7 @@ func TestCommandRunnerSessionEnvironment(t *testing.T) {
 	if err := os.WriteFile(executable, []byte("#!/bin/sh\nprintf '%s\n' \"$HERDR_SESSION\" \"$HERDR_SOCKET_PATH\" \"$HERDR_WORKSPACE_ID\" \"$HERDR_TAB_ID\" \"$HERDR_PANE_ID\" \"$@\"\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	stdout, _, err := (commandRunner{executable: executable}).RunSession(
+	stdout, _, err := NewClient(executable).SessionRunner.RunSession(
 		context.Background(),
 		"crew",
 		"pane",

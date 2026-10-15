@@ -77,6 +77,13 @@ func TestGet(t *testing.T) {
 			wantError: ErrCommand,
 		},
 		{
+			name: "error envelope with successful exit",
+			response: runResponse{
+				stdout: []byte(`{"error":{"code":"agent_not_found","message":"not found"}}`),
+			},
+			wantError: ErrNotFound,
+		},
+		{
 			name:      "malformed success",
 			response:  runResponse{stdout: []byte(`{"result":{}}`)},
 			wantError: ErrResponse,

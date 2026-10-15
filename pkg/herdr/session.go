@@ -9,11 +9,6 @@ import (
 	"unicode"
 )
 
-type boundSessionRunner struct {
-	session string
-	runner  SessionRunner
-}
-
 // PaneDetails describes the current Herdr location and foreground directory.
 type PaneDetails struct {
 	PaneID              string
@@ -22,19 +17,13 @@ type PaneDetails struct {
 	ForegroundDirectory string
 }
 
-func (runner boundSessionRunner) Run(ctx context.Context, args ...string) ([]byte, []byte, error) {
-	return runner.runner.RunSession(ctx, runner.session, args...)
-}
-
-// ForSession routes all ordinary agent and pane commands through one explicit Herdr session.
+// ForSession routes worker operations through one explicit Herdr session.
 func (client Client) ForSession(session string) (Client, error) {
-	if !healthAtom(session, false) {
-		return Client{}, fmt.Errorf("%w: invalid Herdr session", ErrResponse)
+	shared, err := client.shared().ForSession(session)
+	if err != nil {
+		return Client{}, err
 	}
-	if client.SessionRunner == nil {
-		return Client{}, fmt.Errorf("%w: no session runner", ErrCommand)
-	}
-	client.Runner = boundSessionRunner{session: session, runner: client.SessionRunner}
+	client.Runner = shared.Runner
 	return client, nil
 }
 
@@ -61,7 +50,7 @@ func (client Client) readPane(ctx context.Context, paneID string) (PaneDetails, 
 	if !healthAtom(paneID, true) {
 		return PaneDetails{}, fmt.Errorf("%w: invalid Herdr pane", ErrResponse)
 	}
-	data, err := client.run(ctx, "pane", "get", paneID)
+	data, err := client.shared().Run(ctx, "pane", "get", paneID)
 	if err != nil {
 		return PaneDetails{}, err
 	}

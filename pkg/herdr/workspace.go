@@ -11,7 +11,7 @@ func (client Client) ValidateWorkspace(ctx context.Context, workspace string) er
 	if !healthAtom(workspace, false) {
 		return fmt.Errorf("%w: invalid workspace ID", ErrResponse)
 	}
-	output, err := client.run(ctx, "workspace", "get", workspace)
+	output, err := client.shared().Run(ctx, "workspace", "get", workspace)
 	if err != nil {
 		return fmt.Errorf("validate workspace ID %q: %w", workspace, err)
 	}
@@ -46,7 +46,7 @@ func (client Client) CreateWorkspace(
 	if err != nil {
 		return PaneDetails{}, err
 	}
-	output, err := client.run(ctx, append([]string{"workspace", "create"}, options...)...)
+	output, err := client.shared().Run(ctx, append([]string{"workspace", "create"}, options...)...)
 	if err != nil {
 		return PaneDetails{}, err
 	}
@@ -80,7 +80,7 @@ func (client Client) FindWorkspace(ctx context.Context, label string) (PaneDetai
 	if !healthAtom(label, false) {
 		return PaneDetails{}, ErrResponse
 	}
-	output, err := client.run(ctx, "workspace", "list")
+	output, err := client.shared().Run(ctx, "workspace", "list")
 	if err != nil {
 		return PaneDetails{}, err
 	}
@@ -108,7 +108,7 @@ func (client Client) FindWorkspace(ctx context.Context, label string) (PaneDetai
 	if workspace == "" {
 		return PaneDetails{}, ErrWorkspaceNotFound
 	}
-	output, err = client.run(ctx, "pane", "list", "--workspace", workspace)
+	output, err = client.shared().Run(ctx, "pane", "list", "--workspace", workspace)
 	if err != nil {
 		return PaneDetails{}, err
 	}

@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	base "github.com/roman/tincan/pkg/herdr"
 )
 
 var ErrPanePresent = errors.New("Herdr pane is still present")
@@ -72,10 +74,7 @@ type HealthStatus struct {
 	Activity ActivityHealth
 }
 
-// SessionRunner adds explicit session targeting to Herdr reads.
-type SessionRunner interface {
-	RunSession(context.Context, string, ...string) ([]byte, []byte, error)
-}
+type SessionRunner = base.SessionRunner
 
 // Process describes one process in a snapshot of the local process tree.
 type Process struct {

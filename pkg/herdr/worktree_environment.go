@@ -87,10 +87,10 @@ func (client Client) prepareEnvironment(
 	marker := "concierge-environment-" + rand.Text()
 	command := fmt.Sprintf("%s() { unset -f %s; command %s %s \"$@\"; }; printf '%%s\\n' %s",
 		kind, kind, strings.Join(parts, " "), shellQuote(kind), shellQuote(marker))
-	if _, err := client.run(ctx, "pane", "run", paneID, command); err != nil {
+	if _, err := client.shared().Run(ctx, "pane", "run", paneID, command); err != nil {
 		return err
 	}
-	_, err := client.run(
+	_, err := client.shared().Run(
 		ctx,
 		"pane",
 		"wait-output",

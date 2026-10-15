@@ -38,7 +38,7 @@ func (client Client) CreateTab(ctx context.Context, input TabInput) (PaneDetails
 		return PaneDetails{}, err
 	}
 	arguments := append([]string{"tab", "create", "--workspace", input.Workspace}, options...)
-	output, err := client.run(ctx, arguments...)
+	output, err := client.shared().Run(ctx, arguments...)
 	if err != nil {
 		return PaneDetails{}, err
 	}
@@ -68,7 +68,7 @@ func (client Client) FindTab(ctx context.Context, workspace, label string) (Pane
 	if err := validateTabIdentity(workspace, label); err != nil {
 		return PaneDetails{}, err
 	}
-	output, err := client.run(ctx, "tab", "list", "--workspace", workspace)
+	output, err := client.shared().Run(ctx, "tab", "list", "--workspace", workspace)
 	if err != nil {
 		return PaneDetails{}, err
 	}
@@ -97,7 +97,7 @@ func (client Client) FindTab(ctx context.Context, workspace, label string) (Pane
 	if match == nil {
 		return PaneDetails{}, fmt.Errorf("%w: no tab has the reserved label", ErrNotFound)
 	}
-	output, err = client.run(ctx, "pane", "list", "--workspace", workspace)
+	output, err = client.shared().Run(ctx, "pane", "list", "--workspace", workspace)
 	if err != nil {
 		return PaneDetails{}, err
 	}
