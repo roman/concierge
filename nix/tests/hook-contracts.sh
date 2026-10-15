@@ -54,6 +54,21 @@ unset TEST_HOST_CALLS
 payload='{"hook_event_name":"Stop","session_id":"fixture"}'
 active_payload='{"hook_event_name":"Stop","session_id":"fixture","stop_hook_active":true}'
 status=0
+TEST_INITIAL_RESULT=checkpoint TEST_HEARTBEAT_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>heartbeat-wake || status=$?
+[[ "$status" == 2 ]]
+grep -F 'heartbeat: primary' heartbeat-wake
+grep -F 'Waiting on you' heartbeat-wake
+grep -F 'PushNotification' heartbeat-wake
+status=0
+TEST_HEARTBEAT_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>inbox-priority || status=$?
+[[ "$status" == 2 ]]
+grep -F 'A Tincan message is pending' inbox-priority
+if grep -F 'heartbeat: primary' inbox-priority; then exit 1; fi
+status=0
+TEST_INITIAL_RESULT=checkpoint TEST_REMINDER_STATUS=due TEST_HEARTBEAT_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>reminder-priority || status=$?
+[[ "$status" == 2 ]]
+if grep -F 'heartbeat: primary' reminder-priority; then exit 1; fi
+status=0
 TEST_REMINDER_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$active_payload" 2>operator-wake || status=$?
 [[ "$status" == 2 ]]
 grep -F 'Waiting on you' operator-wake

@@ -155,17 +155,36 @@ If the operator has not replied, send a desktop notification through the
 harness's notification tool when one exists. Claude uses `PushNotification`.
 Keep the action open after sending a notification.
 
-While tasks or operator actions remain open, a primary Codex session runs one foreground
-`tincan inbox wait concierge --timeout 30s` after handling its current inbox.
-Handle messages on `status: pending`. Check user requests on `status: checkpoint`.
-After each wait checkpoint, run `concierge operator remind`. Repeat due items
-and send the desktop notification as described above. Use `open_items` and the
-task list to decide whether another wait is needed. Repeat while tasks or operator
-actions remain open. Keep one wait active. Claude's background Stop hook checks
-reminders every 30 seconds while it waits for primary messages. It wakes the
-owner for a due reminder or a new message. Handle its inbox after a message
-wake. A Stop arms the next wait. The wait ends after eight hours; another turn
-arms it again.
+The primary heartbeat defaults to five minutes. The operator sets its interval
+with `concierge heartbeat set --interval 5m` and inspects it with
+`concierge heartbeat show`. The setting lives in `$CONCIERGE_HOME/config/`.
+Run `concierge heartbeat check` before the first wait to arm the timer.
+Heartbeats remain quiet when there are no bound workers and no open actions.
+Each heartbeat includes current Herdr worker states, pending replies, accepted
+workers awaiting cleanup, and open actions. It reports "no changes since last
+heartbeat" when the status is unchanged.
+
+On every heartbeat, post the status to the operator even when nothing changed.
+End the reply with **Waiting on you**. State that no operator action is needed
+when the action list is empty. Send a desktop notification when a decision or an
+idle finished worker waits. Claude uses `PushNotification`.
+
+While workers or operator actions remain open, a primary Codex session runs one
+foreground `tincan inbox wait concierge --timeout 30s` after handling its inbox.
+On `status: pending`, run `concierge heartbeat check --wake inbox`, then handle
+the messages. On `status: checkpoint`, check user requests and run
+`concierge operator remind`. If a reminder is due, run
+`concierge heartbeat check --wake reminder` and post the reminder. Otherwise run
+`concierge heartbeat check` and post any due heartbeat. The wake commands defer
+the next heartbeat by one configured interval to avoid duplicate updates.
+Repeat while workers or actions remain open. Keep one wait active.
+
+Claude's existing asyncRewake Stop hook checks reminders and heartbeats every
+30 seconds while it waits for primary messages. A new inbox message takes
+priority over a reminder or heartbeat. A reminder takes priority over a heartbeat.
+Each inbox or reminder wake defers the next heartbeat. An unhandled message
+cannot cause repeated inbox wakes. A Stop arms the next wait. The wait ends
+after eight hours; another turn arms it again.
 
 ## Intake and worker launch
 

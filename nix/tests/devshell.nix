@@ -10,6 +10,18 @@ let
   };
   fakeConcierge = pkgs.writeShellScriptBin "concierge" ''
     printf '%s\n' "$*" >> "$TEST_CALLS"
+    if [ "$3" = heartbeat ] || { [ "$3" = --message-root ] && [ "$5" = heartbeat ]; }; then
+      case "$*" in
+        *--wake*) printf 'status: quiet\nactive: yes\n' ;;
+        *)
+          printf 'status: %s\nactive: no\n' "''${TEST_HEARTBEAT_STATUS:-quiet}"
+          if [ "''${TEST_HEARTBEAT_STATUS:-quiet}" = due ]; then
+            printf 'heartbeat: primary\nworker: finished, idle\nWaiting on you. Use PushNotification.\n'
+          fi
+          ;;
+      esac
+      exit 0
+    fi
     case "$3" in
       operator)
         printf 'status: %s\nopen_items: 0\n' "''${TEST_REMINDER_STATUS:-quiet}"
