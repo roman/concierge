@@ -15,7 +15,7 @@
 | `concierge primary` | Claim, verify, and release root ownership from native lifecycle hooks. |
 | `concierge operator ask ID TEXT` / `resolve ID` / `list` | Record requests for operator input and resolve answered requests. |
 | `concierge operator remind [--interval 15m]` | Report due operator requests and unfinished worker retirement. |
-| `concierge heartbeat show` / `set --interval 5m` / `check` | Configure and claim periodic primary status updates. |
+| `concierge heartbeat show` / `set [--interval 5m] [--quiet-limit 5]` / `check` | Configure and claim periodic primary status updates. |
 | `concierge control` | Inspect, start, and interrupt live Herdr agents. |
 | `concierge supervise` | Monitor a manual pane or supervise a task with inbox delivery and worker recovery. |
 | `concierge brief` | Show pending primary messages, queued work, workers, and unfinished completions. |
@@ -58,6 +58,12 @@ interval by default. `--interval` accepts a positive duration. A new request
 can cause a reminder even during another request's interval. A worker keeps
 its reminder interval through all completion phases. Finishing the completion
 removes it from future reminders.
+
+After five reminder deliveries for the same item set, reminders pause. The last
+delivery announces the pause. A changed item set resets the count, including a
+change in a worker's completion phase. Resolving or re-asking an action also
+resets the count. Existing per-item intervals still apply. The heartbeat
+`--quiet-limit` setting controls this limit too; `0` disables pausing.
 
 The Claude Stop hook checks reminders every 30 seconds during its inbox wait.
 The owning Codex primary runs `operator remind` after each inbox checkpoint.
@@ -205,9 +211,12 @@ executable.
 
 ## Primary heartbeat
 
-`concierge heartbeat show` reports the operator-owned interval (default `5m`).
-`concierge heartbeat set --interval 2m` changes it in
-`$CONCIERGE_HOME/config/heartbeat.json`. Only positive durations are accepted.
+`concierge heartbeat show` reports the operator-owned interval (default `5m`)
+and quiet limit (default `5`). `concierge heartbeat set --interval 2m
+--quiet-limit 5` changes them in `$CONCIERGE_HOME/config/heartbeat.json`.
+Either flag can be used alone. The other setting is preserved. Intervals must
+be positive. The quiet limit must be nonnegative. `0` disables pausing for both
+heartbeats and operator reminders. Older interval-only settings use a limit of 5.
 
 `concierge heartbeat check` claims one due status update at an inbox wait
 checkpoint. The first check arms the timer. A quiet result includes `active`
@@ -215,7 +224,18 @@ and the remaining time. A due result includes worker states from Herdr, pending
 reply counts, accepted workers awaiting cleanup, and open operator actions.
 An unchanged status includes `no changes since last heartbeat`.
 
+After an initial status update, five consecutive unchanged heartbeats pause
+further heartbeats. The fifth unchanged heartbeat announces that heartbeats
+are pausing until something changes. Paused checks return `status: quiet`,
+`active: yes`, and `paused: yes`, without a remaining time. Keep checking at
+inbox checkpoints. A change in worker state, pending replies, cleanup, or
+operator actions resets the count and resumes the regular interval. Re-asking
+an action also resets the count. Pending replies and cleanup keep checks active
+even when there are no bound workers or open actions.
+
 Use `concierge heartbeat check --wake inbox` after an inbox wake, or
 `concierge heartbeat check --wake reminder` after a reminder wake. Both defer
 the heartbeat for one configured interval. The Claude Stop hook does this
 automatically. Codex follows the supervisor skill at each inbox wait checkpoint.
+These wakes preserve the quiet count. Inbox delivery and inbox wakes continue
+while heartbeats and reminders are paused.

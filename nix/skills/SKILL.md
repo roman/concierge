@@ -149,6 +149,10 @@ It records reminder times durably, at most once per item per 15 minutes.
 An unchanged `ask` retry preserves the reminder time. Resolving the action
 stops its reminders. A worker keeps its reminder interval through all completion
 phases. Cleanup removes the worker reminder when the completion is finished.
+After five reminder deliveries for an unchanged item set, reminders pause.
+The last delivery announces the pause. A changed item set, a completion phase
+change, or a resolved or re-asked action resets the count. Per-item intervals
+still apply. The heartbeat quiet limit also controls this reminder limit.
 
 When a reminder wakes the primary, repeat the due requests to the operator.
 If the operator has not replied, send a desktop notification through the
@@ -158,13 +162,22 @@ Keep the action open after sending a notification.
 The primary heartbeat defaults to five minutes. The operator sets its interval
 with `concierge heartbeat set --interval 5m` and inspects it with
 `concierge heartbeat show`. The setting lives in `$CONCIERGE_HOME/config/`.
+The quiet limit defaults to five. Set it with `concierge heartbeat set
+--quiet-limit N`; `0` disables pausing. Either setting can be changed alone.
 Run `concierge heartbeat check` before the first wait to arm the timer.
-Heartbeats remain quiet when there are no bound workers and no open actions.
+Heartbeats remain quiet when there are no workers, pending replies, cleanup,
+or open actions.
 Each heartbeat includes current Herdr worker states, pending replies, accepted
 workers awaiting cleanup, and open actions. It reports "no changes since last
 heartbeat" when the status is unchanged.
+After the initial status update, five consecutive unchanged heartbeats pause
+further heartbeats. The fifth unchanged heartbeat announces the pause. Tell
+the operator once. Paused checks return `status: quiet` and `paused: yes`.
+Keep checking at inbox checkpoints. A change in worker state, pending replies,
+cleanup, or operator actions resets the count and resumes heartbeats. Re-asking
+an action also resets the count. Inbox wakes continue during a pause.
 
-On every heartbeat, post the status to the operator even when nothing changed.
+On every `status: due` heartbeat, post the status to the operator.
 End the reply with **Waiting on you**. State that no operator action is needed
 when the action list is empty. Send a desktop notification when a decision or an
 idle finished worker waits. Claude uses `PushNotification`.

@@ -16,13 +16,14 @@ import (
 	"github.com/roman/tincan/pkg/inbox"
 )
 
-const heartbeatHelp = "concierge heartbeat show | set --interval 5m | check [--wake checkpoint|inbox|reminder]"
+const heartbeatHelp = "concierge heartbeat show | set [--interval 5m] [--quiet-limit 5] | check [--wake checkpoint|inbox|reminder]"
 
 type heartbeatCommands struct {
-	Show struct{} `cmd:"" help:"Show the operator-owned heartbeat interval."`
+	Show struct{} `cmd:"" help:"Show the operator-owned heartbeat interval and quiet limit."`
 	Set  struct {
-		Interval time.Duration `required:"" help:"Positive interval between primary heartbeats."`
-	} `cmd:"" help:"Set the operator-approved heartbeat interval."`
+		Interval   *time.Duration `help:"Positive interval between primary heartbeats."`
+		QuietLimit *int           `help:"Pause after this many unchanged heartbeats or reminders (default 5). Use 0 to disable pausing."`
+	} `cmd:"" help:"Set the operator-approved heartbeat interval or quiet limit."`
 	Check struct {
 		Wake  string `default:"checkpoint" enum:"checkpoint,inbox,reminder" help:"Use inbox or reminder to defer a heartbeat after another wake."`
 		Herdr string `default:"herdr" env:"TINCAN_HERDR" help:"Herdr executable for fresh worker status."`
@@ -30,50 +31,77 @@ type heartbeatCommands struct {
 }
 
 type heartbeatSettings struct {
-	Interval string `json:"interval"`
+	Interval   string `json:"interval"`
+	QuietLimit int    `json:"quiet_limit"`
 }
 
-func readHeartbeatInterval(path string) (time.Duration, error) {
+func readHeartbeatSettings(path string) (heartbeatSettings, error) {
+	settings := heartbeatSettings{Interval: "5m", QuietLimit: 5}
 	data, err := readOptionalConfiguration(path)
 	if err != nil {
-		return 0, err
+		return settings, err
 	}
 	if data == nil {
-		return 5 * time.Minute, nil
+		return settings, nil
 	}
-	var settings heartbeatSettings
 	if err := json.Unmarshal(data, &settings); err != nil {
-		return 0, err
+		return settings, err
 	}
 	interval, err := time.ParseDuration(settings.Interval)
 	if err != nil || interval <= 0 {
-		return 0, errors.New("heartbeat interval must be positive")
+		return settings, errors.New("heartbeat interval must be positive")
 	}
-	return interval, nil
+	if settings.QuietLimit < 0 {
+		return settings, errors.New("heartbeat quiet limit must be nonnegative")
+	}
+	return settings, nil
 }
 
 func (command *cli) runHeartbeat(ctx context.Context, root, selected string, output io.Writer) int {
 	path := filepath.Join(root, "config", "heartbeat.json")
+	settings, err := readHeartbeatSettings(path)
+	if err != nil {
+		return fail(output, 1, err, heartbeatHelp)
+	}
 	if selected == "heartbeat set" {
-		if command.Heartbeat.Set.Interval <= 0 {
-			return fail(output, 2, errors.New("heartbeat interval must be positive"), heartbeatHelp)
+		if interval := command.Heartbeat.Set.Interval; interval != nil {
+			if *interval <= 0 {
+				return fail(
+					output,
+					2,
+					errors.New("heartbeat interval must be positive"),
+					heartbeatHelp,
+				)
+			}
+			settings.Interval = interval.String()
 		}
-		data, _ := json.Marshal(
-			heartbeatSettings{Interval: command.Heartbeat.Set.Interval.String()},
-		)
+		if limit := command.Heartbeat.Set.QuietLimit; limit != nil {
+			if *limit < 0 {
+				return fail(
+					output,
+					2,
+					errors.New("heartbeat quiet limit must be nonnegative"),
+					heartbeatHelp,
+				)
+			}
+			settings.QuietLimit = *limit
+		}
+		data, _ := json.Marshal(settings)
 		if err := writeConfiguration(path, append(data, '\n'), func(candidate string) error {
-			_, err := readHeartbeatInterval(candidate)
+			_, err := readHeartbeatSettings(candidate)
 			return err
 		}); err != nil {
 			return fail(output, 1, err, heartbeatHelp)
 		}
 	}
-	interval, err := readHeartbeatInterval(path)
-	if err != nil {
-		return fail(output, 1, err, heartbeatHelp)
-	}
+	interval, _ := time.ParseDuration(settings.Interval)
 	if selected != "heartbeat check" {
-		_, err := fmt.Fprintf(output, "interval: %s\n", interval)
+		_, err := fmt.Fprintf(
+			output,
+			"interval: %s\nquiet_limit: %d\n",
+			interval,
+			settings.QuietLimit,
+		)
 		if err != nil {
 			return 1
 		}
@@ -115,8 +143,10 @@ type heartbeatStatus struct {
 }
 
 type heartbeatLedger struct {
-	LastWake   time.Time `json:"last_wake"`
-	LastStatus string    `json:"last_status"`
+	LastWake       time.Time `json:"last_wake"`
+	LastStatus     string    `json:"last_status"`
+	ObservedStatus string    `json:"observed_status"`
+	QuietBeats     int       `json:"quiet_beats"`
 }
 
 func claimHeartbeat(
@@ -138,6 +168,10 @@ func claimHeartbeat(
 		return err
 	}
 	defer unlock()
+	settings, err := readHeartbeatSettings(filepath.Join(root, "config", "heartbeat.json"))
+	if err != nil {
+		return err
+	}
 	path := filepath.Join(root, "heartbeat.json")
 	data, err := readOptionalConfiguration(path)
 	if err != nil {
@@ -150,9 +184,15 @@ func claimHeartbeat(
 		}
 	}
 	var view strings.Builder
+	if wake == "checkpoint" && ledger.ObservedStatus != status.Text {
+		ledger.QuietBeats = 0
+		ledger.ObservedStatus = status.Text
+	}
 	if !status.Active {
 		ledger = heartbeatLedger{}
 		view.WriteString("status: quiet\nactive: no\n")
+	} else if wake == "checkpoint" && settings.QuietLimit > 0 && ledger.QuietBeats >= settings.QuietLimit {
+		view.WriteString("status: quiet\nactive: yes\npaused: yes\n")
 	} else if wake != "checkpoint" || ledger.LastWake.IsZero() || now.Before(ledger.LastWake.Add(interval)) {
 		if wake != "checkpoint" || ledger.LastWake.IsZero() {
 			ledger.LastWake = now.UTC()
@@ -162,9 +202,13 @@ func claimHeartbeat(
 		view.WriteString("status: due\nheartbeat: primary\n")
 		view.WriteString(status.Text)
 		if ledger.LastStatus == status.Text {
+			ledger.QuietBeats++
 			view.WriteString("changes: no changes since last heartbeat\n")
 		}
-		view.WriteString("help: Post this status to the operator even when nothing changed. End with Waiting on you.\n")
+		if settings.QuietLimit > 0 && ledger.QuietBeats >= settings.QuietLimit {
+			view.WriteString("pause: Heartbeats are pausing until something changes.\n")
+		}
+		view.WriteString("help: Post this status to the operator. End with Waiting on you.\n")
 		if status.Notify {
 			view.WriteString("notification: Send a desktop notification for the waiting decision or idle finished worker (Claude: PushNotification).\n")
 		}
@@ -286,8 +330,9 @@ func collectHeartbeatStatus(
 	view.WriteString(workers.String())
 	view.WriteString(replyRows.String())
 	writeOperatorActions(&view, ledger.Actions)
+	fmt.Fprintf(&view, "operator_revision: %d\n", ledger.ActionRevision)
 	return heartbeatStatus{
-		Active: bound > 0 || len(ledger.Actions) > 0,
+		Active: bound > 0 || len(ledger.Actions) > 0 || replies > 0 || completions > 0,
 		Text:   view.String(),
 		Notify: notify,
 	}, nil

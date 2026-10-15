@@ -14,6 +14,10 @@ let
       case "$*" in
         *--wake*) printf 'status: quiet\nactive: yes\n' ;;
         *)
+          if [ "''${TEST_HEARTBEAT_PAUSED:-0}" = 1 ]; then
+            printf 'status: quiet\nactive: yes\npaused: yes\n'
+            exit 0
+          fi
           printf 'status: %s\nactive: no\n' "''${TEST_HEARTBEAT_STATUS:-quiet}"
           if [ "''${TEST_HEARTBEAT_STATUS:-quiet}" = due ]; then
             printf 'heartbeat: primary\nworker: finished, idle\nWaiting on you. Use PushNotification.\n'

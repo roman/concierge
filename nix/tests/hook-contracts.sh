@@ -65,6 +65,11 @@ TEST_HEARTBEAT_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$payload" 2
 grep -F 'A Tincan message is pending' inbox-priority
 if grep -F 'heartbeat: primary' inbox-priority; then exit 1; fi
 status=0
+TEST_INITIAL_RESULT=checkpoint TEST_REMINDER_STATUS=quiet TEST_HEARTBEAT_PAUSED=1 ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>paused-inbox-wake || status=$?
+[[ "$status" == 2 ]]
+grep -F 'A Tincan message is pending' paused-inbox-wake
+if grep -F 'heartbeat: primary' paused-inbox-wake; then exit 1; fi
+status=0
 TEST_INITIAL_RESULT=checkpoint TEST_REMINDER_STATUS=due TEST_HEARTBEAT_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>reminder-priority || status=$?
 [[ "$status" == 2 ]]
 if grep -F 'heartbeat: primary' reminder-priority; then exit 1; fi

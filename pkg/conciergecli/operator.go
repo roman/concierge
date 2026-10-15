@@ -35,8 +35,11 @@ type operatorCommands struct {
 }
 
 type operatorLedger struct {
-	Actions  map[string]string    `json:"actions"`
-	Reminded map[string]time.Time `json:"reminded"`
+	Actions        map[string]string    `json:"actions"`
+	Reminded       map[string]time.Time `json:"reminded"`
+	ActionRevision uint64               `json:"action_revision"`
+	ReminderItems  string               `json:"reminder_items"`
+	ReminderCount  int                  `json:"reminder_count"`
 }
 
 func readOperatorLedger(path string) (operatorLedger, error) {
@@ -132,6 +135,11 @@ func (command operatorCommands) run(
 	}
 	err := withOperatorLedger(ctx, root, func(ledger *operatorLedger) error {
 		if selected == "operator resolve <id>" {
+			if _, found := ledger.Actions[id]; found {
+				ledger.ActionRevision++
+				ledger.ReminderCount = 0
+				ledger.ReminderItems = ""
+			}
 			delete(ledger.Actions, id)
 			delete(ledger.Reminded, "action:"+id)
 			return nil
@@ -143,6 +151,9 @@ func (command operatorCommands) run(
 			)
 		}
 		ledger.Actions[id] = command.Ask.Text
+		ledger.ActionRevision++
+		ledger.ReminderCount = 0
+		ledger.ReminderItems = ""
 		return nil
 	})
 	if err != nil {
@@ -200,6 +211,10 @@ func runOperatorReminder(
 	if interval <= 0 {
 		return fail(output, 2, errors.New("reminder interval must be positive"), operatorHelp)
 	}
+	settings, err := readHeartbeatSettings(filepath.Join(root, "config", "heartbeat.json"))
+	if err != nil {
+		return fail(output, 1, err, operatorHelp)
+	}
 	store, err := taskstate.NewStore(root)
 	if err != nil {
 		return fail(output, 2, err, operatorHelp)
@@ -232,10 +247,19 @@ func runOperatorReminder(
 				next,
 			)
 		}
+		encodedItems, err := json.Marshal(items)
+		if err != nil {
+			return err
+		}
+		if ledger.ReminderItems != string(encodedItems) {
+			ledger.ReminderCount = 0
+			ledger.ReminderItems = string(encodedItems)
+		}
+		paused := settings.QuietLimit > 0 && ledger.ReminderCount >= settings.QuietLimit
 		due := map[string]string{}
 		for key, text := range items {
 			last, found := ledger.Reminded[key]
-			if !found || !now.Before(last.Add(interval)) {
+			if !paused && (!found || !now.Before(last.Add(interval))) {
 				due[key] = text
 				ledger.Reminded[key] = now.UTC()
 			}
@@ -247,10 +271,16 @@ func runOperatorReminder(
 		}
 		status := "quiet"
 		if len(due) > 0 {
+			ledger.ReminderCount++
 			status = "due"
 		}
 		fmt.Fprintf(&view, "status: %s\nopen_items: %d\n", status, len(items))
 		if len(due) > 0 {
+			if settings.QuietLimit > 0 && ledger.ReminderCount >= settings.QuietLimit {
+				view.WriteString(
+					"pause: Reminders are pausing until the item set changes or the operator replies.\n",
+				)
+			}
 			fmt.Fprintf(&view, "reminders: %d due\n", len(due))
 			writeOperatorRows(&view, "reminders", due)
 			fmt.Fprintf(
