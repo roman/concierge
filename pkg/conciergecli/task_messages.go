@@ -47,7 +47,7 @@ type taskCommands struct {
 	} `cmd:"" help:"Publish a generation-bound assignment and notify its worker."`
 
 	List    struct{}            `cmd:"" help:"List tasks with confirmed worker bindings."`
-	Pending struct{}            `cmd:"" help:"List accepted results awaiting completion recovery."`
+	Pending struct{}            `cmd:"" help:"List accepted results and overdue unregistered launches awaiting recovery."`
 	Receive assignmentSelection `cmd:"" help:"Read an assignment for the caller's generation."`
 	Ack     assignmentSelection `cmd:"" help:"Acknowledge an assignment for the caller's generation."`
 }

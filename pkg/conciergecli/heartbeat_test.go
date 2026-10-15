@@ -3,6 +3,7 @@ package conciergecli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,77 @@ import (
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/tincan/pkg/inbox"
 )
+
+func TestUnregisteredLaunchStatus(t *testing.T) {
+	for _, overdue := range []bool{false, true} {
+		t.Run(fmt.Sprint(overdue), func(t *testing.T) {
+			root := taskRoot(t, t.TempDir())
+			requested := time.Now().UTC()
+			if overdue {
+				requested = requested.Add(-3 * time.Minute)
+			}
+			task, err := taskstate.NewMigrated(taskstate.Snapshot{
+				Definition: taskstate.Definition{
+					ID:    "launching",
+					Title: "Launch",
+					Repo:  "repo",
+					Kind:  "task",
+				},
+				State: taskstate.Queued,
+				LaunchIntent: &taskstate.LaunchIntent{
+					Generation: "gen-1", Harness: "codex", Name: "worker", Session: "work",
+					Project: "/repo", Worktree: "/worktree", Branch: "task/launch",
+					BaseCommit: strings.Repeat("a", 40), Label: "launch",
+					Phase: taskstate.LaunchAgentRequested, AgentRequestedAt: requested,
+					Endpoint: &taskstate.LaunchEndpoint{
+						Workspace: "workspace-1",
+						Tab:       "tab:1",
+						Pane:      "pane-1",
+					},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := task.Encode()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "records", "launching.json"), data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			status, err := collectHeartbeatStatus(
+				context.Background(),
+				root,
+				t.TempDir(),
+				"concierge",
+				"/unused",
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !status.Active || status.Notify != overdue {
+				t.Fatalf("status = %+v", status)
+			}
+			pending := invoke(t, root, "", "task", "pending")
+			for _, text := range []string{status.Text, pending} {
+				if strings.Contains(
+					text,
+					"stuck_launches[1]{task,phase,session,pane_id,generation,deadline,recovery}:",
+				) != overdue {
+					t.Fatal(text)
+				}
+				if overdue {
+					for _, want := range []string{"launching", "agent_requested", "work", "pane-1", "concierge task abandon", "--generation gen-1"} {
+						if !strings.Contains(text, want) {
+							t.Fatalf("missing %q: %s", want, text)
+						}
+					}
+				}
+			}
+		})
+	}
+}
 
 func TestHeartbeatSchedule(t *testing.T) {
 	for _, trial := range []struct {

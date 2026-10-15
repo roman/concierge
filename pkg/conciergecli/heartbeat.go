@@ -13,6 +13,7 @@ import (
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/stateversion"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/taskview"
 	"github.com/roman/tincan/pkg/inbox"
 )
 
@@ -278,9 +279,17 @@ func collectHeartbeatStatus(
 	}
 	var workers strings.Builder
 	bound, completions := 0, 0
+	launches := 0
 	notify := len(ledger.Actions) > 0
+	now := time.Now()
 	for _, task := range tasks {
 		snapshot := task.Snapshot()
+		if snapshot.LaunchIntent != nil && snapshot.Worker == nil {
+			launches++
+			if task.UnregisteredLaunchOverdue(now) {
+				notify = true
+			}
+		}
 		if snapshot.Completion != nil {
 			completions++
 			fmt.Fprintf(
@@ -328,11 +337,18 @@ func collectHeartbeatStatus(
 		completions,
 	)
 	view.WriteString(workers.String())
+	if launches > 0 {
+		fmt.Fprintf(&view, "unbound_launches: %d\n", launches)
+	}
+	if err := taskview.WriteStuckLaunches(&view, tasks, now); err != nil {
+		return heartbeatStatus{}, err
+	}
 	view.WriteString(replyRows.String())
 	writeOperatorActions(&view, ledger.Actions)
 	fmt.Fprintf(&view, "operator_revision: %d\n", ledger.ActionRevision)
 	return heartbeatStatus{
-		Active: bound > 0 || len(ledger.Actions) > 0 || replies > 0 || completions > 0,
+		Active: bound > 0 || launches > 0 || len(ledger.Actions) > 0 || replies > 0 ||
+			completions > 0,
 		Text:   view.String(),
 		Notify: notify,
 	}, nil

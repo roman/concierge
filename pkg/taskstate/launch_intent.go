@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/roman/concierge/pkg/herdr"
@@ -32,23 +33,24 @@ type LaunchEndpoint struct {
 
 // LaunchIntent keeps initial launch recovery independent of the primary session.
 type LaunchIntent struct {
-	Lease       WorktreeLease   `json:"lease,omitzero"`
-	LeaseHolder string          `json:"lease_holder,omitempty"`
-	Generation  string          `json:"generation"`
-	Harness     string          `json:"harness"`
-	Name        string          `json:"name"`
-	Session     string          `json:"session"`
-	Project     string          `json:"project"`
-	Worktree    string          `json:"worktree"`
-	Branch      string          `json:"branch"`
-	BaseCommit  string          `json:"base_commit"`
-	Workspace   string          `json:"workspace"`
-	Label       string          `json:"label"`
-	AgentArgs   []string        `json:"agent_args,omitempty"`
-	Body        string          `json:"body"`
-	Phase       LaunchPhase     `json:"phase"`
-	Endpoint    *LaunchEndpoint `json:"endpoint,omitempty"`
-	ResumeArgs  []string        `json:"resume_args,omitempty"`
+	Lease            WorktreeLease   `json:"lease,omitzero"`
+	LeaseHolder      string          `json:"lease_holder,omitempty"`
+	Generation       string          `json:"generation"`
+	Harness          string          `json:"harness"`
+	Name             string          `json:"name"`
+	Session          string          `json:"session"`
+	Project          string          `json:"project"`
+	Worktree         string          `json:"worktree"`
+	Branch           string          `json:"branch"`
+	BaseCommit       string          `json:"base_commit"`
+	Workspace        string          `json:"workspace"`
+	Label            string          `json:"label"`
+	AgentArgs        []string        `json:"agent_args,omitempty"`
+	Body             string          `json:"body"`
+	Phase            LaunchPhase     `json:"phase"`
+	AgentRequestedAt time.Time       `json:"agent_requested_at,omitzero"`
+	Endpoint         *LaunchEndpoint `json:"endpoint,omitempty"`
+	ResumeArgs       []string        `json:"resume_args,omitempty"`
 }
 
 func cloneLaunchIntent(input *LaunchIntent) *LaunchIntent {
@@ -68,6 +70,7 @@ func cloneLaunchIntent(input *LaunchIntent) *LaunchIntent {
 // ReserveInitialLaunch fixes the request before any Git or Herdr effect.
 func (task Task) ReserveInitialLaunch(input LaunchIntent) (Task, error) {
 	if input.Phase != "" || input.Endpoint != nil || len(input.ResumeArgs) != 0 ||
+		!input.AgentRequestedAt.IsZero() ||
 		input.Lease != (WorktreeLease{}) ||
 		input.LeaseHolder != "" {
 		return Task{}, ErrInvalidTransition
@@ -76,6 +79,7 @@ func (task Task) ReserveInitialLaunch(input LaunchIntent) (Task, error) {
 	if task.record.LaunchIntent != nil {
 		current := *cloneLaunchIntent(task.record.LaunchIntent)
 		current.Phase, current.Endpoint, current.ResumeArgs = LaunchReserved, nil, nil
+		current.AgentRequestedAt = time.Time{}
 		if current.LeaseHolder != "" {
 			current.Worktree = ""
 		}
@@ -136,7 +140,24 @@ func (task Task) RequestLaunchAgent(generation string) (Task, error) {
 		task.record.LaunchIntent.Endpoint == nil {
 		return Task{}, ErrInvalidTransition
 	}
-	return task.advanceInitialLaunch(generation, LaunchPaneRequested, LaunchAgentRequested)
+	updated, err := task.advanceInitialLaunch(generation, LaunchPaneRequested, LaunchAgentRequested)
+	if err != nil || task.record.LaunchIntent.Phase == LaunchAgentRequested {
+		return updated, err
+	}
+	snapshot := updated.Snapshot()
+	snapshot.LaunchIntent.AgentRequestedAt = time.Now().UTC()
+	return newTransition(snapshot)
+}
+
+// UnregisteredLaunchOverdue uses the devshell allowance for all initial launches.
+// Older records lack a request time and need inspection at the next status check.
+func (task Task) UnregisteredLaunchOverdue(now time.Time) bool {
+	intent := task.record.LaunchIntent
+	if intent == nil || task.record.Worker != nil || intent.Phase != LaunchAgentRequested {
+		return false
+	}
+	return intent.AgentRequestedAt.IsZero() ||
+		!now.Before(intent.AgentRequestedAt.Add(herdr.WorktreeStartupTimeout))
 }
 
 func (task Task) advanceInitialLaunch(generation string, previous, next LaunchPhase) (Task, error) {
@@ -267,6 +288,9 @@ func validLaunchIntent(selected record) bool {
 	intent := selected.LaunchIntent
 	if intent == nil {
 		return true
+	}
+	if !intent.AgentRequestedAt.IsZero() && intent.Phase != LaunchAgentRequested {
+		return false
 	}
 	if (selected.State != Queued && selected.State != InFlight) || selected.Completion != nil ||
 		taskmeta.ValidateSpawnGeneration(intent.Generation) != nil ||

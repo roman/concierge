@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
@@ -43,6 +44,9 @@ func runRecordView(ctx context.Context, root, selected, taskID string, output io
 		err = taskview.WriteLocalTasks(output, tasks)
 	case "task pending":
 		err = taskview.WritePendingCompletions(output, tasks)
+		if err == nil {
+			err = taskview.WriteStuckLaunches(output, tasks, time.Now())
+		}
 		if err == nil {
 			if err := writeOpenOperatorActions(ctx, root, output); err != nil {
 				return fail(output, 1, err, operatorHelp)

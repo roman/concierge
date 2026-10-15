@@ -264,6 +264,7 @@ func sameWorkerIdentity(current, candidate Task) bool {
 			return false
 		}
 		previousLaunch.Phase, launch.Phase = LaunchReserved, LaunchReserved
+		previousLaunch.AgentRequestedAt, launch.AgentRequestedAt = time.Time{}, time.Time{}
 		previousLaunch.ResumeArgs, launch.ResumeArgs = nil, nil
 		if !reflect.DeepEqual(previousLaunch, launch) {
 			return false

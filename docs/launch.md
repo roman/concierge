@@ -51,6 +51,20 @@ launch instead of silently starting outside the environment. Add
 `.envrc.template` for optional local direnv setup; a fresh worktree needs no
 `.envrc` when its flake provides the default devShell.
 
+Devshell launches pass a 120-second startup timeout to Herdr. Cold evaluation
+and shell hooks run inside that allowance before the native agent becomes ready.
+Native launches without a devshell keep Herdr's default timeout. A timeout can
+release the requested agent name while the pane process continues running.
+
+The primary heartbeat and `concierge task pending` report an unbound launch in
+`agent_requested` after two minutes from its recorded request time. The report
+includes the session, pane, generation, deadline, and an abandonment hint.
+The two-minute reporting threshold applies to all initial launches. Older
+records without a request time appear immediately with an unknown deadline.
+Inspect the named session and pane before closing verified launch resources.
+Then use the reported abandonment command. The report does not stop a pane or
+retry a launch.
+
 This repository's `.mcp.json` starts `gopls mcp` for Claude through direnv when
 `.envrc` exists, or through the default Nix devshell otherwise.
 

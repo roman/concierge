@@ -11,7 +11,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
+
+// WorktreeStartupTimeout includes cold devshell evaluation before native startup.
+const WorktreeStartupTimeout = 2 * time.Minute
 
 func worktreeEnvironment(ctx context.Context, worktree string) ([]string, error) {
 	if _, err := os.Stat(filepath.Join(worktree, ".envrc")); err == nil {

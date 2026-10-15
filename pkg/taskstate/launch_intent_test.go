@@ -6,7 +6,46 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestUnregisteredLaunchOverdue(t *testing.T) {
+	now := time.Now().UTC()
+	for _, trial := range []struct {
+		name      string
+		phase     LaunchPhase
+		requested time.Time
+		want      bool
+	}{
+		{"before deadline", LaunchAgentRequested, now.Add(-119 * time.Second), false},
+		{"at deadline", LaunchAgentRequested, now.Add(-2 * time.Minute), true},
+		{"after deadline", LaunchAgentRequested, now.Add(-3 * time.Minute), true},
+		{"legacy unknown deadline", LaunchAgentRequested, time.Time{}, true},
+		{"preparing", LaunchPreparing, time.Time{}, false},
+	} {
+		t.Run(trial.name, func(t *testing.T) {
+			snapshot := taskForTransition(t).Snapshot()
+			intent := launchForTest()
+			intent.Phase = trial.phase
+			intent.AgentRequestedAt = trial.requested
+			if trial.phase == LaunchAgentRequested {
+				intent.Endpoint = &LaunchEndpoint{
+					Workspace: "workspace-1",
+					Tab:       "tab:1",
+					Pane:      "pane-1",
+				}
+			}
+			snapshot.LaunchIntent = &intent
+			task, err := NewMigrated(snapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := task.UnregisteredLaunchOverdue(now); got != trial.want {
+				t.Fatalf("overdue = %v, want %v", got, trial.want)
+			}
+		})
+	}
+}
 
 func launchForTest() LaunchIntent {
 	return LaunchIntent{
@@ -106,6 +145,25 @@ func TestInitialLaunchOrderingAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	requestedAt := started.Snapshot().LaunchIntent.AgentRequestedAt
+	if requestedAt.IsZero() {
+		t.Fatal("launch request time was not recorded")
+	}
+	encoded, err := started.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := Decode(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retried, err := stored.RequestLaunchAgent("gen-1")
+	if err != nil || !retried.Snapshot().LaunchIntent.AgentRequestedAt.Equal(requestedAt) {
+		t.Fatalf("retry changed the stored launch deadline: %v", err)
+	}
+	if _, err := stored.ReserveInitialLaunch(launchForTest()); err != nil {
+		t.Fatalf("timestamp prevented exact launch retry: %v", err)
+	}
 	resume := []string{"resume", "actual-thread"}
 	started, err = started.RecordLaunchResume("gen-1", resume)
 	if err != nil {
@@ -132,6 +190,9 @@ func TestInitialLaunchOrderingAndCancellation(t *testing.T) {
 	adopted, err = adopted.ConfirmAdoption(endpoint.Workspace, endpoint.Tab)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if adopted.UnregisteredLaunchOverdue(requestedAt.Add(3 * time.Minute)) {
+		t.Fatal("bound worker reported as an unregistered launch")
 	}
 	if _, err := adopted.CompleteInitialLaunch("gen-1"); !errors.Is(err, ErrInvalidTransition) {
 		t.Fatalf("cleared before dispatch: %v", err)
