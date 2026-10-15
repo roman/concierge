@@ -11,7 +11,7 @@ import (
 
 const scoutContract = "\n\n## Scout contract\n\nYou are a read-only scout. Never edit project files, commit, push, or open a PR. Use read-only commands and put scratch artifacts outside the project. Investigate only the assigned scope. Deliver a report with findings, evidence, limitations, and any open decisions as the body of concierge task reply send. Concierge archives each reply in its state root before acknowledging the assignment."
 
-func (service *Service) archiveScoutReply(message inbox.Message) error {
+func (service *Service) archiveReply(message inbox.Message) error {
 	reports, err := inbox.New(filepath.Join(service.root, "reports"))
 	if err != nil {
 		return err
@@ -29,7 +29,16 @@ func (service *Service) archiveScoutReply(message inbox.Message) error {
 }
 
 // ReadScoutReport reads historical evidence independently of the worker mailbox.
+// Deprecated: use ReadReport for any task kind.
 func (service *Service) ReadScoutReport(
+	ctx context.Context,
+	taskID, replyID string,
+) (taskprotocol.Reply, error) {
+	return service.ReadReport(ctx, taskID, replyID)
+}
+
+// ReadReport reads historical evidence independently of the worker mailbox.
+func (service *Service) ReadReport(
 	ctx context.Context,
 	taskID, replyID string,
 ) (taskprotocol.Reply, error) {
@@ -37,12 +46,8 @@ func (service *Service) ReadScoutReport(
 	if err != nil {
 		return taskprotocol.Reply{}, err
 	}
-	task, err := service.store.Read(ctx, taskID)
-	if err != nil {
+	if _, err := service.store.Read(ctx, taskID); err != nil {
 		return taskprotocol.Reply{}, err
-	}
-	if task.Definition().Kind != "scout" {
-		return taskprotocol.Reply{}, errors.New("task is not a scout")
 	}
 	recipient, err := inbox.ParseRecipient(taskID)
 	if err != nil {
@@ -61,7 +66,23 @@ func (service *Service) ReadScoutReport(
 		return taskprotocol.Reply{}, err
 	}
 	if reply.Task != taskID {
-		return taskprotocol.Reply{}, errors.New("report belongs to another scout")
+		return taskprotocol.Reply{}, errors.New("report belongs to another task")
 	}
 	return reply, nil
+}
+
+// ListReports returns saved reports in creation order, independently of task status.
+func (service *Service) ListReports(ctx context.Context, taskID string) ([]inbox.Message, error) {
+	if _, err := service.store.Read(ctx, taskID); err != nil {
+		return nil, err
+	}
+	recipient, err := inbox.ParseRecipient(taskID)
+	if err != nil {
+		return nil, err
+	}
+	reports, err := inbox.New(filepath.Join(service.root, "reports"))
+	if err != nil {
+		return nil, err
+	}
+	return reports.List(recipient)
 }

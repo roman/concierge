@@ -247,7 +247,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		"task receive <task-id> <message-id>",
 		"task ack <task-id> <message-id>":
 		return command.runTaskMessages(ctx, root, selected.Command(), stdin, stdout)
-	case "task report <task-id> <reply-id>":
+	case "task report <task-id>", "task report <task-id> <reply-id>":
 		return command.Task.report(ctx, root, stdout)
 	case "backlog resolve <reply-id>":
 		return command.runResolve(ctx, root, stdout)

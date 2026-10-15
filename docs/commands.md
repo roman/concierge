@@ -159,16 +159,22 @@ Queue a scout with `backlog add ID TITLE --kind scout --repo REPO` and launch it
 normally. A current `task receive` includes the read-only contract after all
 generation and assignment checks. Scouts deliver findings, evidence,
 limitations, and open decisions through `task reply send --body-file REPORT`.
-Concierge archives every scout reply under `reports/` in the state root using
+Concierge archives every bound task reply under `reports/` in the state root using
 the durable message format. Reply publication and archival both precede
 assignment acknowledgement. An identical retry repairs an interrupted archive.
+Rework assignment replies receive separate reports. Generic coordination
+messages are not archived. Scouts also retain archival for unbound replies.
 
 The primary reads a saved report with `concierge task report ID REPLY_ID`.
-The reply ID comes from `task reply send` or the primary inbox. Reports retain
-their original generation and survive worker cleanup and removal of the original
+List saved reply IDs and archive creation times with `concierge task report ID`.
+The list uses creation order and returns an explicit zero count for an empty
+archive. The reply ID also comes from `task reply send` or the primary inbox.
+Reports retain their original generation and survive worker cleanup and removal of the original
 mailbox. Each reply remains separate, so a later question or report cannot
 overwrite earlier evidence. `status: archived` identifies historical evidence;
 use `task reply check` to validate current results before accepting them.
+When writing handoffs, the primary reads accepted results from these reports,
+including after `backlog resolve`, worker stop, and cleanup.
 Scout read-only behavior is an agent contract under normal native permissions.
 Concierge does not replace those permissions with a filesystem sandbox.
 

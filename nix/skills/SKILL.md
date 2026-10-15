@@ -1,6 +1,6 @@
 ---
 name: concierge-local-supervisor
-description: Use Concierge to delegate project work, supervise workers, read scout reports, and apply operator-owned delivery settings. Use Tincan for durable messages and wakes.
+description: Use Concierge to delegate project work, supervise workers, read task reports, and apply operator-owned delivery settings. Use Tincan for durable messages and wakes.
 ---
 # Concierge local supervisor
 
@@ -290,12 +290,18 @@ coordination messages.
 
 ## Accept results and retire workers
 
-For a scout, require a report with findings, evidence, limitations, and open
-decisions as the completion reply body. Concierge saves each scout reply in
+Concierge saves every bound task reply, including each rework assignment reply, in
 `$CONCIERGE_HOME/reports/` before acknowledging its assignment. Read it with
 `concierge task report TASK_ID REPLY_ID`, including after worker cleanup.
+List saved reply IDs and creation times with `concierge task report TASK_ID`.
+When writing handoffs, read accepted results from these reports. Reports survive
+`backlog resolve`, worker stop, and cleanup. Generic coordination messages are
+not saved as reports.
 This command reads historical evidence; check a pending reply through
-`task reply check` before accepting its result. Keep unresolved operator decisions
+`task reply check` before accepting its result.
+
+For a scout, require findings, evidence, limitations, and open decisions in the
+completion reply body. Keep unresolved operator decisions
 open. Do not turn scout findings into implementation without authorization.
 
 For project changes, delivery and merge authority are separate settings:

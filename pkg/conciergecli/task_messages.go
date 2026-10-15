@@ -20,9 +20,9 @@ type assignmentSelection struct {
 
 type taskCommands struct {
 	Report struct {
-		TaskID  string `arg:"" help:"Scout task ID."`
-		ReplyID string `arg:"" help:"Reply message ID returned by task reply send."`
-	} `cmd:"" help:"Read an archived scout report, including after worker cleanup."`
+		TaskID  string `arg:"" help:"Task ID."`
+		ReplyID string `arg:"" optional:"" help:"Reply message ID; omit to list saved reports."`
+	} `cmd:"" help:"Read or list archived task reports, including after worker cleanup."`
 	Abandon struct {
 		TaskID     string `arg:"" help:"Task ID."`
 		Generation string `required:"" help:"Launch intent generation to abandon."`
