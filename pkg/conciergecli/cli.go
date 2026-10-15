@@ -44,6 +44,7 @@ type cli struct {
 	Land         landCommand          `cmd:"" help:"Land an accepted worker result using the repository settings."`
 	Project      projectCommands      `cmd:"" help:"Inspect and set operator-owned repository settings."`
 	Operator     operatorCommands     `cmd:"" help:"Record, resolve, list, and remind about open operator actions."`
+	Heartbeat    heartbeatCommands    `cmd:"" help:"Configure and claim periodic primary status updates."`
 	BriefInclude briefIncludeCommands `cmd:"" help:"Set or clear operator-owned standing worker instructions."`
 	Supervise    supervisionCommands  `cmd:"" help:"Monitor workers and recover missing agents."`
 	Control      controlCommands      `cmd:"" help:"Inspect and control live Herdr agents."`
@@ -183,6 +184,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return fail(stdout, 2, err, "use an absolute, clean --root path")
 	}
 	switch selected.Command() {
+	case "heartbeat show", "heartbeat set", "heartbeat check":
+		return command.runHeartbeat(ctx, root, selected.Command(), stdout)
 	case "operator ask <id> <text>", "operator resolve <id>", "operator list":
 		return command.Operator.run(ctx, root, selected.Command(), stdout)
 	case "operator remind":

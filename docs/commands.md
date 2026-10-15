@@ -15,6 +15,7 @@
 | `concierge primary` | Claim, verify, and release root ownership from native lifecycle hooks. |
 | `concierge operator ask ID TEXT` / `resolve ID` / `list` | Record requests for operator input and resolve answered requests. |
 | `concierge operator remind [--interval 15m]` | Report due operator requests and unfinished worker retirement. |
+| `concierge heartbeat show` / `set --interval 5m` / `check` | Configure and claim periodic primary status updates. |
 | `concierge control` | Inspect, start, and interrupt live Herdr agents. |
 | `concierge supervise` | Monitor a manual pane or supervise a task with inbox delivery and worker recovery. |
 | `concierge brief` | Show pending primary messages, queued work, workers, and unfinished completions. |
@@ -195,3 +196,20 @@ A prompt directs the agent to its inbox. Acknowledgement records that the
 recipient handled the message. Notification runs until interruption. Its
 interval defaults to five seconds. Use `--herdr PATH` to select another Herdr
 executable.
+
+## Primary heartbeat
+
+`concierge heartbeat show` reports the operator-owned interval (default `5m`).
+`concierge heartbeat set --interval 2m` changes it in
+`$CONCIERGE_HOME/config/heartbeat.json`. Only positive durations are accepted.
+
+`concierge heartbeat check` claims one due status update at an inbox wait
+checkpoint. The first check arms the timer. A quiet result includes `active`
+and the remaining time. A due result includes worker states from Herdr, pending
+reply counts, accepted workers awaiting cleanup, and open operator actions.
+An unchanged status includes `no changes since last heartbeat`.
+
+Use `concierge heartbeat check --wake inbox` after an inbox wake, or
+`concierge heartbeat check --wake reminder` after a reminder wake. Both defer
+the heartbeat for one configured interval. The Claude Stop hook does this
+automatically. Codex follows the supervisor skill at each inbox wait checkpoint.
