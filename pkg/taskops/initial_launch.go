@@ -52,7 +52,7 @@ func (service *Service) ContinueInitialLaunch(
 	if _, err := taskmeta.ParseAbsolutePath(config.MessageRoot); err != nil {
 		return taskstate.Task{}, err
 	}
-	_, intent, err := service.initialLaunch(ctx, taskID, generation)
+	task, intent, err := service.initialLaunch(ctx, taskID, generation)
 	if err != nil {
 		return taskstate.Task{}, err
 	}
@@ -89,7 +89,7 @@ func (service *Service) ContinueInitialLaunch(
 	if err := checkInitialLease(ctx, intent, config.Pool); err != nil {
 		return taskstate.Task{}, err
 	}
-	if err := service.prepareInitialAgent(ctx, taskID, intent, config.Git, client, arguments); err != nil {
+	if err := service.prepareInitialAgent(ctx, taskID, task.Definition().DisplayName(), intent, config.Git, client, arguments); err != nil {
 		if errors.Is(err, herdr.ErrAgentNotReady) {
 			agent, inspectionErr := client.Get(ctx, intent.Name)
 			if inspectionErr == nil && agent.PaneID == intent.Endpoint.Pane &&
@@ -299,7 +299,7 @@ func (service *Service) prepareInitialPane(
 
 func (service *Service) prepareInitialAgent(
 	ctx context.Context,
-	taskID string,
+	taskID, displayName string,
 	intent *taskstate.LaunchIntent,
 	git worktree.Client,
 	client herdr.Client,
@@ -317,6 +317,9 @@ func (service *Service) prepareInitialAgent(
 	}
 	if err := verifyWorktree(intent.Worktree, details.ForegroundDirectory); err != nil {
 		return fmt.Errorf("%w: %w", ErrInitialLaunchIdentity, err)
+	}
+	if err := client.ReportPaneTitle(ctx, intent.Endpoint.Pane, displayName); err != nil {
+		return err
 	}
 	if intent.Phase == taskstate.LaunchAgentRequested {
 		return nil

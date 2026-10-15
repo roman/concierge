@@ -17,6 +17,12 @@ when its last pane closes; any additional user panes keep the workspace open.
 Cleanup then records the retired task. Existing shared workspaces remain
 available through `--workspace WORKSPACE_ID`; labels are unsupported.
 
+New workspace labels and worker pane titles use `<repo>/<name>`. The name is
+the task ID with a leading `<repo>-` removed. For example, `tincan-cleanup`
+appears as `tincan/cleanup`. Controlled restarts report the same pane title.
+The agent identity remains `c-<generation>`. Existing workspace labels stay
+recorded and remain valid for launch recovery and cleanup.
+
 Treehouse is a required host dependency and is included in the Concierge Nix
 package. The host selects the leased path. Fresh requests omit `--worktree`;
 that option exists only for recovery of an already recorded raw-worktree launch.

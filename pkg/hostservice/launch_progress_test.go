@@ -153,6 +153,7 @@ func TestTrackedLaunchIdentityMismatchReportsBlocked(t *testing.T) {
 			t.Setenv("LAUNCH_TEST_MODE", mode)
 			script := `#!/bin/sh
 case "$1 $2" in
+'pane report-metadata') printf '%s' '{"result":{}}' ;;
 'pane get')
  workspace=workspace-1
  [ "$LAUNCH_TEST_MODE" != 'pane moved' ] || workspace=other
@@ -326,6 +327,7 @@ func TestTrackedLaunchResourceConflictsReportBlocked(t *testing.T) {
 				t.Setenv("LAUNCH_TEST_WORKTREE", input.Worktree)
 				script := `#!/bin/sh
 case "$1 $2" in
+'pane report-metadata') printf '%s' '{"result":{}}' ;;
 'pane get') printf '{"result":{"pane":{"pane_id":"p1","workspace_id":"workspace-1","tab_id":"t1","foreground_cwd":"%s"}}}' "$LAUNCH_TEST_WORKTREE" ;;
 'agent get') printf '%s\n' '{"result":{"agent":{"pane_id":"p1","agent":"codex","agent_status":"working"}}}' ;;
 *) exit 72 ;;

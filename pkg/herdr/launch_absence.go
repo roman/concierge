@@ -12,7 +12,7 @@ type LaunchResources struct{ Name, Label, Tab, Pane string }
 
 // CheckLaunchAbsent checks every workspace, including launches recorded with a label.
 func (client Client) CheckLaunchAbsent(ctx context.Context, launch LaunchResources) error {
-	if !healthAtom(launch.Name, false) || !healthAtom(launch.Label, false) {
+	if !healthAtom(launch.Name, false) || !healthLabel(launch.Label) {
 		return ErrResponse
 	}
 	if _, err := client.Get(ctx, launch.Name); !errors.Is(err, ErrNotFound) {

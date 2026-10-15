@@ -175,6 +175,15 @@ func (c Client) SendKeys(ctx context.Context, target string, keys ...string) err
 	return err
 }
 
+func (c Client) ReportPaneTitle(ctx context.Context, paneID, title string) error {
+	if !healthAtom(paneID, true) || !healthLabel(title) {
+		return fmt.Errorf("%w: invalid pane title or target", ErrResponse)
+	}
+	_, err := c.shared().
+		Run(ctx, "pane", "report-metadata", paneID, "--source", "concierge", "--title", title)
+	return err
+}
+
 func (c Client) WaitSettled(ctx context.Context, target string) (Agent, error) {
 	if target == "" {
 		return Agent{}, fmt.Errorf("%w: empty target", ErrResponse)

@@ -24,6 +24,7 @@ type initialLaunchRunner struct {
 	creates, starts  int
 	failure          string
 	startArgs        []string
+	metadataArgs     []string
 }
 
 func (runner *initialLaunchRunner) RunSession(
@@ -35,6 +36,12 @@ func (runner *initialLaunchRunner) RunSession(
 		return nil, nil, fmt.Errorf("wrong session: %s", session)
 	}
 	switch strings.Join(args[:2], " ") {
+	case "pane report-metadata":
+		runner.metadataArgs = append([]string(nil), args...)
+		if runner.failure == "metadata" {
+			return nil, nil, errors.New("metadata unavailable")
+		}
+		return []byte(`{"result":{}}`), nil, nil
 	case "tab create":
 		task, err := runner.service.store.Read(ctx, "task-1")
 		if err != nil || task.Snapshot().LaunchIntent.Phase != taskstate.LaunchPaneRequested {
@@ -211,6 +218,12 @@ func TestInitialLaunchPublishesAssignmentBeforeClearingIntent(t *testing.T) {
 	if runner.creates != 1 || runner.starts != 1 {
 		t.Fatalf("effects = %d, %d", runner.creates, runner.starts)
 	}
+	if want := []string{"pane", "report-metadata", "w1:p2", "--source", "concierge", "--title", "project/task-1"}; !reflect.DeepEqual(
+		runner.metadataArgs,
+		want,
+	) {
+		t.Fatalf("pane title = %v, want %v", runner.metadataArgs, want)
+	}
 	messages, err := inbox.New(config.MessageRoot)
 	if err != nil {
 		t.Fatal(err)
@@ -219,6 +232,24 @@ func TestInitialLaunchPublishesAssignmentBeforeClearingIntent(t *testing.T) {
 	pending, err := messages.List(recipient)
 	if err != nil || len(pending) != 1 || !strings.Contains(pending[0].Body, runner.intent.Body) {
 		t.Fatalf("assignment = %+v, %v", pending, err)
+	}
+}
+
+func TestInitialLaunchRetriesPaneTitleBeforeStartingAgent(t *testing.T) {
+	service, runner, config := initialLaunchFixture(t)
+	runner.failure = "metadata"
+	if _, err := service.ContinueInitialLaunch(context.Background(), "task-1", "gen-1", config); err == nil {
+		t.Fatal("metadata failure accepted")
+	}
+	if runner.starts != 0 {
+		t.Fatal("started agent without pane title")
+	}
+	runner.failure = ""
+	if _, err := service.ContinueInitialLaunch(context.Background(), "task-1", "gen-1", config); err != nil {
+		t.Fatal(err)
+	}
+	if runner.starts != 1 || runner.creates != 1 {
+		t.Fatalf("retry effects = %d starts, %d creates", runner.starts, runner.creates)
 	}
 }
 

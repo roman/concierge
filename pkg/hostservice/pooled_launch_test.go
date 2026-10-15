@@ -116,6 +116,7 @@ case "$1 $2" in
  printf '%s' '{"result":{"agent":{"pane_id":"w1:p1","agent":"codex","agent_status":"idle","agent_session":{"source":"herdr:codex","agent":"codex","kind":"id","value":"native-session"}}}}'
  ;;
 'agent start') printf 'start\n' >> "$HOST_POOL_PROBE/started"; printf '%s' '{"result":{}}' ;;
+'pane report-metadata') printf '%s' '{"result":{}}' ;;
 'agent prompt') printf '%s' '{"result":{}}' ;;
 *) exit 73 ;;
 esac

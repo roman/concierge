@@ -47,6 +47,7 @@ func checkpointLaunchFixture(t *testing.T, mode string) (*Server, LaunchRequest)
 	}
 	script := `#!/bin/sh
 case "$1 $2" in
+'pane report-metadata') printf '%s' '{"result":{}}' ;;
 'pane get')
  workspace=workspace-1
  [ "$CHECKPOINT_MODE" != 'moved pane' ] || workspace=other

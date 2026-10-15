@@ -246,6 +246,9 @@ func TestLaunchRequestRetryPreservesIdentityAndProgress(t *testing.T) {
 	if !strings.HasSuffix(intent.Name, strings.ToLower(intent.Generation)) {
 		t.Fatalf("agent name lost generation characters: %+v", intent)
 	}
+	if intent.Label != first.Definition().Repo+"/"+input.TaskID {
+		t.Fatalf("workspace label = %q", intent.Label)
+	}
 	if intent.Body != input.Body || !reflect.DeepEqual(intent.AgentArgs, input.AgentArgs) {
 		t.Fatal("reservation changed the valid assignment body or arguments")
 	}
@@ -265,6 +268,23 @@ func TestLaunchRequestRetryPreservesIdentityAndProgress(t *testing.T) {
 	}
 	if !reflect.DeepEqual(advanced.Snapshot(), retried.Snapshot()) {
 		t.Fatal("retry replaced identity or launch progress")
+	}
+}
+
+func TestLaunchRetryPreservesLegacyLabel(t *testing.T) {
+	server, input := launchRequestFixture(t)
+	ctx := context.Background()
+	intent := input.intent(server.config.Session, "legacy-generation")
+	before, err := server.store.ReserveInitialLaunch(ctx, input.TaskID, intent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := server.reserveInitialLaunch(ctx, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(before.Snapshot(), after.Snapshot()) {
+		t.Fatal("retry changed the legacy launch record")
 	}
 }
 
@@ -548,8 +568,8 @@ func TestLaunchResponseRequiresOwnedWorkspaceForDefaultRequest(t *testing.T) {
 	if err := validateResponse(Response{Outcome: Completed, Transition: &snapshot}, request); err != nil {
 		t.Fatal(err)
 	}
-	snapshot.Worker.OwnedWorkspaceLabel = "different"
-	if err := validateResponse(Response{Outcome: Completed, Transition: &snapshot}, request); err == nil {
-		t.Fatal("owned response accepted unrelated label")
+	snapshot.Worker.OwnedWorkspaceLabel = snapshot.Definition.Repo + "/" + input.TaskID
+	if err := validateResponse(Response{Outcome: Completed, Transition: &snapshot}, request); err != nil {
+		t.Fatal(err)
 	}
 }

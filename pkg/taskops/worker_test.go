@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -38,6 +39,7 @@ type workerRunner struct {
 	onStart           func() error
 	starts            int
 	startArgs         []string
+	metadataArgs      []string
 	environmentSetup  string
 	verificationError bool
 }
@@ -58,6 +60,9 @@ func (runner *workerRunner) RunSession(
 		return nil, nil, fmt.Errorf("unexpected session %s", session)
 	}
 	switch strings.Join(args[:2], " ") {
+	case "pane report-metadata":
+		runner.metadataArgs = append([]string(nil), args...)
+		return []byte(`{"result":{}}`), nil, nil
 	case "pane run":
 		runner.environmentSetup = args[3]
 		return nil, nil, nil
@@ -143,6 +148,12 @@ func TestWorkerRestartLoadsWorktreeEnvironment(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(runner.startArgs, " "), "resume thread-1") {
 		t.Fatalf("restart lost resume arguments: %q", runner.startArgs)
+	}
+	if want := []string{"pane", "report-metadata", "pane-1", "--source", "concierge", "--title", "exmachina/task-1"}; !reflect.DeepEqual(
+		runner.metadataArgs,
+		want,
+	) {
+		t.Fatalf("pane title = %v, want %v", runner.metadataArgs, want)
 	}
 }
 

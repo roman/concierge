@@ -123,6 +123,7 @@ func (server *Server) executeInitialLaunch(
 		return Response{}, err
 	}
 	candidate := input.intent(server.config.Session, "validation")
+	candidate.Label = existing.Definition().DisplayName()
 	if current := existing.Snapshot().LaunchIntent; current != nil {
 		candidate.Generation, candidate.Name, candidate.Label = current.Generation, current.Name, current.Label
 	}
@@ -250,7 +251,7 @@ func validateLaunchResponse(response Response, request Request) error {
 		(input.Worktree == "" && (worker.Lease.State != taskstate.LeaseHeld || worker.Lease.Branch != input.Branch || worker.Lease.BaseCommit != input.BaseCommit)) ||
 		worker.Harness != input.Harness ||
 		(input.Workspace != "" && (worker.Workspace != input.Workspace || worker.OwnedWorkspaceLabel != "")) ||
-		(input.Workspace == "" && worker.OwnedWorkspaceLabel != "concierge-"+worker.Generation) {
+		(input.Workspace == "" && worker.OwnedWorkspaceLabel == "") {
 		return errors.New("host returned a different launched worker")
 	}
 	return nil
@@ -278,6 +279,7 @@ func (server *Server) reserveInitialLaunch(
 			return taskstate.Task{}, err
 		}
 		intent = input.intent(server.config.Session, "s"+rand.Text())
+		intent.Label = task.Definition().DisplayName()
 	}
 	if err := herdr.ValidateAgentName(intent.Name); err != nil {
 		return taskstate.Task{}, err

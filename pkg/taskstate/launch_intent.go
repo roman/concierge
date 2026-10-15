@@ -274,7 +274,7 @@ func validLaunchIntent(selected record) bool {
 		!validAtom(
 			intent.Name,
 			false,
-		) || (intent.Workspace != "" && !validAtom(intent.Workspace, false)) || !validAtom(intent.Label, false) ||
+		) || (intent.Workspace != "" && !validAtom(intent.Workspace, false)) || !validWorkspaceLabel(intent.Label) ||
 		!singleLine(intent.Branch) || strings.HasPrefix(intent.Branch, "-") ||
 		!utf8.ValidString(intent.Body) || strings.ContainsRune(intent.Body, 0) {
 		return false

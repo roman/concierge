@@ -23,7 +23,7 @@ type tabLocation struct {
 }
 
 func validateTabIdentity(workspace, label string) error {
-	if !healthAtom(workspace, false) || !healthAtom(label, false) {
+	if !healthAtom(workspace, false) || !healthLabel(label) {
 		return fmt.Errorf("%w: explicit workspace and unique tab label are required", ErrResponse)
 	}
 	return nil
@@ -148,7 +148,7 @@ func (client Client) tabPane(
 }
 
 func creationOptions(directory, label string, environment []string) ([]string, error) {
-	if !healthAtom(label, false) {
+	if !healthLabel(label) {
 		return nil, ErrResponse
 	}
 	if !filepath.IsAbs(directory) || filepath.Clean(directory) != directory ||

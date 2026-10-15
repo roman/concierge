@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // ValidateWorkspace requires an existing workspace ID in the selected session.
@@ -77,7 +78,7 @@ func (client Client) CreateWorkspace(
 
 // FindWorkspace recovers a reserved creation without submitting another effect.
 func (client Client) FindWorkspace(ctx context.Context, label string) (PaneDetails, error) {
-	if !healthAtom(label, false) {
+	if !healthLabel(label) {
 		return PaneDetails{}, ErrResponse
 	}
 	output, err := client.shared().Run(ctx, "workspace", "list")
@@ -130,4 +131,13 @@ func (client Client) FindWorkspace(ctx context.Context, label string) (PaneDetai
 		return PaneDetails{}, ErrResponse
 	}
 	return client.tabPane(ctx, tabLocation{Workspace: workspace, Tab: pane.Tab}, pane.ID)
+}
+
+func healthLabel(value string) bool {
+	for _, segment := range strings.Split(value, "/") {
+		if !healthAtom(segment, false) {
+			return false
+		}
+	}
+	return true
 }

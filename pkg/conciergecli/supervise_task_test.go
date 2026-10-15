@@ -27,6 +27,7 @@ func taskSupervisionFixture(t *testing.T) (string, string, string) {
 printf '%s|%s\n' "$HERDR_SESSION" "$*" >> "$TEST_WAKEUP_CALLS"
 [ "$TEST_ADOPTION_FAIL" = 1 ] && exit 72
 case "$1 $2" in
+ 'pane report-metadata') printf '%s\n' '{"result":{}}' ;;
  'pane get')
   if [ "$TEST_WAKEUP_BLOCK" = 1 ]; then exec "$TEST_SLEEP" 60; fi
   printf '{"result":{"pane":{"pane_id":"pane-1","foreground_cwd":"%s","workspace_id":"workspace-1","tab_id":"tab-1"}}}\n' "$TEST_WORKTREE" ;;

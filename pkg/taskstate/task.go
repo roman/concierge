@@ -61,6 +61,10 @@ type Definition struct {
 	Closed       string       `json:"closed,omitempty"`
 }
 
+func (definition Definition) DisplayName() string {
+	return definition.Repo + "/" + strings.TrimPrefix(definition.ID, definition.Repo+"-")
+}
+
 // RestartPlan freezes the mailbox obligations for one launch reservation.
 type RestartPlan struct {
 	From        string   `json:"from"`
@@ -479,7 +483,7 @@ func validWorker(worker Worker) bool {
 	}
 
 	if worker.OwnedWorkspaceLabel != "" &&
-		(!validAtom(worker.OwnedWorkspaceLabel, false) || worker.Workspace == "" || worker.PendingAdoption) {
+		(!validWorkspaceLabel(worker.OwnedWorkspaceLabel) || worker.Workspace == "" || worker.PendingAdoption) {
 		return false
 	}
 	if !validWorktreeLease(worker.Lease) ||
@@ -543,6 +547,15 @@ func validAtom(value string, allowColon bool) bool {
 			continue
 		}
 		return false
+	}
+	return true
+}
+
+func validWorkspaceLabel(value string) bool {
+	for _, segment := range strings.Split(value, "/") {
+		if !validAtom(segment, false) {
+			return false
+		}
 	}
 	return true
 }
