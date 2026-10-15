@@ -18,7 +18,7 @@ import (
 	"github.com/roman/concierge/pkg/taskops"
 )
 
-const version = "0.1.0"
+var version = "dev"
 
 const cliHelp = "commands: host serve|status, launch TASK_ID, land TASK_ID [--operator-approved], project show|set REPO, brief-include set --file FILE|clear, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
