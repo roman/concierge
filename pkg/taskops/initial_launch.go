@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/worktree"
@@ -46,6 +47,11 @@ func (service *Service) ContinueInitialLaunch(
 	taskID, generation string,
 	config InitialLaunchConfig,
 ) (taskstate.Task, error) {
+	lease, err := hostactivity.Begin(service.root)
+	if err != nil {
+		return taskstate.Task{}, err
+	}
+	defer lease.Close()
 	if config.ReserveEndpoint == nil {
 		return taskstate.Task{}, errors.New("initial launch requires endpoint reservation")
 	}

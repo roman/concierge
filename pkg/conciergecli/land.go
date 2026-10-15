@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
@@ -26,6 +27,11 @@ type landingResult struct {
 }
 
 func (command *landCommand) run(ctx context.Context, root string, output io.Writer) int {
+	lease, err := hostactivity.Begin(root)
+	if err != nil {
+		return fail(output, 1, err, "wait for the host restart before landing")
+	}
+	defer lease.Close()
 	store, err := taskstate.NewStore(root)
 	if err != nil {
 		return fail(output, 1, err, "inspect the task state root")

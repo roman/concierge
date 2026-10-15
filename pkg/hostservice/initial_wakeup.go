@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
@@ -63,6 +64,11 @@ func (server *Server) reconcileInitialTasks(ctx context.Context) {
 }
 
 func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKey) error {
+	activity, err := hostactivity.Begin(server.config.Root)
+	if err != nil {
+		return err
+	}
+	defer activity.Close()
 	release, err := server.controllers.reserveRecoveredLaunch(key)
 	if err != nil {
 		return err

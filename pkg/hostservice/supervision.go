@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
@@ -245,7 +246,7 @@ func (server *Server) preparePaneController(
 	if err != nil {
 		return preparedController{}, err
 	}
-	worker := manualWorker{client: client, input: input}
+	worker := manualWorker{root: server.config.Root, client: client, input: input}
 	if err := supervise.Check(ctx, worker); err != nil && !errors.Is(err, supervise.ErrRestarted) {
 		return preparedController{}, err
 	}
@@ -259,6 +260,7 @@ func (server *Server) preparePaneController(
 }
 
 type manualWorker struct {
+	root   string
 	client herdr.Client
 	input  PaneSupervision
 }
@@ -277,6 +279,11 @@ func (worker manualWorker) Observe(ctx context.Context) error {
 	return nil
 }
 func (worker manualWorker) Restart(ctx context.Context) error {
+	lease, err := hostactivity.Begin(worker.root)
+	if err != nil {
+		return err
+	}
+	defer lease.Close()
 	return worker.client.StartWithArgs(
 		ctx,
 		worker.input.Pane,

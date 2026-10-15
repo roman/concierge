@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/primary"
 	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskops"
@@ -84,6 +85,10 @@ type Response struct {
 
 // Server binds operations to roots selected by the host process.
 type Server struct {
+	shutdownMu          sync.Mutex
+	shutdownLease       *os.File
+	shutdownCancel      context.CancelFunc
+	stopping            bool
 	store               *taskstate.Store
 	controllers         *controllerRegistry
 	diagnosticsMu       sync.Mutex
@@ -143,6 +148,9 @@ func (server *Server) ServeReady(
 	ready func() error,
 ) (result error) {
 	lifetime, cancel := context.WithCancel(ctx)
+	server.shutdownMu.Lock()
+	server.shutdownCancel = cancel
+	server.shutdownMu.Unlock()
 	ctx = lifetime
 	server.controllers = newControllerRegistry(ctx)
 	server.controllers.report = server.report
@@ -151,7 +159,16 @@ func (server *Server) ServeReady(
 	defer stop()
 	defer listener.Close()
 	var running sync.WaitGroup
-	defer func() { cancel(); running.Wait(); result = errors.Join(result, server.controllers.close()) }()
+	defer func() {
+		cancel()
+		running.Wait()
+		result = errors.Join(result, server.controllers.close())
+		server.shutdownMu.Lock()
+		defer server.shutdownMu.Unlock()
+		if server.shutdownLease != nil {
+			result = errors.Join(result, server.shutdownLease.Close())
+		}
+	}()
 	if err := server.restoreTaskControllers(ctx); err != nil {
 		return err
 	}
@@ -234,6 +251,14 @@ func (server *Server) handle(ctx context.Context, connection *net.UnixConn) {
 		server.respond(connection, server.statusResponse(caller, request))
 		return
 	}
+	if request.Operation == HostStop {
+		response := server.stopResponse(ctx, caller, request)
+		server.respond(connection, response)
+		if response.Outcome == Completed {
+			server.shutdownCancel()
+		}
+		return
+	}
 	if err := errors.Join(server.checkExpectations(request.Expectations), server.checkSupervisionSettings(request.Supervision)); err != nil {
 		server.respond(connection, Response{Outcome: Invalid, Error: err.Error()})
 		return
@@ -259,6 +284,12 @@ func (server *Server) handle(ctx context.Context, connection *net.UnixConn) {
 		server.respond(connection, Response{Outcome: Failed, Error: err.Error()})
 		return
 	}
+	lease, err := hostactivity.Begin(server.config.Root)
+	if err != nil {
+		server.respond(connection, Response{Outcome: Busy, Error: err.Error()})
+		return
+	}
+	defer lease.Close()
 	response, err := server.perform(ctx, request)
 	if response.Outcome == "" {
 		response.Outcome = Completed
@@ -336,7 +367,8 @@ func validateResponse(response Response, request Request) error {
 		return validateAbandonedLaunchResponse(response, request)
 	}
 
-	if request.Operation == HostStatus && response.Outcome == Completed {
+	if (request.Operation == HostStatus || request.Operation == HostStop) &&
+		response.Outcome == Completed {
 		if err := validateRequest(request); err != nil {
 			return err
 		}

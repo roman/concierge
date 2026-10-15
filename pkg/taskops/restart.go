@@ -10,11 +10,17 @@ import (
 	"path/filepath"
 
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
 // Restart resumes one durable launch reservation after rechecking task eligibility.
 func (worker *SupervisedWorker) Restart(ctx context.Context) error {
+	lease, err := hostactivity.Begin(worker.service.root)
+	if err != nil {
+		return err
+	}
+	defer lease.Close()
 	protocol, err := worker.service.workerProtocol(worker.taskID, worker.messages.Root())
 	if err != nil {
 		return err

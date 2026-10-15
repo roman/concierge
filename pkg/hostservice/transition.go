@@ -41,7 +41,7 @@ func validateRequest(request Request) error {
 	if payloads != 1 {
 		return errors.New("host operation requires exactly one payload")
 	}
-	if request.Operation == HostStatus {
+	if request.Operation == HostStatus || request.Operation == HostStop {
 		if request.Status == nil {
 			return errors.New("status requires a status payload")
 		}
