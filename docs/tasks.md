@@ -58,7 +58,7 @@ host automatically. The probe does not start, stop, or modify a host.
 Queue a task from the primary session and read its full contents:
 
 ```sh
-concierge backlog add task-1 'Fix startup' --kind task --repo exmachina --body-file brief.txt
+concierge backlog add task-1 'Fix startup' --kind task --repo my-project --body-file brief.txt
 concierge backlog list
 concierge backlog show task-1 --full
 ```

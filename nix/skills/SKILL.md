@@ -307,7 +307,7 @@ Concierge saves every bound task reply, including each rework assignment reply, 
 `$CONCIERGE_HOME/reports/` before acknowledging its assignment. Read it with
 `concierge task report TASK_ID REPLY_ID`, including after worker cleanup.
 List saved reply IDs and creation times with `concierge task report TASK_ID`.
-When writing handoffs, read accepted results from these reports. Reports survive
+When recording accepted results elsewhere, read them from these reports. Reports survive
 `backlog resolve`, worker stop, and cleanup. Generic coordination messages are
 not saved as reports.
 This command reads historical evidence; check a pending reply through

@@ -122,6 +122,15 @@ func TestPrimaryRejectsHookBeforeIdentityResolution(t *testing.T) {
 			if code != 2 || called || !strings.Contains(output.String(), "error:") {
 				t.Fatalf("validation: %d called=%v %s", code, called, &output)
 			}
+			if invalid == "cwd" {
+				expectedHelp := fmt.Sprintf(
+					"launch Claude or Codex from %s, the directory that contains the Concierge root",
+					filepath.Dir(root),
+				)
+				if !strings.Contains(output.String(), expectedHelp) {
+					t.Fatalf("missing expected directory in help: %s", &output)
+				}
+			}
 			if _, err := os.Stat(root); !os.IsNotExist(err) {
 				t.Fatalf("created state before validation: %v", err)
 			}

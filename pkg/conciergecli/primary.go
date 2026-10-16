@@ -32,7 +32,10 @@ func runPrimary(
 			output,
 			2,
 			fmt.Errorf("hook cwd does not match the Concierge root"),
-			"launch Claude or Codex from the Exmachina root",
+			fmt.Sprintf(
+				"launch Claude or Codex from %s, the directory that contains the Concierge root",
+				filepath.Dir(root),
+			),
 		)
 	}
 	expectedEvent := "SessionStart"

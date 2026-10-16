@@ -179,7 +179,7 @@ Reports retain their original generation and survive worker cleanup and removal 
 mailbox. Each reply remains separate, so a later question or report cannot
 overwrite earlier evidence. `status: archived` identifies historical evidence;
 use `task reply check` to validate current results before accepting them.
-When writing handoffs, the primary reads accepted results from these reports,
+When recording accepted results elsewhere, the primary reads them from these reports,
 including after `backlog resolve`, worker stop, and cleanup.
 Scout read-only behavior is an agent contract under normal native permissions.
 Concierge does not replace those permissions with a filesystem sandbox.
