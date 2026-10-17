@@ -77,13 +77,14 @@ type remoteActivationFixture struct {
 func newRemoteActivationFixture(t *testing.T) *remoteActivationFixture {
 	t.Helper()
 	server := workerHost(t, 3)
+	definition := *intakeRequest().Intake
 	location := taskstate.RemoteLease{
 		Machine:        "machine-1",
 		Target:         "synthetic-machine",
 		PrimaryRoot:    server.config.Root,
 		PrimaryProject: "/primary/project-metadata",
 		Base:           "/r",
-		Repository:     "repo",
+		Repository:     definition.Repo,
 		ClientCommit:   strings.Repeat("b", 40),
 	}
 	request := remoteworker.WorktreeRequest{
@@ -143,7 +144,7 @@ func newRemoteActivationFixture(t *testing.T) *remoteActivationFixture {
 	}
 	task, err := taskstate.NewMigrated(
 		taskstate.Snapshot{
-			Definition:   *intakeRequest().Intake,
+			Definition:   definition,
 			State:        taskstate.InFlight,
 			Worker:       worker,
 			LaunchIntent: intent,

@@ -48,6 +48,7 @@ func (server *Server) activationRequest(
 	if location == (taskstate.RemoteLease{}) || location.PrimaryRoot != server.config.Root ||
 		location.Machine != worker.Machine ||
 		location.Target != profile.Target ||
+		location.Repository != snapshot.Definition.Repo ||
 		lease.Project != worker.Project ||
 		lease.Path != worker.Worktree {
 		return remoteworker.LaunchSiteRequest{}, workeraccess.ErrDenied
