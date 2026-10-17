@@ -26,6 +26,7 @@ type Service struct {
 	workerCommands   CommandPaths
 	pool             worktree.PoolClient
 	git              worktree.Client
+	remoteLeases     RemoteLeases
 }
 
 // New prepares backlog operations for the selected task root.

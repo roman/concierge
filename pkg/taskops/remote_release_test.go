@@ -25,7 +25,8 @@ func TestRemoteAbandonedAcquisitionNeverUsesPrimaryPool(t *testing.T) {
 	}
 }
 
-func TestRemoteLeaseReturnNeverUsesPrimaryPool(t *testing.T) {
+func remoteRetiredLeaseFixture(t *testing.T) (*Service, taskstate.Task) {
+	t.Helper()
 	service, intent, config, _ := remoteInitialLeaseFixture(t)
 	ctx := context.Background()
 	prepared, err := service.prepareRemoteInitialLease(ctx, "task-1", intent, config)
@@ -49,22 +50,30 @@ func TestRemoteLeaseReturnNeverUsesPrimaryPool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.returnRetiredLease(ctx, retired, intent.Generation); err == nil ||
+	return service, retired
+}
+
+func TestRemoteLeaseReturnNeverUsesPrimaryPool(t *testing.T) {
+	service, retired := remoteRetiredLeaseFixture(t)
+	ctx := context.Background()
+	snapshot := retired.Snapshot()
+	generation := snapshot.Receipt.Generation
+	if _, err := service.returnRetiredLease(ctx, retired, generation); err == nil ||
 		!strings.Contains(err.Error(), "native remote worktree transport") {
 		t.Fatalf("remote lease reached primary pool: %v", err)
 	}
 	returned := snapshot
 	returned.Receipt = &taskstate.Receipt{
-		Generation: intent.Generation,
+		Generation: generation,
 		Mode:       taskstate.Close,
-		Lease:      prepared.Lease,
+		Lease:      snapshot.Receipt.Lease,
 	}
 	returned.Receipt.Lease.State = taskstate.LeaseReturned
 	confirmed, err := taskstate.NewMigrated(returned)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.returnRetiredLease(ctx, confirmed, intent.Generation); err != nil {
+	if _, err := service.returnRetiredLease(ctx, confirmed, generation); err != nil {
 		t.Fatalf("confirmed return was not idempotent: %v", err)
 	}
 }

@@ -52,7 +52,22 @@ func (service *Service) returnRetiredLease(
 		return returned, nil
 	}
 	if lease.Remote != (taskstate.RemoteLease{}) {
-		return taskstate.Task{}, ErrRemoteWorktreeTransport
+		if service.remoteLeases == nil {
+			return taskstate.Task{}, ErrRemoteWorktreeTransport
+		}
+		confirmed, err := service.remoteLeases.Return(ctx, task, generation, lease)
+		if err != nil {
+			return taskstate.Task{}, err
+		}
+		expected := lease
+		expected.State = taskstate.LeaseReturned
+		if confirmed != expected {
+			return taskstate.Task{}, fmt.Errorf(
+				"%w: remote return confirmation differs from the recorded lease",
+				worktree.ErrIdentity,
+			)
+		}
+		return returned, nil
 	}
 	current, found, err := service.pool.Find(ctx, lease.Project, lease.Holder)
 	if err != nil {
@@ -95,7 +110,15 @@ func (service *Service) recoverAbandonedLease(
 		return taskstate.ErrInvalidTransition
 	}
 	if receipt.Remote != (taskstate.RemoteLease{}) {
-		return ErrRemoteWorktreeTransport
+		if service.remoteLeases == nil {
+			return ErrRemoteWorktreeTransport
+		}
+		lease, err := service.remoteLeases.InspectAbandoned(ctx, taskID, receipt)
+		if err != nil {
+			return err
+		}
+		_, err = service.store.RecordAbandonedLease(ctx, taskID, generation, lease)
+		return err
 	}
 	lease, found, err := service.pool.Find(ctx, receipt.Project, receipt.LeaseHolder)
 	if err != nil {
