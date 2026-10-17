@@ -19,7 +19,10 @@ type assignmentSelection struct {
 }
 
 type taskCommands struct {
-	Report struct {
+	Inbox     remoteInboxCommands     `cmd:"" help:"List pending message metadata through the remote worker socket."`
+	Bootstrap remoteBootstrapCommands `cmd:"" help:"Inspect or acknowledge a matching remote worker bootstrap."`
+	Settings  remoteTaskSelection     `cmd:"" help:"Read project settings for the remote worker's assigned task."`
+	Report    struct {
 		TaskID  string `arg:"" help:"Task ID."`
 		ReplyID string `arg:"" optional:"" help:"Reply message ID; omit to list saved reports."`
 	} `cmd:"" help:"Read or list archived task reports, including after worker cleanup."`

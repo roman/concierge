@@ -141,6 +141,18 @@ func (command *cli) remoteRequest(
 		return request, input.BodyFile, nil
 	case "project show <repo>":
 		request.Operation = workeraccess.ReadSettings
+	case "task inbox list <task-id>":
+		request.Task, request.Operation = command.Task.Inbox.List.TaskID, workeraccess.ListPending
+	case "task bootstrap read <task-id> <message-id>", "task bootstrap ack <task-id> <message-id>":
+		input, operation := command.Task.Bootstrap.Read, workeraccess.ReadBootstrap
+		if selected == "task bootstrap ack <task-id> <message-id>" {
+			input, operation = command.Task.Bootstrap.Ack, workeraccess.AckBootstrap
+		}
+		request.Task, request.Generation, request.MessageID = input.TaskID, input.Generation, input.MessageID
+		request.Operation = operation
+	case "task settings <task-id>":
+		request.Task, request.Generation = command.Task.Settings.TaskID, command.Task.Settings.Generation
+		request.Operation = workeraccess.ReadSettings
 	default:
 		return workerservice.Request{}, "", errors.New(
 			"remote workers may use only worker operations",
@@ -154,6 +166,12 @@ func (command *cli) writeRemoteResponse(
 	selected string,
 	response workerservice.Response,
 ) int {
+	switch selected {
+	case "task inbox list <task-id>":
+		return writeRemotePending(output, response.Pending)
+	case "task bootstrap read <task-id> <message-id>", "task bootstrap ack <task-id> <message-id>":
+		return writeRemoteBootstrap(output, selected, *response.Bootstrap)
+	}
 	if response.Assignment != nil {
 		if _, err := fmt.Fprintf(output, "status: %s\n", response.Assignment.Status); err != nil {
 			return 1

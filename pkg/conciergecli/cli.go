@@ -187,6 +187,14 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return fail(stdout, 2, err, "use an absolute, clean --root path")
 	}
 	switch selected.Command() {
+	case "task inbox list <task-id>", "task bootstrap read <task-id> <message-id>",
+		"task bootstrap ack <task-id> <message-id>", "task settings <task-id>":
+		return fail(
+			stdout,
+			2,
+			fmt.Errorf("this command requires a remote worker launch"),
+			remoteWorkerHelp,
+		)
 	case "heartbeat show", "heartbeat set", "heartbeat check":
 		return command.runHeartbeat(ctx, root, selected.Command(), stdout)
 	case "operator ask <id> <text>", "operator resolve <id>", "operator list":
