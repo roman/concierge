@@ -70,6 +70,13 @@ type backupPublication struct {
 func publishLegacyBackup(
 	ctx context.Context, source *os.Root, sourcePath, destinationPath string,
 	publication backupPublication,
+) (BackupManifest, error) {
+	return publishStateBackup(ctx, source, sourcePath, destinationPath, 1, publication)
+}
+
+func publishStateBackup(
+	ctx context.Context, source *os.Root, sourcePath, destinationPath string,
+	version int, publication backupPublication,
 ) (result BackupManifest, resultErr error) {
 	parentPath := filepath.Dir(destinationPath)
 	parent, err := os.OpenRoot(parentPath)
@@ -122,7 +129,7 @@ func publishLegacyBackup(
 	manifest := BackupManifest{
 		Format:           2,
 		Source:           sourcePath,
-		TaskStateVersion: 1,
+		TaskStateVersion: version,
 		Files:            []BackupFile{},
 	}
 	if err := copyLegacyDirectory(ctx, source, backup, "", &manifest); err != nil {

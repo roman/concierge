@@ -83,6 +83,23 @@ func RecoverLegacyMigration(ctx context.Context, rootPath, backupPath string) er
 }
 
 func verifyMigrationBackup(ctx context.Context, root *os.Root, rootPath, backupPath string) error {
+	return verifyStateBackup(ctx, root, rootPath, backupPath, backupVerification{
+		version: 1, requiredFile: "backlog.md", ignoredPath: isMigrationOwnedPath,
+	})
+}
+
+type backupVerification struct {
+	version      int
+	requiredFile string
+	ignoredPath  func(string) bool
+}
+
+func verifyStateBackup(
+	ctx context.Context,
+	root *os.Root,
+	rootPath, backupPath string,
+	verification backupVerification,
+) error {
 	if filepath.Dir(backupPath) != filepath.Dir(rootPath) {
 		return fmt.Errorf("migration backup must be a sibling directory")
 	}
@@ -113,7 +130,7 @@ func verifyMigrationBackup(ctx context.Context, root *os.Root, rootPath, backupP
 	}
 	var manifest BackupManifest
 	if err := decodeLegacyJSON(data, &manifest); err != nil || manifest.Format != 2 ||
-		manifest.Source != rootPath || manifest.TaskStateVersion != 1 {
+		manifest.Source != rootPath || manifest.TaskStateVersion != verification.version {
 		return fmt.Errorf("migration backup manifest does not match the legacy root")
 	}
 	expected := make(map[string]BackupFile, len(manifest.Files))
@@ -128,11 +145,13 @@ func verifyMigrationBackup(ctx context.Context, root *os.Root, rootPath, backupP
 		}
 		expected[entry.Path] = entry
 	}
-	if entry, found := expected["backlog.md"]; !found || entry.Kind != "file" {
-		return fmt.Errorf("migration backup lacks the backlog")
+	if verification.requiredFile != "" {
+		if entry, found := expected[verification.requiredFile]; !found || entry.Kind != "file" {
+			return fmt.Errorf("migration backup lacks %s", verification.requiredFile)
+		}
 	}
 	directories := make(map[string]os.FileMode)
-	if err := verifyBackupDirectory(ctx, backup, "", expected, directories); err != nil {
+	if err := verifyBackupDirectory(ctx, backup, "", expected, directories, verification.ignoredPath); err != nil {
 		return err
 	}
 	if len(expected) != 0 {
@@ -140,7 +159,7 @@ func verifyMigrationBackup(ctx context.Context, root *os.Root, rootPath, backupP
 	}
 	liveFiles := make(map[string]struct{}, len(manifest.Files))
 	for _, entry := range manifest.Files {
-		if isMigrationOwnedPath(entry.Path) {
+		if verification.ignoredPath(entry.Path) {
 			continue
 		}
 		liveFiles[entry.Path] = struct{}{}
@@ -152,7 +171,7 @@ func verifyMigrationBackup(ctx context.Context, root *os.Root, rootPath, backupP
 			return fmt.Errorf("legacy source entry %q differs from backup: %w", entry.Path, err)
 		}
 	}
-	if err := verifyLiveDirectory(ctx, root, "", liveFiles, directories); err != nil {
+	if err := verifyLiveDirectory(ctx, root, "", liveFiles, directories, verification.ignoredPath); err != nil {
 		return err
 	}
 	if len(liveFiles) != 0 {
@@ -187,6 +206,7 @@ func verifyLiveDirectory(
 	prefix string,
 	expectedFiles map[string]struct{},
 	expectedDirectories map[string]os.FileMode,
+	ignoredPath func(string) bool,
 ) error {
 	listing, err := root.Open(".")
 	if err != nil {
@@ -203,7 +223,7 @@ func verifyLiveDirectory(
 		}
 		name := entry.Name()
 		path := filepath.ToSlash(filepath.Join(prefix, name))
-		if isMigrationOwnedPath(path) {
+		if ignoredPath(path) {
 			continue
 		}
 		selected, err := root.Lstat(name)
@@ -220,7 +240,14 @@ func verifyLiveDirectory(
 			if err != nil {
 				return err
 			}
-			verifyErr := verifyLiveDirectory(ctx, child, path, expectedFiles, expectedDirectories)
+			verifyErr := verifyLiveDirectory(
+				ctx,
+				child,
+				path,
+				expectedFiles,
+				expectedDirectories,
+				ignoredPath,
+			)
 			closeErr := child.Close()
 			if err := errors.Join(verifyErr, closeErr); err != nil {
 				return err
@@ -238,6 +265,7 @@ func verifyLiveDirectory(
 func verifyBackupDirectory(
 	ctx context.Context, backup *os.Root, prefix string,
 	expected map[string]BackupFile, directories map[string]os.FileMode,
+	ignoredPath func(string) bool,
 ) error {
 	listing, err := backup.Open(".")
 	if err != nil {
@@ -262,14 +290,14 @@ func verifyBackupDirectory(
 			return err
 		}
 		if selected.IsDir() {
-			if !isMigrationOwnedPath(path) {
+			if !ignoredPath(path) {
 				directories[path] = selected.Mode().Perm()
 			}
 			child, err := backup.OpenRoot(name)
 			if err != nil {
 				return err
 			}
-			verifyErr := verifyBackupDirectory(ctx, child, path, expected, directories)
+			verifyErr := verifyBackupDirectory(ctx, child, path, expected, directories, ignoredPath)
 			closeErr := child.Close()
 			if err := errors.Join(verifyErr, closeErr); err != nil {
 				return err

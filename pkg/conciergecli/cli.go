@@ -21,7 +21,7 @@ import (
 var version = "dev"
 var revision = "dev"
 
-const cliHelp = "commands: host serve|status|stop|restart, launch TASK_ID, land TASK_ID [--operator-approved], project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
+const cliHelp = "commands: host serve|status|stop|restart, launch TASK_ID, land TASK_ID [--operator-approved], project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover|upgrade|recover-upgrade, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
 type cli struct {
 	hostExpectations        hostservice.Expectations
@@ -224,7 +224,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return command.runHostLifecycle(ctx, root, stopHost, command.Host.Stop.Timeout, stdout)
 	case "state init":
 		return runStateInitialization(ctx, root, stdout)
-	case "state backup", "state migrate", "state recover":
+	case "state backup", "state migrate", "state recover", "state upgrade", "state recover-upgrade":
 		return command.State.run(ctx, root, selected.Command(), stdout)
 	case "supervise task <task-id>",
 		"supervise pane",

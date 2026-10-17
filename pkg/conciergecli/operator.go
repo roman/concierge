@@ -67,7 +67,7 @@ func withOperatorLedger(
 	root string,
 	update func(*operatorLedger) error,
 ) error {
-	guard, err := stateversion.AcquireVersionTwo(ctx, root)
+	guard, err := stateversion.AcquireCurrent(ctx, root)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (command operatorCommands) run(
 }
 
 func writeOpenOperatorActions(ctx context.Context, root string, output io.Writer) error {
-	guard, err := stateversion.AcquireVersionTwo(ctx, root)
+	guard, err := stateversion.AcquireCurrent(ctx, root)
 	if err != nil {
 		return err
 	}

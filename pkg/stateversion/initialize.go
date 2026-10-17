@@ -15,6 +15,7 @@ type InitializationState int
 const (
 	FreshRoot InitializationState = iota
 	ExistingVersionTwo
+	ExistingVersionThree
 )
 
 // AcquireInitialization pins a root under an exclusive task-state lease.
@@ -82,6 +83,9 @@ func (guard *Guard) initializationState() (InitializationState, error) {
 	version, err := guard.readVersion()
 	if err != nil {
 		return FreshRoot, err
+	}
+	if version == 3 {
+		return ExistingVersionThree, nil
 	}
 	if version != 2 {
 		return FreshRoot, ErrIncompatible

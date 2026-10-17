@@ -134,7 +134,7 @@ func rebuildWithSync(
 	stateRoot string,
 	syncDirectory func(*os.Root) error,
 ) error {
-	guard, err := stateversion.AcquireVersionTwo(ctx, stateRoot)
+	guard, err := stateversion.AcquireCurrent(ctx, stateRoot)
 	if err != nil {
 		return err
 	}

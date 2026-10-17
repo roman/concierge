@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/roman/concierge/pkg/stateversion"
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 )
@@ -14,10 +15,12 @@ type migrationTarget struct {
 }
 
 type stateCommands struct {
-	Init    struct{}        `cmd:"" help:"Initialize fresh task state; stop state writers and installers first."`
-	Backup  migrationTarget `cmd:"" help:"Copy legacy state into a new backup directory; refuse an existing destination."`
-	Migrate migrationTarget `cmd:"" help:"Convert legacy state into version two; verify and reuse an existing backup."`
-	Recover migrationTarget `cmd:"" help:"Finish a pending migration using its verified backup."`
+	Init           struct{}        `cmd:"" help:"Initialize fresh task state; stop state writers and installers first."`
+	Backup         migrationTarget `cmd:"" help:"Copy legacy state into a new backup directory; refuse an existing destination."`
+	Migrate        migrationTarget `cmd:"" help:"Convert legacy state into version two; verify and reuse an existing backup."`
+	Recover        migrationTarget `cmd:"" help:"Finish a pending migration using its verified backup."`
+	Upgrade        migrationTarget `cmd:"" help:"Back up idle version two state and enable remote worker records."`
+	RecoverUpgrade migrationTarget `cmd:"" help:"Finish a pending version three upgrade using its verified backup."`
 }
 
 func (command stateCommands) run(ctx context.Context, root, selected string, output io.Writer) int {
@@ -29,6 +32,10 @@ func (command stateCommands) run(ctx context.Context, root, selected string, out
 		target = command.Migrate
 	case "state recover":
 		target = command.Recover
+	case "state upgrade":
+		target = command.Upgrade
+	case "state recover-upgrade":
+		target = command.RecoverUpgrade
 	}
 	if _, err := taskmeta.ParseAbsolutePath(target.Backup); err != nil {
 		return fail(output, 2, err, "use an absolute, clean --backup path")
@@ -43,6 +50,12 @@ func (command stateCommands) run(ctx context.Context, root, selected string, out
 		err = taskstate.MigrateLegacy(ctx, root, target.Backup)
 	case "state recover":
 		err = taskstate.RecoverLegacyMigration(ctx, root, target.Backup)
+	case "state upgrade":
+		err = taskstate.UpgradeVersionTwo(ctx, root, target.Backup)
+		version = 3
+	case "state recover-upgrade":
+		err = taskstate.RecoverVersionTwoUpgrade(ctx, root, target.Backup)
+		version = 3
 	}
 	if err != nil {
 		return fail(
@@ -72,7 +85,16 @@ func runStateInitialization(ctx context.Context, root string, output io.Writer) 
 			"stop state writers and installers; initialize a fresh root or migrate legacy state",
 		)
 	}
-	if _, err := fmt.Fprintln(output, "version: 2"); err != nil {
+	guard, err := stateversion.AcquireCurrent(ctx, root)
+	if err != nil {
+		return fail(output, 1, err, "inspect the task-state version before retrying")
+	}
+	defer guard.Close()
+	version, err := guard.Version()
+	if err != nil {
+		return fail(output, 1, err, "inspect the task-state version before retrying")
+	}
+	if _, err := fmt.Fprintf(output, "version: %d\n", version); err != nil {
 		return fail(output, 1, err, "retry initialization to confirm its completed state")
 	}
 	return 0

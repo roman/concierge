@@ -25,7 +25,7 @@ var ErrTaskNotFound = errors.New("task record does not exist")
 
 const storeLockTimeout = 2 * time.Second
 
-// Store selects a version 2 task-state root without changing it.
+// Store selects a supported task-state root without changing it.
 type Store struct {
 	path          string
 	syncDirectory func(*os.Root) error
@@ -53,7 +53,7 @@ func (store *Store) Create(ctx context.Context, task Task) error {
 	if err != nil {
 		return err
 	}
-	return store.withVersionTwo(ctx, func(root *os.Root) error {
+	return store.withCurrentVersion(ctx, func(root *os.Root) error {
 		return withTaskLock(ctx, root, id, func() error {
 			records, selected, err := openRecords(root)
 			if err != nil {
@@ -65,14 +65,14 @@ func (store *Store) Create(ctx context.Context, task Task) error {
 	})
 }
 
-// Read returns one complete task from the selected version 2 root.
+// Read returns one complete task from the selected root.
 func (store *Store) Read(ctx context.Context, taskID string) (Task, error) {
 	id, err := parseStoreTaskID(taskID)
 	if err != nil {
 		return Task{}, err
 	}
 	var task Task
-	err = store.withVersionTwo(ctx, func(root *os.Root) error {
+	err = store.withCurrentVersion(ctx, func(root *os.Root) error {
 		records, _, err := openRecords(root)
 		if err != nil {
 			return err
@@ -84,10 +84,10 @@ func (store *Store) Read(ctx context.Context, taskID string) (Task, error) {
 	return task, err
 }
 
-// List returns every complete task in ID order from the selected version 2 root.
+// List returns every complete task in ID order from the selected root.
 func (store *Store) List(ctx context.Context) ([]Task, error) {
 	var tasks []Task
-	err := store.withVersionTwo(ctx, func(root *os.Root) error {
+	err := store.withCurrentVersion(ctx, func(root *os.Root) error {
 		var err error
 		tasks, err = ListPinned(ctx, root)
 		return err
@@ -98,7 +98,7 @@ func (store *Store) List(ctx context.Context) ([]Task, error) {
 	return tasks, nil
 }
 
-// ListPinned reads a root already protected by a version 2 guard.
+// ListPinned reads a root already protected by a compatible version guard.
 // The caller must keep the guard open for the entire read.
 func ListPinned(ctx context.Context, root *os.Root) ([]Task, error) {
 	if root == nil {
@@ -164,7 +164,7 @@ func (store *Store) Update(
 		return Task{}, err
 	}
 	var updated Task
-	err = store.withVersionTwo(ctx, func(root *os.Root) error {
+	err = store.withCurrentVersion(ctx, func(root *os.Root) error {
 		var updateErr error
 		updated, updateErr = store.updatePinned(ctx, root, id, func(current Task) (Task, error) {
 			candidate, err := transition(current)
@@ -228,7 +228,7 @@ func (store *Store) reserveCheckedResources(
 		return Task{}, err
 	}
 	var updated Task
-	err = store.withVersionTwo(ctx, func(root *os.Root) error {
+	err = store.withCurrentVersion(ctx, func(root *os.Root) error {
 		return withRootLock(ctx, root, ".worker-adoption.lock", func() error {
 			tasks, err := ListPinned(ctx, root)
 			if err != nil {
@@ -359,11 +359,11 @@ func parseStoreTaskID(value string) (taskmeta.TaskID, error) {
 	return id, nil
 }
 
-func (store *Store) withVersionTwo(ctx context.Context, operation func(*os.Root) error) error {
+func (store *Store) withCurrentVersion(ctx context.Context, operation func(*os.Root) error) error {
 	if store == nil || store.path == "" {
 		return ErrInvalidTask
 	}
-	guard, err := stateversion.AcquireVersionTwo(ctx, store.path)
+	guard, err := stateversion.AcquireCurrent(ctx, store.path)
 	if err != nil {
 		return err
 	}

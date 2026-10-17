@@ -85,6 +85,50 @@ func TestStateBackupRefusesExistingDestination(t *testing.T) {
 	}
 }
 
+func TestStateUpgradeAndRecovery(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "state")
+	if err := taskstate.Initialize(context.Background(), root); err != nil {
+		t.Fatal(err)
+	}
+	backup := root + "-backup"
+	var output bytes.Buffer
+	code := Run(
+		context.Background(),
+		[]string{"--root", root, "state", "upgrade", "--backup", backup},
+		nil,
+		&output,
+		io.Discard,
+	)
+	if code != 0 || output.String() != fmt.Sprintf("version: 3\nbackup: %s\n", quote(backup)) {
+		t.Fatalf("upgrade: code %d output %s", code, &output)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".task-state-migration-pending"), []byte("3\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	output.Reset()
+	code = Run(
+		context.Background(),
+		[]string{"--root", root, "state", "recover-upgrade", "--backup", backup},
+		nil,
+		&output,
+		io.Discard,
+	)
+	if code != 0 || output.String() != fmt.Sprintf("version: 3\nbackup: %s\n", quote(backup)) {
+		t.Fatalf("recovery: code %d output %s", code, &output)
+	}
+	output.Reset()
+	code = Run(
+		context.Background(),
+		[]string{"--root", root, "state", "init"},
+		nil,
+		&output,
+		io.Discard,
+	)
+	if code != 0 || output.String() != "version: 3\n" {
+		t.Fatalf("confirm initialization: code %d output %s", code, &output)
+	}
+}
+
 func TestStateRecoverPendingMigration(t *testing.T) {
 	root, backup := legacyStateFixture(t)
 	if _, err := taskstate.BackupLegacy(context.Background(), root, backup); err != nil {

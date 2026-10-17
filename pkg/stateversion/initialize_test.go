@@ -44,7 +44,8 @@ func TestInitializationRejectsVersionAndPending(t *testing.T) {
 	for _, test := range []struct{ name, file, contents string }{
 		{"explicit legacy", versionFile, "1\n"},
 		{"malformed", versionFile, "invalid\n"},
-		{"unsupported", versionFile, "3\n"},
+		{"unsupported", versionFile, "4\n"},
+		{"pending upgrade", pendingFile, "3\n"},
 		{"pending", pendingFile, "2\n"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

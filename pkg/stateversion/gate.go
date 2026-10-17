@@ -168,6 +168,14 @@ func (guard *Guard) StateRoot() *os.Root {
 	return guard.root
 }
 
+// Version reads the published version while the caller holds this guard.
+func (guard *Guard) Version() (int, error) {
+	if guard == nil || guard.root == nil {
+		return 0, ErrIncompatible
+	}
+	return guard.readVersion()
+}
+
 func acquire(ctx context.Context, path string, mode int) (*Guard, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return nil, fmt.Errorf("task-state root must be a clean absolute path")

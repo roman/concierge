@@ -159,7 +159,7 @@ func claimHeartbeat(
 	status heartbeatStatus,
 	output io.Writer,
 ) error {
-	guard, err := stateversion.AcquireVersionTwo(ctx, root)
+	guard, err := stateversion.AcquireCurrent(ctx, root)
 	if err != nil {
 		return err
 	}

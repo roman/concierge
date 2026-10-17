@@ -90,7 +90,7 @@ func (store *Store) WithTask(
 		return Task{}, err
 	}
 	var current Task
-	err = store.withVersionTwo(ctx, func(root *os.Root) error {
+	err = store.withCurrentVersion(ctx, func(root *os.Root) error {
 		var err error
 		current, err = store.withTaskPinned(ctx, root, id, operation)
 		return err
