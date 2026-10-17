@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os/exec"
 	"path/filepath"
@@ -15,14 +16,23 @@ import (
 
 type workerWorktreeCommands struct {
 	Acquire struct{} `cmd:"" help:"Acquire or recover an owned remote lease from a bounded JSON request on stdin."`
+	Import  struct{} `cmd:"" help:"Import a selected base from one bounded JSON header line and a Git bundle on stdin."`
 }
 
 func (command *workerWorktreeCommands) run(
 	ctx context.Context,
+	selected string,
 	input io.Reader,
 	output io.Writer,
 ) int {
-	request, err := remoteworker.DecodeWorktreeRequest(input)
+	var request remoteworker.WorktreeRequest
+	var bundle io.Reader
+	var err error
+	if selected == "worker-worktree import" {
+		request, bundle, err = remoteworker.DecodeBaseImport(input)
+	} else {
+		request, err = remoteworker.DecodeWorktreeRequest(input)
+	}
 	if err != nil {
 		return fail(
 			output,
@@ -56,7 +66,22 @@ func (command *workerWorktreeCommands) run(
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	lease, err := (remoteworker.Worktrees{Git: worktree.Client{Executable: git}, Treehouse: pool}).Acquire(
+	manager := remoteworker.Worktrees{Git: worktree.Client{Executable: git}, Treehouse: pool}
+	if selected == "worker-worktree import" {
+		if err := manager.ImportBase(ctx, request, bundle); err != nil {
+			return fail(
+				output,
+				1,
+				err,
+				"retain the original base and lease holder; retry the same import from the primary",
+			)
+		}
+		if _, err := fmt.Fprintln(output, "status: imported"); err != nil {
+			return 1
+		}
+		return 0
+	}
+	lease, err := manager.Acquire(
 		ctx,
 		request,
 	)
