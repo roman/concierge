@@ -2,6 +2,8 @@ package taskops
 
 import (
 	"context"
+	"errors"
+	"os"
 	"slices"
 
 	"github.com/roman/concierge/pkg/taskmeta"
@@ -59,10 +61,28 @@ func (session *WorkerSession) authorize(
 	}
 }
 
+func (session *WorkerSession) preflight(
+	ctx context.Context,
+	operation workeraccess.Operation,
+) error {
+	current, err := session.service.store.Read(ctx, session.taskID)
+	if errors.Is(err, taskstate.ErrTaskNotFound) || errors.Is(err, os.ErrNotExist) {
+		empty := workeraccess.Grant{}
+		return empty.Authorize(session.taskID, session.generation, operation, session.secret)
+	}
+	if err != nil {
+		return err
+	}
+	return session.authorize(operation)(current)
+}
+
 func (session *WorkerSession) ReadAssignment(
 	ctx context.Context,
 	messageID string,
 ) (AssignmentStatus, error) {
+	if err := session.preflight(ctx, workeraccess.Receive); err != nil {
+		return AssignmentStatus{}, err
+	}
 	return session.service.receiveAssignment(ctx, session.messages.Root(), session.taskID,
 		messageID, session.generation, readAssignment, session.authorize(workeraccess.Receive))
 }
@@ -71,6 +91,9 @@ func (session *WorkerSession) AcknowledgeAssignment(
 	ctx context.Context,
 	messageID string,
 ) (AssignmentStatus, error) {
+	if err := session.preflight(ctx, workeraccess.AckAssignment); err != nil {
+		return AssignmentStatus{}, err
+	}
 	return session.service.receiveAssignment(
 		ctx,
 		session.messages.Root(),
@@ -86,6 +109,9 @@ func (session *WorkerSession) SendReply(
 	ctx context.Context,
 	key, assignmentID, body string,
 ) (ReplyDelivery, error) {
+	if err := session.preflight(ctx, workeraccess.SendReply); err != nil {
+		return ReplyDelivery{}, err
+	}
 	return session.service.sendReply(ctx, session.messages.Root(), ReplyInput{
 		TaskID: session.taskID, Generation: session.generation, Key: key,
 		AssignmentID: assignmentID, Body: body,

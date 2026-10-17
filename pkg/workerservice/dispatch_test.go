@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io/fs"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/roman/concierge/pkg/taskops"
@@ -105,6 +107,7 @@ func TestWorkerDispatchDenialHasNoMutation(t *testing.T) {
 			}
 			before, _ := store.Read(ctx, "task-1")
 			beforeBytes, _ := before.Encode()
+			beforePaths := taskRootPaths(t, server.config.Root)
 			response := server.perform(ctx, request)
 			if response.Outcome != want || response.Reply != nil {
 				t.Fatalf("denied dispatch: %+v", response)
@@ -113,6 +116,9 @@ func TestWorkerDispatchDenialHasNoMutation(t *testing.T) {
 			afterBytes, _ := after.Encode()
 			if !bytes.Equal(beforeBytes, afterBytes) {
 				t.Fatal("denied dispatch changed the task")
+			}
+			if !slices.Equal(beforePaths, taskRootPaths(t, server.config.Root)) {
+				t.Fatal("denied dispatch created or removed filesystem paths")
 			}
 			pending, err := messages.List(server.config.Recipient)
 			if err != nil || len(pending) != 0 {
@@ -125,6 +131,22 @@ func TestWorkerDispatchDenialHasNoMutation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func taskRootPaths(t *testing.T, root string) []string {
+	t.Helper()
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		paths = append(paths, path)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return paths
 }
 
 func TestWorkerDispatchReloadUsesPersistedVerifier(t *testing.T) {

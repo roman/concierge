@@ -38,6 +38,9 @@ func (session *WorkerSession) withTask(
 	operation workeraccess.Operation,
 	perform func(*taskstate.LockedTask) error,
 ) error {
+	if err := session.preflight(ctx, operation); err != nil {
+		return err
+	}
 	_, err := session.service.store.WithTask(
 		ctx,
 		session.taskID,
