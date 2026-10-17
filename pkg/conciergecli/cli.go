@@ -41,6 +41,7 @@ type cli struct {
 	} `cmd:"" help:"Run the host service for this state root."`
 	State        stateCommands        `cmd:"" help:"Initialize, back up, and migrate task state with all writers stopped."`
 	WorkerSecret workerSecretCommands `cmd:"" help:"Install or remove a private per-task secret for primary-controlled SSH setup."`
+	WorkerSocket workerSocketCommands `cmd:"" help:"Prepare an owned worker socket for primary-controlled SSH setup."`
 	Launch       launchCommand        `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
 	Land         landCommand          `cmd:"" help:"Land an accepted worker result using the repository settings."`
 	Project      projectCommands      `cmd:"" help:"Inspect and set operator-owned repository settings."`
@@ -101,6 +102,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	switch selected.Command() {
 	case "worker-secret install", "worker-secret remove":
 		return command.WorkerSecret.run(selected.Command(), stdin, stdout)
+	case "worker-socket prepare":
+		return command.WorkerSocket.run(ctx, stdout)
 	}
 	command.hostExpectations.MessageRoot = command.MessageRoot
 	if strings.HasPrefix(selected.Command(), "supervise ") {
