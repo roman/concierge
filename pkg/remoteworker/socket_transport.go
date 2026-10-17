@@ -12,7 +12,7 @@ import (
 )
 
 var ErrSocketOperationUnconfirmed = errors.New(
-	"remote socket preparation is unconfirmed; retain resources",
+	"remote socket operation is unconfirmed; retain resources",
 )
 
 type SocketTransport struct{ Runner sshcommand.Runner }
@@ -22,6 +22,25 @@ func (transport SocketTransport) Prepare(
 	profile herdr.SavedMachine,
 	tools Tools,
 	owner SocketOwner,
+) error {
+	return transport.perform(ctx, profile, tools, owner, "prepare", "prepared")
+}
+
+func (transport SocketTransport) Probe(
+	ctx context.Context,
+	profile herdr.SavedMachine,
+	tools Tools,
+	owner SocketOwner,
+) error {
+	return transport.perform(ctx, profile, tools, owner, "probe", "reachable")
+}
+
+func (transport SocketTransport) perform(
+	ctx context.Context,
+	profile herdr.SavedMachine,
+	tools Tools,
+	owner SocketOwner,
+	operation, status string,
 ) error {
 	if transport.Runner == nil || !profile.Enabled || profile.ID == "" {
 		return errors.New(
@@ -35,7 +54,7 @@ func (transport SocketTransport) Prepare(
 		return err
 	}
 	arguments, err := sshcommand.TrustedBatchArguments(profile.Target,
-		tools.Concierge, "worker-socket", "prepare", "--directory", tools.TaskDirectory,
+		tools.Concierge, "worker-socket", operation, "--directory", tools.TaskDirectory,
 		"--task", owner.Task, "--generation", owner.Generation, "--verifier", owner.Verifier)
 	if err != nil {
 		return err
@@ -44,14 +63,42 @@ func (transport SocketTransport) Prepare(
 	defer cancel()
 	stdout, stderr, err := transport.Runner.Run(ctx, arguments, nil)
 	if err == nil && ctx.Err() == nil && len(stderr) == 0 &&
-		strings.TrimSpace(string(stdout)) == "status: prepared" {
+		strings.TrimSpace(string(stdout)) == "status: "+status {
 		return nil
 	}
-	for _, known := range []error{ErrSocketOwnership, ErrSocketActive} {
+	for _, known := range []error{ErrSocketOwnership, ErrSocketActive, ErrTunnelUnreachable} {
 		encoded, _ := json.Marshal(known.Error())
 		if strings.Contains(string(stdout), "error: "+string(encoded)+"\n") {
 			return known
 		}
 	}
 	return ErrSocketOperationUnconfirmed
+}
+
+type SSHTunnelRemote struct{ Runner sshcommand.Runner }
+
+func (remote SSHTunnelRemote) Prepare(ctx context.Context, spec TunnelSpec) error {
+	return (SocketTransport{Runner: remote.Runner}).Prepare(
+		ctx,
+		herdr.SavedMachine{
+			ID:      spec.MachineID,
+			Target:  spec.Target,
+			Enabled: true,
+		},
+		spec.Tools,
+		spec.Owner,
+	)
+}
+
+func (remote SSHTunnelRemote) Probe(ctx context.Context, spec TunnelSpec) error {
+	return (SocketTransport{Runner: remote.Runner}).Probe(
+		ctx,
+		herdr.SavedMachine{
+			ID:      spec.MachineID,
+			Target:  spec.Target,
+			Enabled: true,
+		},
+		spec.Tools,
+		spec.Owner,
+	)
 }

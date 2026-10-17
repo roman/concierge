@@ -34,6 +34,23 @@ func TestSocketTransportUsesFixedHelperAndOwnership(t *testing.T) {
 	}
 }
 
+func TestSSHTunnelRemoteProbesThroughFixedNativeHelper(t *testing.T) {
+	_, spec := tunnelFixture(t)
+	runner := &secretRunner{stdout: []byte("status: reachable\n")}
+	remote := SSHTunnelRemote{Runner: runner}
+	if err := remote.Probe(context.Background(), spec); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(runner.arguments, " "), "'worker-socket' 'probe'") ||
+		len(runner.input) != 0 {
+		t.Fatal("tunnel readiness did not use the fixed credential-free helper")
+	}
+	runner.failure = errors.New("SSH disconnected")
+	if err := remote.Probe(context.Background(), spec); err == nil {
+		t.Fatal("SSH failure accepted partial readiness output")
+	}
+}
+
 func TestSocketTransportRetainsUnconfirmedOwnership(t *testing.T) {
 	_, owner := socketOwnerFixture(t)
 	profile := herdr.SavedMachine{ID: "machine-1", Target: "machine", Enabled: true}

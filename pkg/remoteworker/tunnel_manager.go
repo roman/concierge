@@ -15,6 +15,7 @@ var ErrTunnelRevoked = errors.New("remote worker tunnel access is revoked")
 type TunnelProcesses interface {
 	Start(context.Context, TunnelSpec, string) (primary.ProcessToken, error)
 	Status(primary.ProcessToken) (primary.ProcessStatus, error)
+	Stop(context.Context, primary.ProcessToken) error
 }
 
 type TunnelRemote interface {
@@ -70,10 +71,17 @@ func (manager *TunnelManager) Ensure(ctx context.Context, spec TunnelSpec) error
 	})
 }
 
-// Probe implements task supervision without acquiring the task's own lock.
-// Supervision confirms task generation and access before calling this method.
-func (manager *TunnelManager) Probe(ctx context.Context, task, generation string) error {
-	return manager.store.WithTask(ctx, task, func(lease *TunnelLease) error {
+// Probe matches the current grant and machine before recovering a tunnel.
+// The caller confirms active access while holding the task's own lock.
+func (manager *TunnelManager) Probe(
+	ctx context.Context,
+	owner SocketOwner,
+	machineID string,
+) error {
+	if owner.Validate() != nil || machineID == "" {
+		return ErrTunnelOwnership
+	}
+	return manager.store.WithTask(ctx, owner.Task, func(lease *TunnelLease) error {
 		record, err := lease.Read()
 		if err != nil {
 			return err
@@ -81,7 +89,7 @@ func (manager *TunnelManager) Probe(ctx context.Context, task, generation string
 		if record == nil {
 			return ErrTunnelUnreachable
 		}
-		if record.Spec.Owner.Generation != generation {
+		if record.Spec.Owner != owner || record.Spec.MachineID != machineID {
 			return ErrTunnelOwnership
 		}
 		return manager.reconcile(ctx, lease, record)

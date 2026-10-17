@@ -16,6 +16,8 @@ type tunnelProcesses struct {
 	status     primary.ProcessStatus
 	err        error
 	startError error
+	stops      atomic.Int32
+	stopError  error
 }
 
 func (processes *tunnelProcesses) Start(
@@ -58,6 +60,15 @@ func TestTunnelManagerRetriesConfirmedStartFailure(t *testing.T) {
 
 func (processes *tunnelProcesses) Status(primary.ProcessToken) (primary.ProcessStatus, error) {
 	return processes.status, processes.err
+}
+
+func (processes *tunnelProcesses) Stop(context.Context, primary.ProcessToken) error {
+	processes.stops.Add(1)
+	if processes.stopError != nil {
+		return processes.stopError
+	}
+	processes.status = primary.ProcessExited
+	return nil
 }
 
 type tunnelRemote struct {
