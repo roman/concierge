@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/tincan/pkg/notify"
 )
@@ -36,12 +37,22 @@ func (worker *SupervisedWorker) notificationEndpoint(
 	if err != nil {
 		return herdr.Client{}, herdr.Agent{}, err
 	}
+	if bound.Machine != "" && bound.Connections != nil &&
+		bound.Connections.Herdr.Waiting(worker.now()) {
+		return herdr.Client{}, herdr.Agent{}, supervise.ErrUnreachable
+	}
 	client, err := worker.boundClient(ctx, bound)
 	if err != nil {
+		if bound.Machine != "" {
+			err = worker.recordConnection(task, taskstate.HerdrChannel, err)
+		}
 		return herdr.Client{}, herdr.Agent{}, err
 	}
 	agent, err := client.Get(ctx, bound.Name)
 	if err != nil {
+		if bound.Machine != "" {
+			err = worker.recordConnection(task, taskstate.HerdrChannel, err)
+		}
 		return herdr.Client{}, herdr.Agent{}, err
 	}
 	if agent.PaneID != bound.Pane || agent.Kind != bound.Harness {

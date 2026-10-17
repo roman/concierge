@@ -67,53 +67,64 @@ func (worker *SupervisedWorker) Observe(ctx context.Context) error {
 		ctx,
 		worker.taskID,
 		func(task *taskstate.LockedTask) error {
+			if bound := task.Current().Snapshot().Worker; bound != nil && bound.Machine != "" {
+				return worker.observeRemote(ctx, task, *bound)
+			}
 			bound, err := recoverWorker(task)
 			if err != nil {
 				return err
 			}
-			client, err := worker.boundClient(ctx, bound)
-			if err != nil {
-				return err
-			}
-			agent, err := client.Get(ctx, bound.Name)
-			if errors.Is(err, herdr.ErrNotFound) {
-				return supervise.ErrMissing
-			}
-			if err != nil {
-				return err
-			}
-			if agent.PaneID != bound.Pane || agent.Kind != bound.Harness {
-				return fmt.Errorf("unexpected agent for task %s", worker.taskID)
-			}
-			target, err := herdr.ParseEndpoint(bound.Machine, bound.Session, bound.Pane)
-			if err != nil {
-				return err
-			}
-			switch worker.client.Health(ctx, target).Endpoint {
-			case herdr.Alive:
-				if bound.PendingLaunch != "" {
-					if bound.PendingLaunch == bound.Generation {
-						if err := worker.finishRestartRecovery(bound); err != nil {
-							return err
-						}
-					}
-					transition := taskstate.Task.CompleteLaunch
-					if bound.PendingLaunch != bound.Generation {
-						transition = taskstate.Task.CancelLaunch
-					}
-					if _, err := task.Apply(transition); err != nil {
-						return err
-					}
-				}
-				return worker.discardStaleBootstraps(bound)
-			case herdr.Dead, herdr.Missing:
-				return supervise.ErrMissing
-			default:
-				return fmt.Errorf("Herdr endpoint for task %s is unreadable", worker.taskID)
-			}
+			return worker.observeEndpoint(ctx, task, bound)
 		},
 	)
 	return err
+}
+
+func (worker *SupervisedWorker) observeEndpoint(
+	ctx context.Context,
+	task *taskstate.LockedTask,
+	bound taskstate.Worker,
+) error {
+	client, err := worker.boundClient(ctx, bound)
+	if err != nil {
+		return err
+	}
+	agent, err := client.Get(ctx, bound.Name)
+	if errors.Is(err, herdr.ErrNotFound) {
+		return supervise.ErrMissing
+	}
+	if err != nil {
+		return err
+	}
+	if agent.PaneID != bound.Pane || agent.Kind != bound.Harness {
+		return fmt.Errorf("unexpected agent for task %s", worker.taskID)
+	}
+	target, err := herdr.ParseEndpoint(bound.Machine, bound.Session, bound.Pane)
+	if err != nil {
+		return err
+	}
+	switch worker.client.Health(ctx, target).Endpoint {
+	case herdr.Alive:
+		if bound.PendingLaunch != "" {
+			if bound.PendingLaunch == bound.Generation {
+				if err := worker.finishRestartRecovery(bound); err != nil {
+					return err
+				}
+			}
+			transition := taskstate.Task.CompleteLaunch
+			if bound.PendingLaunch != bound.Generation {
+				transition = taskstate.Task.CancelLaunch
+			}
+			if _, err := task.Apply(transition); err != nil {
+				return err
+			}
+		}
+		return worker.discardStaleBootstraps(bound)
+	case herdr.Dead, herdr.Missing:
+		return supervise.ErrMissing
+	default:
+		return fmt.Errorf("Herdr endpoint for task %s is unreadable", worker.taskID)
+	}
 }
 
 func recoverWorker(task *taskstate.LockedTask) (taskstate.Worker, error) {
