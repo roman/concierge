@@ -147,3 +147,30 @@ func TestRemoteLaunchSiteReportsTheDarwinSocketPathLimit(t *testing.T) {
 		t.Fatalf("long base needs an exact operator step: %v", err)
 	}
 }
+
+func TestRemoteToolsAgreeBeforeAndAfterLeaseCapture(t *testing.T) {
+	_, request := launchSiteFixture(t)
+	before, err := ToolsForGeneration(
+		request.Worktree.Location,
+		request.Worktree.Task,
+		request.Generation,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := request.Tools()
+	if err != nil || before != after {
+		t.Fatal("changed native paths after lease capture")
+	}
+	restarted, err := ToolsForGeneration(
+		request.Lease.Remote,
+		request.Worktree.Task,
+		request.Generation,
+	)
+	if err != nil || restarted != before {
+		t.Fatal("changed native paths for the captured backend")
+	}
+	if _, err := ToolsForGeneration(request.Worktree.Location, request.Worktree.Task, ""); err == nil {
+		t.Fatal("derived paths without a generation")
+	}
+}

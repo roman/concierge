@@ -50,16 +50,28 @@ func (request LaunchSiteRequest) Tools() (Tools, error) {
 	if err := request.Validate(); err != nil {
 		return Tools{}, err
 	}
+	return ToolsForGeneration(request.Worktree.Location, request.Worktree.Task, request.Generation)
+}
+
+// ToolsForGeneration fixes native paths before a physical lease is captured.
+func ToolsForGeneration(location taskstate.RemoteLease, task, generation string) (Tools, error) {
+	if location == (taskstate.RemoteLease{}) || location.Validate() != nil ||
+		taskmeta.ValidateSpawnGeneration(generation) != nil {
+		return Tools{}, ErrWorktreeOwnership
+	}
+	if _, err := taskmeta.ParseTaskID(task); err != nil {
+		return Tools{}, ErrWorktreeOwnership
+	}
 	digest := sha256.Sum256(
 		[]byte(
-			request.Worktree.Location.PrimaryRoot + "\x00" + request.Worktree.Task + "\x00" + request.Generation,
+			location.PrimaryRoot + "\x00" + task + "\x00" + generation,
 		),
 	)
 	// A 128-bit directory identity leaves room for Darwin's Unix socket path limit.
 	name := hex.EncodeToString(digest[:16])
 	tools := Tools{
-		Concierge:     request.Worktree.Location.ClientPath(),
-		TaskDirectory: filepath.Join(request.Worktree.Location.Base, "tasks", name),
+		Concierge:     location.ClientPath(),
+		TaskDirectory: filepath.Join(location.Base, "tasks", name),
 	}
 	if len(filepath.Join(tools.TaskDirectory, "worker.sock")) > 103 {
 		return Tools{}, ErrLaunchSocketPath
