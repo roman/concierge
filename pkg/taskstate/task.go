@@ -76,6 +76,7 @@ type RestartPlan struct {
 
 // Worker preserves the exact launch and endpoint identity for recovery.
 type Worker struct {
+	Connections         *Connections    `json:"connections,omitempty"`
 	Machine             string          `json:"machine,omitempty"`
 	Lease               WorktreeLease   `json:"lease,omitzero"`
 	OwnedWorkspaceLabel string          `json:"owned_workspace_label,omitempty"`
@@ -285,6 +286,10 @@ func cloneWorker(input *Worker) *Worker {
 	}
 	selected := *input
 	selected.PromptProgress = clonePromptProgress(input.PromptProgress)
+	if input.Connections != nil {
+		connections := *input.Connections
+		selected.Connections = &connections
+	}
 	selected.AgentArgs = slices.Clone(input.AgentArgs)
 	selected.Restarts = slices.Clone(input.Restarts)
 	for index := range selected.Restarts {
@@ -459,6 +464,10 @@ func validDefinition(input Definition) bool {
 }
 
 func validWorker(worker Worker) bool {
+	if connections := worker.Connections; connections != nil &&
+		(worker.Machine == "" || !validConnection(connections.Herdr) || !validConnection(connections.Tunnel)) {
+		return false
+	}
 	if !validPromptProgress(worker.PromptProgress) {
 		return false
 	}

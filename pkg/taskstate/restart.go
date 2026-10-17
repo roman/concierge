@@ -45,6 +45,7 @@ func (task Task) AdvanceGeneration(next string) (Task, error) {
 		}
 		snapshot := task.Snapshot()
 		snapshot.Worker.PromptProgress = nil
+		snapshot.Worker.Connections = nil
 		snapshot.Worker.Generation = next
 		snapshot.Worker.PendingGeneration = ""
 		if snapshot.Worker.PendingLaunch == "" {
@@ -60,6 +61,7 @@ func (task Task) AdvanceGeneration(next string) (Task, error) {
 	}
 	snapshot := task.Snapshot()
 	snapshot.Worker.PromptProgress = nil
+	snapshot.Worker.Connections = nil
 	snapshot.Worker.Generation = next
 	return newTransition(snapshot)
 }

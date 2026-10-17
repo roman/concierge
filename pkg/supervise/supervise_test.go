@@ -29,6 +29,13 @@ func TestCheckRestartsOnlyMissingWorker(t *testing.T) {
 		wantErr      error
 	}{
 		{name: "healthy"},
+		{name: "unreachable", observeErr: ErrUnreachable},
+		{
+			name:         "restart unreachable",
+			observeErr:   ErrMissing,
+			restartErr:   ErrUnreachable,
+			wantRestarts: 1,
+		},
 		{name: "probe error", observeErr: errors.New("transport failed"), wantErr: ErrProbe},
 		{name: "missing", observeErr: ErrMissing, wantRestarts: 1, wantErr: ErrRestarted},
 		{

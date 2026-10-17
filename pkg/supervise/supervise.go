@@ -10,10 +10,11 @@ import (
 )
 
 var (
-	ErrMissing   = errors.New("worker missing")
-	ErrProbe     = errors.New("worker probe failed")
-	ErrRestart   = errors.New("worker restart failed")
-	ErrRestarted = errors.New("worker restarted")
+	ErrMissing     = errors.New("worker missing")
+	ErrProbe       = errors.New("worker probe failed")
+	ErrRestart     = errors.New("worker restart failed")
+	ErrRestarted   = errors.New("worker restarted")
+	ErrUnreachable = errors.New("worker unreachable")
 )
 
 type Worker interface {
@@ -24,13 +25,16 @@ type Worker interface {
 // Check restarts a worker only after its adapter confirms that it is missing.
 func Check(ctx context.Context, worker Worker) error {
 	err := worker.Observe(ctx)
-	if err == nil {
+	if err == nil || errors.Is(err, ErrUnreachable) {
 		return nil
 	}
 	if !errors.Is(err, ErrMissing) {
 		return fmt.Errorf("%w: %v", ErrProbe, err)
 	}
 	if err := worker.Restart(ctx); err != nil {
+		if errors.Is(err, ErrUnreachable) {
+			return nil
+		}
 		return fmt.Errorf("%w: %v", ErrRestart, err)
 	}
 	return ErrRestarted
