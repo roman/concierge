@@ -219,6 +219,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return command.Project.show(root, stdout)
 	case "machine check <label>", "machine status <label>":
 		return command.Machine.run(ctx, root, selected.Command(), stdout)
+	case "machine prepare <label>":
+		return command.Machine.Prepare.run(ctx, root, command.hostExpectations, stdout)
 	case "project set <repo>":
 		return command.Project.set(root, stdout)
 	case "brief-include set", "brief-include clear":

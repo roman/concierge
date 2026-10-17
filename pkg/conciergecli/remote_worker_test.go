@@ -174,6 +174,7 @@ func TestRemoteWorkerRejectsAuthorityAndBindingChangesBeforeRPC(t *testing.T) {
 		{"project", "set", "repo", "--merge", "on"},
 		{"machine", "check", "baker"},
 		{"machine", "status", "baker"},
+		{"machine", "prepare", "baker"},
 		{"task", "receive", "other-task", id, "--generation", "test-generation"},
 		{"task", "receive", "task-1", id, "--generation", "other-generation"},
 		{"--root", "/other", "task", "receive", "task-1", id, "--generation", "test-generation"},

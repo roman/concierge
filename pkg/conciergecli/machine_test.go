@@ -97,7 +97,7 @@ func TestMachineConfigurationBindsSavedIdentityAndDestination(t *testing.T) {
 }
 
 func TestMachineCheckAndStatusHelp(t *testing.T) {
-	for _, operation := range []string{"check", "status"} {
+	for _, operation := range []string{"check", "status", "prepare"} {
 		var output bytes.Buffer
 		code := Run(
 			context.Background(),

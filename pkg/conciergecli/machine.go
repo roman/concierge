@@ -31,9 +31,10 @@ Examples:
 }
 
 type machineCommands struct {
-	Herdr  string              `default:"herdr" help:"Executable that owns the saved machine catalog."`
-	Check  machineLabelCommand `cmd:"" help:"Check SSH trust, platform, tools, repository access, and agent login without changes."`
-	Status machineLabelCommand `cmd:"" help:"Read fresh prerequisite status for a configured saved machine."`
+	Herdr   string                `default:"herdr" help:"Executable that owns the saved machine catalog."`
+	Check   machineLabelCommand   `cmd:"" help:"Check SSH trust, platform, tools, repository access, and agent login without changes."`
+	Status  machineLabelCommand   `cmd:"" help:"Read fresh prerequisite status for a configured saved machine."`
+	Prepare machinePrepareCommand `cmd:"" help:"Prepare private repositories and build the committed client through the primary host."`
 }
 
 func (commands machineCommands) run(
