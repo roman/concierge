@@ -15,6 +15,7 @@ import (
 type gitCredentialProbe struct {
 	probes      *probeRunner
 	environment []string
+	failure     *string
 }
 
 func (runner gitCredentialProbe) Run(
@@ -30,6 +31,9 @@ func (runner gitCredentialProbe) Run(
 	command.Env = runner.environment
 	output, err := command.Output()
 	if failure, ok := err.(*exec.ExitError); ok {
+		if runner.failure != nil {
+			*runner.failure = string(failure.Stderr)
+		}
 		return output, failure.Stderr, err
 	}
 	return output, nil, err
@@ -51,14 +55,15 @@ func TestRepositoryReadCheckDoesNotForwardRemoteModelCredentials(t *testing.T) {
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_NOSYSTEM=1",
 	)
-	report, err := (Checker{Runner: gitCredentialProbe{probes: &probeRunner{t: t}, environment: environment}}).Check(
+	var failure string
+	report, err := (Checker{Runner: gitCredentialProbe{probes: &probeRunner{t: t}, environment: environment, failure: &failure}}).Check(
 		context.Background(),
 		testMachine(),
 		"codex",
 		[]Repository{{Name: "project", URL: "ssh://fixture/repository"}},
 	)
 	if err != nil || !report.Ready() {
-		t.Fatalf("repository fixture failed: %+v %v", report, err)
+		t.Fatalf("repository fixture failed: %+v %v; fixture stderr: %s", report, err, failure)
 	}
 	data, err := os.ReadFile(log)
 	if err != nil || len(data) == 0 || strings.Contains(string(data), "fixture-model-key") {
