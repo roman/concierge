@@ -52,6 +52,10 @@ func TestSSHRemoteChecksUseFixedCommandsAndDeadline(t *testing.T) {
 				t.Fatalf("check: %q %v", stdout, err)
 			}
 			want := []string{
+				"-o",
+				"StrictHostKeyChecking=yes",
+				"-o",
+				"UpdateHostKeys=no",
 				"-S",
 				"none",
 				"-o",
@@ -62,6 +66,10 @@ func TestSSHRemoteChecksUseFixedCommandsAndDeadline(t *testing.T) {
 				"ForwardAgent=no",
 				"-o",
 				"ClearAllForwardings=yes",
+				"-o",
+				"ForwardX11=no",
+				"-o",
+				"ForwardX11Trusted=no",
 				"--",
 				"user@baker",
 				test.command,

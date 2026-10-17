@@ -42,6 +42,7 @@ func BatchArguments(target string, command ...string) ([]string, error) {
 	return []string{
 		"-S", "none", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
 		"-o", "ForwardAgent=no", "-o", "ClearAllForwardings=yes",
+		"-o", "ForwardX11=no", "-o", "ForwardX11Trusted=no",
 		"--", target, strings.Join(quoted, " "),
 	}, nil
 }

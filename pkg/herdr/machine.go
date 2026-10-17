@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
+
+	"github.com/roman/concierge/pkg/sshcommand"
 )
 
 // MachineRunner selects a saved remote machine without local session selection.
@@ -21,23 +24,30 @@ func (runner machineCommandRunner) RunMachine(
 	machine string,
 	args ...string,
 ) ([]byte, []byte, error) {
+	profile, err := (MachineCatalog{Runner: NewClient(runner.executable).Runner}).Resolve(
+		ctx,
+		machine,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := sshcommand.CheckNativePolicy(ctx, sshcommand.SystemRunner{}, profile.Target); err != nil {
+		return nil, nil, fmt.Errorf("%w: %w", ErrUnreachable, err)
+	}
 	command := exec.CommandContext(
 		ctx,
 		runner.executable,
-		append([]string{"--machine", machine}, args...)...)
-	command.Env = make([]string, 0, len(os.Environ()))
+		append([]string{"--machine", profile.ID}, args...)...)
+	command.Env = sshcommand.ConnectionEnvironment(os.Environ())
 	for _, variable := range os.Environ() {
 		name, _, _ := strings.Cut(variable, "=")
 		switch name {
-		case "HERDR_SESSION",
-			"HERDR_SOCKET_PATH",
-			"HERDR_WORKSPACE_ID",
-			"HERDR_TAB_ID",
-			"HERDR_PANE_ID":
-			continue
+		case "HERDR_CONFIG_PATH", "XDG_CONFIG_HOME", "XDG_STATE_HOME",
+			"XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR", "TMPDIR":
+			command.Env = append(command.Env, variable)
 		}
-		command.Env = append(command.Env, variable)
 	}
+	command.WaitDelay = time.Second
 	stdout, err := command.Output()
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {

@@ -18,12 +18,16 @@ func TestMachineCommandsDropLocalSelection(t *testing.T) {
 		"HERDR_TAB_ID",
 		"HERDR_PANE_ID",
 	}
-	script := "#!/bin/sh\n"
+	script := "#!/bin/sh\nif [ \"$1\" = machine ] && [ \"$2\" = list ]; then printf '%s\\n' '[{\"id\":\"baker\",\"label\":\"baker\",\"target\":\"fake-target\",\"session\":\"default\",\"enabled\":true}]'; exit 0; fi\n"
 	for _, variable := range variables {
 		t.Setenv(variable, "local-selection")
 		script += "if [ \"${" + variable + "+set}\" = set ]; then printf 'inherited=" + variable + "\\n'; fi\n"
 	}
 	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "ssh"), []byte("#!/bin/sh\nprintf '%s' '"+safeMachinePolicy+"'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", directory+":"+os.Getenv("PATH"))
 	executable := filepath.Join(directory, "herdr")
 	script += "printf 'argument=%s\\n' \"$@\"\n"
 	if err := os.WriteFile(executable, []byte(script), 0700); err != nil {

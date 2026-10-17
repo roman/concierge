@@ -19,7 +19,7 @@ func TestBatchArgumentsQuoteCommandsAndDisableForwarding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, option := range []string{"BatchMode=yes", "ExitOnForwardFailure=yes", "ForwardAgent=no", "ClearAllForwardings=yes", "StrictHostKeyChecking=yes", "UpdateHostKeys=no"} {
+	for _, option := range []string{"BatchMode=yes", "ExitOnForwardFailure=yes", "ForwardAgent=no", "ForwardX11=no", "ForwardX11Trusted=no", "ClearAllForwardings=yes", "StrictHostKeyChecking=yes", "UpdateHostKeys=no"} {
 		if !slices.Contains(args, option) {
 			t.Fatalf("missing fixed SSH option %s", option)
 		}

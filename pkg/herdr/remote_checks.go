@@ -64,7 +64,7 @@ func (checks SSHRemoteChecks) RunCheck(
 		return nil, nil, fmt.Errorf("%w: saved machine destination or session changed", ErrResponse)
 	}
 	command := append([]string{"herdr", "--session", session}, arguments...)
-	sshArguments, err := sshcommand.BatchArguments(profile.Target, command...)
+	sshArguments, err := sshcommand.TrustedBatchArguments(profile.Target, command...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -77,6 +77,12 @@ func (checks SSHRemoteChecks) RunCheck(
 
 func validSSHDestination(target string) bool {
 	return sshcommand.ValidTarget(target)
+}
+
+type systemSSHCheckRunner struct{}
+
+func (systemSSHCheckRunner) Run(ctx context.Context, arguments ...string) ([]byte, []byte, error) {
+	return (sshcommand.SystemRunner{}).Run(ctx, arguments, nil)
 }
 
 func remoteCheckArguments(check RemoteCheck) ([]string, error) {

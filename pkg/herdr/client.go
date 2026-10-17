@@ -74,7 +74,7 @@ func NewClient(executable string) Client {
 		MachineRunner: machineCommandRunner{executable: executable},
 		RemoteChecks: SSHRemoteChecks{
 			Machines: MachineCatalog{Runner: shared.Runner},
-			Runner:   base.NewClient("ssh").Runner,
+			Runner:   systemSSHCheckRunner{},
 		},
 		Processes: psInspector{},
 	}
