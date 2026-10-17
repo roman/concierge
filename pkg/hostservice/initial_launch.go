@@ -32,6 +32,7 @@ var ErrLaunchRetired = errors.New("task has a retired launch; inspect the task b
 // LaunchRequest selects work while the host owns launch identity and tools.
 type LaunchRequest struct {
 	TaskID     string   `json:"task_id"`
+	Machine    string   `json:"machine,omitempty"`
 	Harness    string   `json:"harness"`
 	Project    string   `json:"project"`
 	Worktree   string   `json:"worktree"`
@@ -70,7 +71,7 @@ func validateLaunchInput(input *LaunchRequest) error {
 func (input LaunchRequest) intent(session, generation string) taskstate.LaunchIntent {
 	return taskstate.LaunchIntent{
 		Generation: generation, Name: "c-" + strings.ToLower(generation), Label: "concierge-" + generation,
-		Harness: input.Harness, Session: session,
+		Harness: input.Harness, Session: session, Machine: input.Machine,
 		Project: input.Project, Worktree: input.Worktree, Branch: input.Branch,
 		BaseCommit: input.BaseCommit, Workspace: input.Workspace,
 		AgentArgs: slices.Clone(input.AgentArgs), Body: input.Body,
@@ -246,7 +247,13 @@ func validateLaunchResponse(response Response, request Request) error {
 		worker.PendingLaunch != "" {
 		return errors.New("host returned an unapplied launch")
 	}
-	if task.ID() != input.TaskID || worker.Project != input.Project ||
+	if task.ID() != input.TaskID ||
+		!input.matchesLocation(
+			worker.Machine,
+			worker.Project,
+			worker.Lease.Remote,
+			snapshot.Definition.Repo,
+		) ||
 		(input.Worktree != "" && worker.Worktree != input.Worktree) ||
 		(input.Worktree == "" && (worker.Lease.State != taskstate.LeaseHeld || worker.Lease.Branch != input.Branch || worker.Lease.BaseCommit != input.BaseCommit)) ||
 		worker.Harness != input.Harness ||

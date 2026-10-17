@@ -89,11 +89,36 @@ func validateLaunchProgress(response Response, request Request) error {
 		return validateLaunchResponse(completed, request)
 	}
 	candidate := request.Launch.intent(intent.Session, intent.Generation)
+	if !request.Launch.matchesLocation(
+		intent.Machine,
+		intent.Project,
+		intent.Remote,
+		task.Definition().Repo,
+	) {
+		return errors.New("host returned a different launch destination")
+	}
+	candidate.Project, candidate.Remote = intent.Project, intent.Remote
 	candidate.Name, candidate.Label = intent.Name, intent.Label
 	if _, err := task.ReserveInitialLaunch(candidate); err != nil {
 		return errors.New("host returned mismatched launch progress")
 	}
 	return nil
+}
+
+func (input LaunchRequest) matchesLocation(
+	machine, project string,
+	remote taskstate.RemoteLease,
+	repository string,
+) bool {
+	if input.Machine != machine {
+		return false
+	}
+	if machine == "" {
+		return remote == (taskstate.RemoteLease{}) && input.Project == project
+	}
+	return remote != (taskstate.RemoteLease{}) && remote.Validate() == nil &&
+		remote.Machine == machine && remote.Repository == repository &&
+		remote.PrimaryProject == input.Project && remote.ProjectPath() == project
 }
 
 // launchRegistrationFailure retains the confirmed launch when registration ends.
