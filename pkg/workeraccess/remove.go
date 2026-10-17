@@ -28,6 +28,22 @@ func RemoveSecretFile(directory, verifier string) error {
 		return err
 	}
 	defer root.Close()
+	return removeDirectorySecret(root, expected)
+}
+
+// RemoveDirectorySecret removes only the matching file through a pinned directory.
+func RemoveDirectorySecret(root *os.Root, verifier string) error {
+	expected, err := hex.DecodeString(verifier)
+	if err != nil || len(expected) != sha256.Size {
+		return ErrSecretConflict
+	}
+	return removeDirectorySecret(root, expected)
+}
+
+func removeDirectorySecret(root *os.Root, expected []byte) error {
+	if err := checkPrivateSecretRoot(root); err != nil {
+		return err
+	}
 	before, err := root.Lstat("secret")
 	if errors.Is(err, os.ErrNotExist) {
 		return syncSecretDirectory(root)

@@ -17,7 +17,7 @@ var ErrSecretUnconfirmed = errors.New("worker secret publication requires confir
 
 // InstallSecretFile reads a secret from stdin and publishes it without replacing
 // an existing file. Identical retries preserve the original inode.
-func InstallSecretFile(directory string, input io.Reader) (result error) {
+func InstallSecretFile(directory string, input io.Reader) error {
 	data, err := readEncodedSecret(input)
 	if err != nil {
 		return err
@@ -33,6 +33,25 @@ func InstallSecretFile(directory string, input io.Reader) (result error) {
 		return err
 	}
 	defer root.Close()
+	return installDirectorySecret(root, data)
+}
+
+// InstallDirectorySecret publishes through an already pinned private directory.
+func InstallDirectorySecret(root *os.Root, input io.Reader) error {
+	if input == nil {
+		return ErrPrivateSecret
+	}
+	data, err := readEncodedSecret(input)
+	if err != nil {
+		return err
+	}
+	return installDirectorySecret(root, data)
+}
+
+func installDirectorySecret(root *os.Root, data []byte) (result error) {
+	if err := checkPrivateSecretRoot(root); err != nil {
+		return err
+	}
 	if _, err := root.Lstat("secret"); err == nil {
 		return confirmSecret(root, data)
 	} else if !errors.Is(err, os.ErrNotExist) {

@@ -29,11 +29,21 @@ func ReadSecretFile(path string) ([]byte, error) {
 
 // ReadDirectorySecret preserves the caller's pinned directory identity.
 func ReadDirectorySecret(root *os.Root) ([]byte, error) {
-	directory, err := root.Stat(".")
-	if err != nil || !directory.IsDir() || !privateOwner(directory, 0700) {
-		return nil, ErrPrivateSecret
+	if err := checkPrivateSecretRoot(root); err != nil {
+		return nil, err
 	}
 	return readSecretAt(root, "secret")
+}
+
+func checkPrivateSecretRoot(root *os.Root) error {
+	if root == nil {
+		return ErrPrivateSecret
+	}
+	directory, err := root.Stat(".")
+	if err != nil || !directory.IsDir() || !privateOwner(directory, 0700) {
+		return ErrPrivateSecret
+	}
+	return nil
 }
 
 func readSecretAt(root *os.Root, name string) ([]byte, error) {
