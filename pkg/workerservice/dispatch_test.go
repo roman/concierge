@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -80,6 +81,40 @@ func dispatchFixture(t *testing.T) (*Server, *taskstate.Store, *inbox.Store, Req
 		Secret: string(
 			secret.Bytes(),
 		), Operation: workeraccess.Receive, MessageID: message.ID.String()}
+}
+
+func TestWorkerReplyRetainsPublicationWhenArchiveFails(t *testing.T) {
+	server, _, messages, request := dispatchFixture(t)
+	request.Operation, request.Key, request.Body = workeraccess.SendReply, "result", "Completed"
+	archive := filepath.Join(server.config.Root, "reports")
+	if err := os.WriteFile(archive, []byte("retain"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	first := server.perform(context.Background(), request)
+	if first.Outcome != Uncertain || first.Reply == nil ||
+		first.Reply.Publication != taskops.ReplyConfirmed || first.Reply.Archive != taskops.ReplyUnconfirmed ||
+		first.Reply.Assignment != taskops.ReplyAcknowledgementUnconfirmed {
+		t.Fatalf("partial reply lost its independent outcomes: %+v", first)
+	}
+	if err := os.Remove(archive); err != nil {
+		t.Fatal(err)
+	}
+	retried := server.perform(context.Background(), request)
+	if retried.Outcome != Completed || retried.Reply == nil ||
+		retried.Reply.MessageID != first.Reply.MessageID ||
+		retried.Reply.Publication != taskops.ReplyConfirmed ||
+		retried.Reply.Archive != taskops.ReplyConfirmed ||
+		retried.Reply.Assignment != taskops.ReplyAcknowledged {
+		t.Fatalf("reply recovery failed: %+v", retried)
+	}
+	pending, err := messages.List(server.config.Recipient)
+	if err != nil || len(pending) != 1 {
+		t.Fatalf(
+			"partial archive recovery duplicated publication: count=%d error=%v",
+			len(pending),
+			err,
+		)
+	}
 }
 
 func TestWorkerDispatchDenialHasNoMutation(t *testing.T) {

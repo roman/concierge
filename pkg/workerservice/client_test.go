@@ -90,9 +90,43 @@ func TestWorkerClientRequiresRequestedAcknowledgement(t *testing.T) {
 	}
 	response := Response{
 		Outcome: Completed,
-		Reply:   &Reply{MessageID: id, Assignment: taskops.ReplyUnbound},
+		Reply: &Reply{MessageID: id, Assignment: taskops.ReplyUnbound,
+			Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed},
 	}
 	if err := validateResponse(response, request); err == nil {
 		t.Fatal("bound reply accepted a missing acknowledgement outcome")
+	}
+}
+
+func TestWorkerClientRequiresIndependentReplyConfirmations(t *testing.T) {
+	id := "k-" + strings.Repeat("a", 64)
+	request := Request{
+		Task:       "task-1",
+		Generation: "gen-1",
+		Operation:  workeraccess.SendReply,
+		MessageID:  id,
+	}
+	reply := Reply{MessageID: id, Assignment: taskops.ReplyAcknowledged,
+		Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed}
+	if err := validateResponse(Response{Outcome: Completed, Reply: &reply}, request); err != nil {
+		t.Fatal(err)
+	}
+	for _, missing := range []string{"publication", "archive", "unconfirmed archive"} {
+		incomplete := reply
+		switch missing {
+		case "publication":
+			incomplete.Publication = ""
+		case "archive":
+			incomplete.Archive = ""
+		case "unconfirmed archive":
+			incomplete.Archive = taskops.ReplyUnconfirmed
+		}
+		if err := validateResponse(Response{Outcome: Completed, Reply: &incomplete}, request); err == nil {
+			t.Fatalf("reply completed without %s confirmation", missing)
+		}
+	}
+	reply.Archive, reply.Assignment = taskops.ReplyUnconfirmed, taskops.ReplyAcknowledgementUnconfirmed
+	if err := validateResponse(Response{Outcome: Uncertain, Reply: &reply, Error: "archive unavailable"}, request); err != nil {
+		t.Fatalf("partial publication confirmation was discarded: %v", err)
 	}
 }

@@ -120,7 +120,8 @@ func TestRemoteReceiveUsesSocketAndInheritedGeneration(t *testing.T) {
 func TestRemoteReplyReadsBodyBeforeRPC(t *testing.T) {
 	id := "k-" + strings.Repeat("b", 64)
 	requests := remoteCLI(t, workerservice.Response{Outcome: workerservice.Completed,
-		Reply: &workerservice.Reply{MessageID: id, Assignment: taskops.ReplyAcknowledged}})
+		Reply: &workerservice.Reply{MessageID: id, Assignment: taskops.ReplyAcknowledged,
+			Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed}})
 	file := filepath.Join(t.TempDir(), "result.txt")
 	if err := os.WriteFile(file, []byte("Completed remotely"), 0600); err != nil {
 		t.Fatal(err)

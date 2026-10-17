@@ -88,8 +88,10 @@ func (server *Server) perform(ctx context.Context, request Request) Response {
 		delivery, err = session.SendReply(ctx, request.Key, request.MessageID, request.Body)
 		if delivery.Message.ID.String() != "" {
 			response.Reply = &Reply{
-				MessageID:  delivery.Message.ID.String(),
-				Assignment: delivery.Assignment,
+				MessageID:   delivery.Message.ID.String(),
+				Assignment:  delivery.Assignment,
+				Publication: delivery.Publication,
+				Archive:     delivery.Archive,
 			}
 		}
 	}

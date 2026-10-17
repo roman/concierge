@@ -89,8 +89,10 @@ type Assignment struct {
 }
 
 type Reply struct {
-	MessageID  string                       `json:"message_id"`
-	Assignment taskops.ReplyAcknowledgement `json:"assignment"`
+	MessageID   string                       `json:"message_id"`
+	Assignment  taskops.ReplyAcknowledgement `json:"assignment"`
+	Publication taskops.ReplyConfirmation    `json:"publication"`
+	Archive     taskops.ReplyConfirmation    `json:"archive"`
 }
 
 type Response struct {

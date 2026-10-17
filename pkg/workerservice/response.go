@@ -20,6 +20,10 @@ func validateResponse(response Response, request Request) error {
 		}
 	}
 	if response.Reply != nil {
+		if response.Reply.Publication != taskops.ReplyConfirmed ||
+			(response.Reply.Archive != taskops.ReplyConfirmed && response.Reply.Archive != taskops.ReplyUnconfirmed) {
+			return errInvalidResponse
+		}
 		if (request.MessageID == "") != (response.Reply.Assignment == taskops.ReplyUnbound) {
 			return errInvalidResponse
 		}
@@ -96,6 +100,7 @@ func validateResponse(response Response, request Request) error {
 		}
 	case workeraccess.SendReply:
 		if response.Reply != nil &&
+			response.Reply.Archive == taskops.ReplyConfirmed &&
 			response.Reply.Assignment != taskops.ReplyAcknowledgementUnconfirmed {
 			return nil
 		}

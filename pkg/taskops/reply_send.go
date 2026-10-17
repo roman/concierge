@@ -31,10 +31,20 @@ const (
 	ReplyAcknowledged               ReplyAcknowledgement = "acknowledged"
 )
 
+type ReplyConfirmation string
+
+const (
+	ReplyConfirmed    ReplyConfirmation = "confirmed"
+	ReplyUnconfirmed  ReplyConfirmation = "unconfirmed"
+	ReplyNotRequested ReplyConfirmation = "not_requested"
+)
+
 // ReplyDelivery preserves confirmed delivery when assignment handling fails.
 type ReplyDelivery struct {
-	Message    inbox.Message
-	Assignment ReplyAcknowledgement
+	Message     inbox.Message
+	Assignment  ReplyAcknowledgement
+	Publication ReplyConfirmation
+	Archive     ReplyConfirmation
 }
 
 // SendReply publishes current work or confirms an exact existing reply on retry.
@@ -114,14 +124,18 @@ func (service *Service) sendReply(
 		if err != nil {
 			return err
 		}
-		result = ReplyDelivery{Message: message, Assignment: ReplyUnbound}
+		result = ReplyDelivery{Message: message, Assignment: ReplyUnbound,
+			Publication: ReplyConfirmed, Archive: ReplyNotRequested}
 		if input.AssignmentID != "" {
 			result.Assignment = ReplyAcknowledgementUnconfirmed
 		}
-		if input.AssignmentID != "" || task.Current().Definition().Kind == "scout" {
+		if authorize != nil || input.AssignmentID != "" ||
+			task.Current().Definition().Kind == "scout" {
+			result.Archive = ReplyUnconfirmed
 			if err := service.archiveReply(message); err != nil {
 				return err
 			}
+			result.Archive = ReplyConfirmed
 		}
 		if input.AssignmentID == "" {
 			return nil

@@ -106,7 +106,9 @@ func (command *cli) runRemoteWorker(
 	}
 	response, err := workerservice.Call(ctx, socket, request)
 	if response.Reply != nil {
-		if _, writeError := fmt.Fprintf(output, "message_id: %s\nassignment: %s\n", quote(response.Reply.MessageID), response.Reply.Assignment); writeError != nil {
+		if _, writeError := fmt.Fprintf(output, "message_id: %s\npublication: %s\narchive: %s\nassignment: %s\n",
+			quote(response.Reply.MessageID), response.Reply.Publication, response.Reply.Archive,
+			response.Reply.Assignment); writeError != nil {
 			return 1
 		}
 	}
