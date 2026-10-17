@@ -95,8 +95,12 @@ func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKe
 		if intent.LeaseHolder != "" {
 			originalWorktree = ""
 		}
+		project := intent.Project
+		if intent.Remote != (taskstate.RemoteLease{}) {
+			project = intent.Remote.PrimaryProject
+		}
 		_, err := server.executeInitialLaunch(ctx, LaunchRequest{
-			TaskID: key.id, Harness: intent.Harness, Project: intent.Project, Worktree: originalWorktree,
+			TaskID: key.id, Machine: intent.Machine, Harness: intent.Harness, Project: project, Worktree: originalWorktree,
 			Branch: intent.Branch, BaseCommit: intent.BaseCommit, Workspace: intent.Workspace,
 			AgentArgs: intent.AgentArgs, Body: intent.Body,
 		}, recoveryLaunch)

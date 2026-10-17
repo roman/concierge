@@ -110,6 +110,9 @@ func (server *Server) executeInitialLaunch(
 	if _, err := taskmeta.ParseAbsolutePath(server.config.GitExecutable); err != nil {
 		return Response{}, errors.New("host launch requires an absolute Git executable")
 	}
+	if input.Machine != "" {
+		return server.executeRemoteInitialLaunch(ctx, input, admission)
+	}
 	if server.config.Session == "" {
 		return Response{}, errors.New("host launch requires an explicit Herdr session")
 	}
