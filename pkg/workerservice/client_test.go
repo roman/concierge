@@ -91,7 +91,8 @@ func TestWorkerClientRequiresRequestedAcknowledgement(t *testing.T) {
 	response := Response{
 		Outcome: Completed,
 		Reply: &Reply{MessageID: id, Assignment: taskops.ReplyUnbound,
-			Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed},
+			Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed,
+			Root: "/primary/state", Recipient: "concierge"},
 	}
 	if err := validateResponse(response, request); err == nil {
 		t.Fatal("bound reply accepted a missing acknowledgement outcome")
@@ -107,7 +108,8 @@ func TestWorkerClientRequiresIndependentReplyConfirmations(t *testing.T) {
 		MessageID:  id,
 	}
 	reply := Reply{MessageID: id, Assignment: taskops.ReplyAcknowledged,
-		Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed}
+		Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed,
+		Root: "/primary/state", Recipient: "concierge"}
 	if err := validateResponse(Response{Outcome: Completed, Reply: &reply}, request); err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/workeraccess"
 	"github.com/roman/tincan/pkg/inbox"
@@ -20,6 +21,13 @@ func validateResponse(response Response, request Request) error {
 		}
 	}
 	if response.Reply != nil {
+		if _, err := taskmeta.ParseAbsolutePath(response.Reply.Root); err != nil {
+			return errInvalidResponse
+		}
+		if recipient, err := inbox.ParseRecipient(response.Reply.Recipient); err != nil ||
+			recipient.String() != response.Reply.Recipient {
+			return errInvalidResponse
+		}
 		if response.Reply.Publication != taskops.ReplyConfirmed ||
 			(response.Reply.Archive != taskops.ReplyConfirmed && response.Reply.Archive != taskops.ReplyUnconfirmed) {
 			return errInvalidResponse

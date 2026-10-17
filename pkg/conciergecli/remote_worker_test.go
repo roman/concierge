@@ -121,7 +121,8 @@ func TestRemoteReplyReadsBodyBeforeRPC(t *testing.T) {
 	id := "k-" + strings.Repeat("b", 64)
 	requests := remoteCLI(t, workerservice.Response{Outcome: workerservice.Completed,
 		Reply: &workerservice.Reply{MessageID: id, Assignment: taskops.ReplyAcknowledged,
-			Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed}})
+			Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed,
+			Root: "/primary/state", Recipient: "concierge"}})
 	file := filepath.Join(t.TempDir(), "result.txt")
 	if err := os.WriteFile(file, []byte("Completed remotely"), 0600); err != nil {
 		t.Fatal(err)

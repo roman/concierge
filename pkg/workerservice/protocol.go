@@ -89,6 +89,8 @@ type Assignment struct {
 }
 
 type Reply struct {
+	Root        string                       `json:"root"`
+	Recipient   string                       `json:"recipient"`
 	MessageID   string                       `json:"message_id"`
 	Assignment  taskops.ReplyAcknowledgement `json:"assignment"`
 	Publication taskops.ReplyConfirmation    `json:"publication"`
