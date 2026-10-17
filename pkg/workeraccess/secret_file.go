@@ -27,6 +27,15 @@ func ReadSecretFile(path string) ([]byte, error) {
 	return readSecretAt(root, filepath.Base(path))
 }
 
+// ReadDirectorySecret preserves the caller's pinned directory identity.
+func ReadDirectorySecret(root *os.Root) ([]byte, error) {
+	directory, err := root.Stat(".")
+	if err != nil || !directory.IsDir() || !privateOwner(directory, 0700) {
+		return nil, ErrPrivateSecret
+	}
+	return readSecretAt(root, "secret")
+}
+
 func readSecretAt(root *os.Root, name string) ([]byte, error) {
 	before, err := root.Lstat(name)
 	if err != nil || !before.Mode().IsRegular() || !privateOwner(before, 0600) {
@@ -59,6 +68,11 @@ func readEncodedSecret(reader io.Reader) ([]byte, error) {
 		return nil, ErrPrivateSecret
 	}
 	return data, nil
+}
+
+// OpenPrivateDirectory pins a current-user directory with mode 0700.
+func OpenPrivateDirectory(path string) (*os.Root, error) {
+	return openPrivateDirectory(path)
 }
 
 func openPrivateDirectory(path string) (*os.Root, error) {
