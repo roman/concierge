@@ -102,7 +102,7 @@ func TestDecodeRejectsUnknownAndImpossibleFields(t *testing.T) {
 			"in flight without worker",
 			bytes.Replace(base, []byte(`"state":"queued"`), []byte(`"state":"in_flight"`), 1),
 		},
-		{"wrong format", bytes.Replace(base, []byte(`"format":2`), []byte(`"format":3`), 1)},
+		{"wrong format", bytes.Replace(base, []byte(`"format":2`), []byte(`"format":4`), 1)},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

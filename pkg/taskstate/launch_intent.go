@@ -33,6 +33,7 @@ type LaunchEndpoint struct {
 
 // LaunchIntent keeps initial launch recovery independent of the primary session.
 type LaunchIntent struct {
+	Machine          string          `json:"machine,omitempty"`
 	Lease            WorktreeLease   `json:"lease,omitzero"`
 	LeaseHolder      string          `json:"lease_holder,omitempty"`
 	Generation       string          `json:"generation"`
@@ -303,7 +304,7 @@ func validLaunchIntent(selected record) bool {
 		!utf8.ValidString(intent.Body) || strings.ContainsRune(intent.Body, 0) {
 		return false
 	}
-	if _, err := herdr.ParseTarget(intent.Session, "pane"); err != nil {
+	if _, err := herdr.ParseEndpoint(intent.Machine, intent.Session, "pane"); err != nil {
 		return false
 	}
 	if !validWorktreeLease(intent.Lease) || !optionalLine(intent.LeaseHolder) {
@@ -371,13 +372,13 @@ func validLaunchIntent(selected record) bool {
 			!validAtom(endpoint.Tab, true) {
 			return false
 		}
-		if _, err := herdr.ParseTarget(intent.Session, endpoint.Pane); err != nil {
+		if _, err := herdr.ParseEndpoint(intent.Machine, intent.Session, endpoint.Pane); err != nil {
 			return false
 		}
 	}
 	if worker := selected.Worker; worker != nil {
 		if intent.Phase != LaunchAgentRequested || len(intent.ResumeArgs) == 0 ||
-			worker.Name != intent.Name || worker.Harness != intent.Harness || worker.Session != intent.Session ||
+			worker.Machine != intent.Machine || worker.Name != intent.Name || worker.Harness != intent.Harness || worker.Session != intent.Session ||
 			worker.Project != intent.Project || worker.Worktree != intent.Worktree || worker.Generation != intent.Generation ||
 			worker.Pane != intent.Endpoint.Pane || !slices.Equal(worker.AgentArgs, intent.ResumeArgs) ||
 			worker.PendingGeneration != "" || worker.PendingLaunch != "" {

@@ -176,6 +176,24 @@ func (guard *Guard) Version() (int, error) {
 	return guard.readVersion()
 }
 
+// RequireMinimum checks a pinned root before a newer record format is published.
+// The caller must hold the root's version guard throughout the operation.
+func RequireMinimum(root *os.Root, minimum int) error {
+	version, err := (&Guard{root: root}).readVersion()
+	if err != nil {
+		return err
+	}
+	if version < minimum {
+		return fmt.Errorf(
+			"%w: record requires version %d; found %d",
+			ErrIncompatible,
+			minimum,
+			version,
+		)
+	}
+	return nil
+}
+
 func acquire(ctx context.Context, path string, mode int) (*Guard, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return nil, fmt.Errorf("task-state root must be a clean absolute path")

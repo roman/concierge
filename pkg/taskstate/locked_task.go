@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/roman/concierge/pkg/stateversion"
 	"github.com/roman/concierge/pkg/taskmeta"
 )
 
@@ -113,6 +114,9 @@ func (store *Store) withTaskPinned(
 		if err != nil {
 			return err
 		}
+		if err := stateversion.RequireMinimum(root, current.record.Format); err != nil {
+			return err
+		}
 		selectedRoot, err := root.Stat(".")
 		if err != nil {
 			return err
@@ -153,7 +157,7 @@ func (store *Store) withTaskPinned(
 			if err != nil {
 				return err
 			}
-			if err := writeRecord(root, records, selectedDirectory, id.String(), data,
+			if err := writeRecord(root, records, selectedDirectory, id.String(), data, candidate.record.Format,
 				selectedRecord, store.syncDirectory); err != nil {
 				return err
 			}

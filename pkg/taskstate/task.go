@@ -1,4 +1,4 @@
-// Package taskstate defines the version 2 local task record.
+// Package taskstate defines validated local and remote task records.
 package taskstate
 
 import (
@@ -21,6 +21,7 @@ import (
 var ErrInvalidTask = errors.New("invalid task record")
 
 const formatVersion = 2
+const remoteFormatVersion = 3
 const maximumTaskBytes = 1 << 20
 const maximumTaskIDBytes = 200
 
@@ -75,6 +76,7 @@ type RestartPlan struct {
 
 // Worker preserves the exact launch and endpoint identity for recovery.
 type Worker struct {
+	Machine             string          `json:"machine,omitempty"`
 	Lease               WorktreeLease   `json:"lease,omitzero"`
 	OwnedWorkspaceLabel string          `json:"owned_workspace_label,omitempty"`
 	PromptProgress      *PromptProgress `json:"prompt_progress,omitempty"`
@@ -171,7 +173,7 @@ func NewQueued(input Definition) (Task, error) {
 	return Task{record: selected}, nil
 }
 
-// NewMigrated accepts a complete legacy task only when its combined state is valid.
+// NewMigrated accepts a complete snapshot only when its combined state is valid.
 func NewMigrated(input Snapshot) (Task, error) {
 	selected := record{
 		AbandonedLaunches: slices.Clone(input.AbandonedLaunches),
@@ -181,13 +183,17 @@ func NewMigrated(input Snapshot) (Task, error) {
 		Completion:   cloneCompletion(input.Completion),
 		Receipt:      cloneReceipt(input.Receipt), PriorReceipts: slices.Clone(input.PriorReceipts),
 	}
+	if (input.Worker != nil && input.Worker.Machine != "") ||
+		(input.LaunchIntent != nil && input.LaunchIntent.Machine != "") {
+		selected.Format = remoteFormatVersion
+	}
 	if err := validate(selected); err != nil {
 		return Task{}, err
 	}
 	return Task{record: selected}, nil
 }
 
-// Decode validates a complete version 2 record and rejects unknown fields.
+// Decode validates a complete task record and rejects unknown fields.
 func Decode(data []byte) (Task, error) {
 	if len(data) > maximumTaskBytes {
 		return Task{}, fmt.Errorf("%w: record exceeds 1 MiB", ErrInvalidTask)
@@ -309,7 +315,13 @@ func validate(selected record) error {
 		return ErrInvalidTask
 	}
 
-	if selected.Format != formatVersion || !validDefinition(selected.Definition) {
+	if (selected.Format != formatVersion && selected.Format != remoteFormatVersion) ||
+		!validDefinition(selected.Definition) {
+		return ErrInvalidTask
+	}
+	if selected.Format == formatVersion &&
+		((selected.Worker != nil && selected.Worker.Machine != "") ||
+			(selected.LaunchIntent != nil && selected.LaunchIntent.Machine != "")) {
 		return ErrInvalidTask
 	}
 	if selected.State != Queued && selected.State != InFlight && selected.State != Done {
@@ -500,7 +512,7 @@ func validWorker(worker Worker) bool {
 			return false
 		}
 	}
-	if _, err := herdr.ParseTarget(worker.Session, worker.Pane); err != nil {
+	if _, err := herdr.ParseEndpoint(worker.Machine, worker.Session, worker.Pane); err != nil {
 		return false
 	}
 	for _, path := range []string{worker.Project, worker.Worktree} {

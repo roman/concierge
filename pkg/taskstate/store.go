@@ -60,7 +60,16 @@ func (store *Store) Create(ctx context.Context, task Task) error {
 				return err
 			}
 			defer records.Close()
-			return writeRecord(root, records, selected, id.String(), data, nil, store.syncDirectory)
+			return writeRecord(
+				root,
+				records,
+				selected,
+				id.String(),
+				data,
+				task.record.Format,
+				nil,
+				store.syncDirectory,
+			)
 		})
 	})
 }
@@ -79,6 +88,9 @@ func (store *Store) Read(ctx context.Context, taskID string) (Task, error) {
 		}
 		defer records.Close()
 		task, _, err = readRecord(records, id.String())
+		if err == nil {
+			err = stateversion.RequireMinimum(root, task.record.Format)
+		}
 		return err
 	})
 	return task, err
@@ -145,6 +157,9 @@ func ListPinned(ctx context.Context, root *os.Root) ([]Task, error) {
 		}
 		task, _, err := readRecord(records, id)
 		if err != nil {
+			return nil, err
+		}
+		if err := stateversion.RequireMinimum(root, task.record.Format); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, task)
@@ -275,8 +290,10 @@ func sameWorkerIdentity(current, candidate Task) bool {
 	if worker == nil {
 		return true
 	}
-	return previous != nil && previous.Session == worker.Session &&
-		previous.Name == worker.Name && previous.Pane == worker.Pane
+	return previous != nil && previous.Machine == worker.Machine &&
+		previous.Session == worker.Session &&
+		previous.Name == worker.Name &&
+		previous.Pane == worker.Pane
 }
 
 func checkWorkerIdentity(tasks []Task, candidate Task) error {
@@ -287,12 +304,15 @@ func checkWorkerIdentity(tasks []Task, candidate Task) error {
 	}
 	for _, task := range tasks {
 		path := ""
+		machine := ""
 		if worker != nil {
 			path = worker.Worktree
+			machine = worker.Machine
 		} else if launch != nil {
 			path = launch.Worktree
+			machine = launch.Machine
 		}
-		if path != "" {
+		if path != "" && machine == "" {
 			snapshot := task.Snapshot()
 			leases := []WorktreeLease{}
 			if snapshot.Receipt != nil {
@@ -314,7 +334,8 @@ func checkWorkerIdentity(tasks []Task, candidate Task) error {
 			continue
 		}
 		assigned := task.Snapshot().Worker
-		if worker != nil && assigned != nil && assigned.Session == worker.Session &&
+		if worker != nil && assigned != nil && assigned.Machine == worker.Machine &&
+			assigned.Session == worker.Session &&
 			(assigned.Name == worker.Name || assigned.Pane == worker.Pane) {
 			return ErrWorkerConflict
 		}
@@ -330,16 +351,17 @@ func launchConflicts(launch, other *LaunchIntent, worker *Worker) bool {
 	if launch == nil {
 		return false
 	}
-	if worker != nil && (launch.Worktree == worker.Worktree ||
+	if worker != nil && launch.Machine == worker.Machine && (launch.Worktree == worker.Worktree ||
 		(launch.Session == worker.Session && (launch.Name == worker.Name ||
 			(launch.Endpoint != nil && launch.Endpoint.Pane == worker.Pane)))) {
 		return true
 	}
-	return other != nil && ((launch.Worktree != "" && launch.Worktree == other.Worktree) ||
-		(launch.Project == other.Project && launch.Branch == other.Branch) ||
-		(launch.Session == other.Session && (launch.Name == other.Name ||
-			(launch.Workspace == other.Workspace && launch.Label == other.Label) ||
-			(launch.Endpoint != nil && other.Endpoint != nil && launch.Endpoint.Pane == other.Endpoint.Pane))))
+	return other != nil && launch.Machine == other.Machine &&
+		((launch.Worktree != "" && launch.Worktree == other.Worktree) ||
+			(launch.Project == other.Project && launch.Branch == other.Branch) ||
+			(launch.Session == other.Session && (launch.Name == other.Name ||
+				(launch.Workspace == other.Workspace && launch.Label == other.Label) ||
+				(launch.Endpoint != nil && other.Endpoint != nil && launch.Endpoint.Pane == other.Endpoint.Pane))))
 }
 
 func (store *Store) updatePinned(
@@ -483,9 +505,12 @@ func readRecord(root *os.Root, taskID string) (Task, os.FileInfo, error) {
 
 func writeRecord(
 	stateRoot, records *os.Root, selectedDirectory os.FileInfo,
-	taskID string, data []byte, previous os.FileInfo,
+	taskID string, data []byte, recordFormat int, previous os.FileInfo,
 	syncDirectory func(*os.Root) error,
 ) error {
+	if err := stateversion.RequireMinimum(stateRoot, recordFormat); err != nil {
+		return err
+	}
 	name := taskID + ".json"
 	temporaryName := ".writing-" + rand.Text()
 	temporary, err := records.OpenFile(temporaryName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
