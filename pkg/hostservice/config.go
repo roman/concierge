@@ -13,6 +13,7 @@ import (
 
 // Config binds every external dependency before host admission starts.
 type Config struct {
+	WorkerSettings      func(string) (taskops.WorkerSettings, error)
 	Supervision         supervise.Config
 	Diagnostics         io.Writer
 	Root                string

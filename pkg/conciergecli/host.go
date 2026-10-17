@@ -72,6 +72,17 @@ func (command *cli) runHost(ctx context.Context, root string, output io.Writer) 
 				Concierge: conciergeExecutable,
 				Tincan:    tincanExecutable,
 			},
+			WorkerSettings: func(repo string) (taskops.WorkerSettings, error) {
+				settings, err := readProjectSettings(
+					filepath.Join(root, "config", "projects.json"),
+					repo,
+				)
+				return taskops.WorkerSettings{
+					Repo:     repo,
+					Merge:    settings.Merge,
+					Delivery: settings.Delivery,
+				}, err
+			},
 			Revision:    revision,
 			Session:     command.Host.Session,
 			Supervision: monitor,

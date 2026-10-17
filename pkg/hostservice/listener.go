@@ -18,6 +18,7 @@ type Listener struct {
 	*net.UnixListener
 	lease   *os.File
 	version *stateversion.Guard
+	worker  *net.UnixListener
 }
 
 // Listen holds a stable lease before removing an abandoned socket. The lease
@@ -59,7 +60,13 @@ func (server *Server) Listen(ctx context.Context) (_ *Listener, result error) {
 		lease.Close()
 		return nil, err
 	}
-	return &Listener{UnixListener: listener, lease: lease, version: version}, nil
+	worker, err := server.listenWorkerSocket(version)
+	if err != nil {
+		_ = listener.Close()
+		_ = lease.Close()
+		return nil, err
+	}
+	return &Listener{UnixListener: listener, worker: worker, lease: lease, version: version}, nil
 }
 
 func listenSocket(path string) (*net.UnixListener, error) {
@@ -86,9 +93,6 @@ func listenSocket(path string) (*net.UnixListener, error) {
 }
 
 func (listener *Listener) Close() error {
-	err := listener.UnixListener.Close()
-	if errors.Is(err, net.ErrClosed) {
-		err = nil
-	}
-	return errors.Join(err, listener.lease.Close(), listener.version.Close())
+	return errors.Join(closeUnixListener(listener.UnixListener), closeUnixListener(listener.worker),
+		listener.lease.Close(), listener.version.Close())
 }

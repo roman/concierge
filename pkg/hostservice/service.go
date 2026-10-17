@@ -18,6 +18,7 @@ import (
 	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/workerservice"
 	"github.com/roman/concierge/pkg/worktree"
 )
 
@@ -86,6 +87,8 @@ type Response struct {
 
 // Server binds operations to roots selected by the host process.
 type Server struct {
+	workerServer        *workerservice.Server
+	workerListener      *net.UnixListener
 	shutdownMu          sync.Mutex
 	shutdownLease       *os.File
 	shutdownCancel      context.CancelFunc
@@ -160,9 +163,16 @@ func (server *Server) ServeReady(
 	defer stop()
 	defer listener.Close()
 	var running sync.WaitGroup
+	var workerResult <-chan error
 	defer func() {
 		cancel()
+		_ = closeUnixListener(server.workerListener)
 		running.Wait()
+		select {
+		case workerError := <-workerResult:
+			result = errors.Join(result, workerError)
+		default:
+		}
 		result = errors.Join(result, server.controllers.close())
 		server.shutdownMu.Lock()
 		defer server.shutdownMu.Unlock()
@@ -173,6 +183,7 @@ func (server *Server) ServeReady(
 	if err := server.restoreTaskControllers(ctx); err != nil {
 		return err
 	}
+	workerResult = server.startWorkerSocket(ctx, cancel, &running)
 	if ready != nil {
 		if err := ready(); err != nil {
 			return err
