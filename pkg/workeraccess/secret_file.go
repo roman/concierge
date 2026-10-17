@@ -19,16 +19,15 @@ func ReadSecretFile(path string) ([]byte, error) {
 	if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 		return nil, ErrPrivateSecret
 	}
-	root, err := os.OpenRoot(filepath.Dir(path))
+	root, err := openPrivateDirectory(filepath.Dir(path))
 	if err != nil {
 		return nil, ErrPrivateSecret
 	}
 	defer root.Close()
-	directory, err := root.Stat(".")
-	if err != nil || !directory.IsDir() || !privateOwner(directory, 0700) {
-		return nil, ErrPrivateSecret
-	}
-	name := filepath.Base(path)
+	return readSecretAt(root, filepath.Base(path))
+}
+
+func readSecretAt(root *os.Root, name string) ([]byte, error) {
 	before, err := root.Lstat(name)
 	if err != nil || !before.Mode().IsRegular() || !privateOwner(before, 0600) {
 		return nil, ErrPrivateSecret
@@ -47,7 +46,11 @@ func ReadSecretFile(path string) ([]byte, error) {
 	if err != nil || !os.SameFile(info, after) {
 		return nil, ErrPrivateSecret
 	}
-	data, err := io.ReadAll(io.LimitReader(file, 257))
+	return readEncodedSecret(file)
+}
+
+func readEncodedSecret(reader io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(reader, 257))
 	if err != nil || len(data) != 43 {
 		return nil, ErrPrivateSecret
 	}
@@ -56,6 +59,26 @@ func ReadSecretFile(path string) ([]byte, error) {
 		return nil, ErrPrivateSecret
 	}
 	return data, nil
+}
+
+func openPrivateDirectory(path string) (*os.Root, error) {
+	if _, err := taskmeta.ParseAbsolutePath(path); err != nil || path == "/" {
+		return nil, ErrPrivateSecret
+	}
+	before, err := os.Lstat(path)
+	if err != nil || !before.IsDir() || !privateOwner(before, 0700) {
+		return nil, ErrPrivateSecret
+	}
+	root, err := os.OpenRoot(path)
+	if err != nil {
+		return nil, ErrPrivateSecret
+	}
+	after, err := root.Stat(".")
+	if err != nil || !os.SameFile(before, after) || !privateOwner(after, 0700) {
+		root.Close()
+		return nil, ErrPrivateSecret
+	}
+	return root, nil
 }
 
 func privateOwner(info os.FileInfo, mode os.FileMode) bool {
