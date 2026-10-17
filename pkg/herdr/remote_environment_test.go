@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -45,10 +46,36 @@ func TestRemoteWorktreeEnvironmentStartsWithoutPrimaryFilesystemProbes(t *testin
 			if environment == NixWorktree && !strings.Contains(joined, "'nix' 'develop'") {
 				t.Fatalf("missing remote Nix wrapper: %s", joined)
 			}
+			if environment == NixWorktree &&
+				!strings.Contains(joined, "'--extra-experimental-features' 'nix-command flakes'") {
+				t.Fatal("remote Nix startup depends on global configuration")
+			}
 			if environment == PlainWorktree && strings.Contains(joined, "concierge-environment-") {
 				t.Fatal("injected a shell environment into a plain worktree")
 			}
 		})
+	}
+}
+
+func TestRemoteEnvironmentInspectionEnablesFlakesForItsCommand(t *testing.T) {
+	worktree := t.TempDir()
+	if err := os.WriteFile(filepath.Join(worktree, "flake.nix"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	script := `#!/bin/sh
+case " $* " in
+*' --extra-experimental-features nix-command flakes '*) printf true ;;
+*) exit 72 ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(bin, "nix"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	environment, err := DetectWorktreeEnvironment(context.Background(), worktree)
+	if err != nil || environment != NixWorktree {
+		t.Fatalf("remote flakes inspection: %s %v", environment, err)
 	}
 }
 

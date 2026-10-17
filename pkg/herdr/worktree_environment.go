@@ -27,6 +27,18 @@ const (
 
 // DetectWorktreeEnvironment runs on the machine that owns the checkout.
 func DetectWorktreeEnvironment(ctx context.Context, worktree string) (WorktreeEnvironment, error) {
+	return inspectWorktreeEnvironment(
+		ctx,
+		worktree,
+		[]string{"--extra-experimental-features", "nix-command flakes"},
+	)
+}
+
+func inspectWorktreeEnvironment(
+	ctx context.Context,
+	worktree string,
+	nixOptions []string,
+) (WorktreeEnvironment, error) {
 	if _, err := os.Stat(filepath.Join(worktree, ".envrc")); err == nil {
 		return DirenvWorktree, nil
 	} else if !os.IsNotExist(err) {
@@ -48,7 +60,9 @@ func DetectWorktreeEnvironment(ctx context.Context, worktree string) (WorktreeEn
 		architecture,
 		runtime.GOOS,
 	)
-	output, err := exec.CommandContext(ctx, "nix", "eval", "--json", "--impure", "--expr", expression).
+	arguments := append([]string{"eval"}, nixOptions...)
+	arguments = append(arguments, "--json", "--impure", "--expr", expression)
+	output, err := exec.CommandContext(ctx, "nix", arguments...).
 		Output()
 	if err != nil {
 		return "", fmt.Errorf("inspect worktree devshell: %w", err)
@@ -64,7 +78,7 @@ func DetectWorktreeEnvironment(ctx context.Context, worktree string) (WorktreeEn
 }
 
 func worktreeEnvironment(ctx context.Context, worktree string) ([]string, error) {
-	environment, err := DetectWorktreeEnvironment(ctx, worktree)
+	environment, err := inspectWorktreeEnvironment(ctx, worktree, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +116,16 @@ func (client Client) StartRemoteInWorktree(
 	prefix, err := worktreeEnvironmentPrefix(worktree, environment)
 	if err != nil {
 		return err
+	}
+	if environment == NixWorktree {
+		prefix = []string{
+			"nix",
+			"develop",
+			"--extra-experimental-features",
+			"nix-command flakes",
+			worktree,
+			"-c",
+		}
 	}
 	return client.startWithEnvironment(ctx, paneID, name, kind, arguments, prefix)
 }
