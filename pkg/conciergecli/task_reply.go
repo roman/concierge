@@ -12,6 +12,9 @@ const replySendUsage = "concierge [--recipient NAME] task reply send TASK_ID --g
 const replyCheckUsage = "concierge [--recipient NAME] task reply check MESSAGE_ID"
 
 type replyCommands struct {
+	Reconcile struct {
+		File string `required:"" help:"Retained outbox record; use - for stdin. Its original tuple is never changed."`
+	} `cmd:"" help:"Ask the primary host to reconcile an identical original reply after access is revoked."`
 	Send struct {
 		TaskID       string `arg:"" help:"Task ID."`
 		Generation   string `required:"" help:"Worker generation supplied at launch."`
