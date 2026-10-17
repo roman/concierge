@@ -37,7 +37,11 @@ func (service *Service) Retire(
 				return taskstate.Task{}, err
 			}
 			if snapshot.Worker != nil {
-				target, err := herdr.ParseTarget(snapshot.Worker.Session, snapshot.Worker.Pane)
+				target, err := herdr.ParseEndpoint(
+					snapshot.Worker.Machine,
+					snapshot.Worker.Session,
+					snapshot.Worker.Pane,
+				)
 				if err != nil {
 					return taskstate.Task{}, err
 				}

@@ -85,7 +85,7 @@ func (worker *SupervisedWorker) Observe(ctx context.Context) error {
 			if agent.PaneID != bound.Pane || agent.Kind != bound.Harness {
 				return fmt.Errorf("unexpected agent for task %s", worker.taskID)
 			}
-			target, err := herdr.ParseTarget(bound.Session, bound.Pane)
+			target, err := herdr.ParseEndpoint(bound.Machine, bound.Session, bound.Pane)
 			if err != nil {
 				return err
 			}
@@ -139,7 +139,7 @@ func (worker *SupervisedWorker) boundClient(
 	ctx context.Context,
 	bound taskstate.Worker,
 ) (herdr.Client, error) {
-	client, err := worker.client.ForSession(bound.Session)
+	client, err := worker.client.ForEndpoint(bound.Machine, bound.Session)
 	if err != nil {
 		return herdr.Client{}, err
 	}
@@ -147,7 +147,7 @@ func (worker *SupervisedWorker) boundClient(
 	if err != nil {
 		return herdr.Client{}, err
 	}
-	if err := verifyWorktree(bound.Worktree, directory); err != nil {
+	if err := verifyEndpointWorktree(bound.Machine, bound.Worktree, directory); err != nil {
 		return herdr.Client{}, err
 	}
 	return client, nil

@@ -29,7 +29,7 @@ func validateAdoptionInput(input *taskops.AdoptionInput) error {
 			return err
 		}
 	}
-	if _, err := herdr.ParseTarget(input.Session, input.Pane); err != nil {
+	if _, err := herdr.ParseEndpoint(input.Machine, input.Session, input.Pane); err != nil {
 		return err
 	}
 	if strings.TrimSpace(input.Name) == "" || len(input.AgentArgs) == 0 {
@@ -41,7 +41,7 @@ func validateAdoptionInput(input *taskops.AdoptionInput) error {
 func (server *Server) adopt(ctx context.Context, input taskops.AdoptionInput) (Response, error) {
 	release, err := server.controllers.reserveAdoption(
 		controllerKey{kind: taskController, id: input.TaskID},
-		controllerEndpoint{session: input.Session, pane: input.Pane},
+		controllerEndpoint{machine: input.Machine, session: input.Session, pane: input.Pane},
 	)
 	if err != nil {
 		return Response{}, err
@@ -85,7 +85,8 @@ func validateAdoptionResponse(response Response, request Request) error {
 		worker.PendingLaunch != "" {
 		return errors.New("host returned an unapplied adoption")
 	}
-	if worker.Name != input.Name || worker.Generation != input.Generation ||
+	if worker.Machine != input.Machine || worker.Name != input.Name ||
+		worker.Generation != input.Generation ||
 		worker.Session != input.Session ||
 		worker.Pane != input.Pane ||
 		worker.Project != input.Project ||

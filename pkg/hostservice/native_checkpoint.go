@@ -45,7 +45,8 @@ func (server *Server) launchNativeCheckpoint(
 	if intent == nil || intent.Endpoint == nil || intent.Phase != taskstate.LaunchAgentRequested {
 		return nil, nil
 	}
-	client, err := herdr.NewClient(server.config.HerdrExecutable).ForSession(intent.Session)
+	client, err := herdr.NewClient(server.config.HerdrExecutable).
+		ForEndpoint(intent.Machine, intent.Session)
 	if err != nil {
 		return nil, nil
 	}
@@ -54,13 +55,19 @@ func (server *Server) launchNativeCheckpoint(
 		details.TabID != intent.Endpoint.Tab {
 		return nil, nil
 	}
-	recorded, err := os.Stat(intent.Worktree)
-	if err != nil {
-		return nil, nil
-	}
-	live, err := os.Stat(details.ForegroundDirectory)
-	if err != nil || !recorded.IsDir() || !live.IsDir() || !os.SameFile(recorded, live) {
-		return nil, nil
+	if intent.Machine != "" {
+		if intent.Worktree != details.ForegroundDirectory {
+			return nil, nil
+		}
+	} else {
+		recorded, err := os.Stat(intent.Worktree)
+		if err != nil {
+			return nil, nil
+		}
+		live, err := os.Stat(details.ForegroundDirectory)
+		if err != nil || !recorded.IsDir() || !live.IsDir() || !os.SameFile(recorded, live) {
+			return nil, nil
+		}
 	}
 	agent, err := client.Get(inspection, intent.Name)
 	if err != nil || !blockedLaunchAgent(agent, intent) {

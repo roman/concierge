@@ -140,7 +140,8 @@ func (server *Server) retireInitialLaunch(
 			return err
 		}
 		captured := current.Snapshot().LaunchIntent
-		client, err := herdr.NewClient(server.config.HerdrExecutable).ForSession(captured.Session)
+		client, err := herdr.NewClient(server.config.HerdrExecutable).
+			ForEndpoint(captured.Machine, captured.Session)
 		if err != nil {
 			return err
 		}

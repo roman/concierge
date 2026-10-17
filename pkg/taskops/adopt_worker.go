@@ -15,6 +15,7 @@ import (
 
 // AdoptionInput identifies an existing worker and its recoverable launch command.
 type AdoptionInput struct {
+	Machine    string
 	TaskID     string
 	Generation string
 	Name       string
@@ -48,10 +49,10 @@ func (service *Service) adoptWorker(
 			return taskstate.Task{}, err
 		}
 	}
-	if _, err := herdr.ParseTarget(input.Session, input.Pane); err != nil {
+	if _, err := herdr.ParseEndpoint(input.Machine, input.Session, input.Pane); err != nil {
 		return taskstate.Task{}, err
 	}
-	boundClient, err := client.ForSession(input.Session)
+	boundClient, err := client.ForEndpoint(input.Machine, input.Session)
 	if err != nil {
 		return taskstate.Task{}, err
 	}
@@ -69,6 +70,7 @@ func (service *Service) adoptWorker(
 			return taskstate.Task{}, err
 		}
 		worker := taskstate.Worker{
+			Machine:    input.Machine,
 			Name:       input.Name,
 			Harness:    harness,
 			Session:    input.Session,
@@ -143,7 +145,7 @@ func matchesAdoptionReservation(captured taskstate.Worker, current *taskstate.Wo
 }
 
 func matchesAdoptionInput(worker taskstate.Worker, input AdoptionInput) bool {
-	return worker.Generation == input.Generation &&
+	return worker.Machine == input.Machine && worker.Generation == input.Generation &&
 		worker.Name == input.Name && worker.Session == input.Session &&
 		worker.Pane == input.Pane &&
 		worker.Project == input.Project &&
@@ -160,7 +162,7 @@ func verifyAdoption(
 	if err != nil {
 		return herdr.PaneDetails{}, "", err
 	}
-	if err := verifyWorktree(input.Worktree, details.ForegroundDirectory); err != nil {
+	if err := verifyEndpointWorktree(input.Machine, input.Worktree, details.ForegroundDirectory); err != nil {
 		return herdr.PaneDetails{}, "", err
 	}
 	agent, err := client.Get(ctx, input.Name)
@@ -173,7 +175,7 @@ func verifyAdoption(
 	if agent.PaneID != input.Pane || agent.Kind == "" {
 		return herdr.PaneDetails{}, "", fmt.Errorf("worker identity differs from requested pane")
 	}
-	target, err := herdr.ParseTarget(input.Session, input.Pane)
+	target, err := herdr.ParseEndpoint(input.Machine, input.Session, input.Pane)
 	if err != nil {
 		return herdr.PaneDetails{}, "", err
 	}
@@ -194,6 +196,16 @@ func verifyWorktree(worktree, directory string) error {
 	}
 	if !recorded.IsDir() || !live.IsDir() || !os.SameFile(recorded, live) {
 		return fmt.Errorf("pane is outside task worktree")
+	}
+	return nil
+}
+
+func verifyEndpointWorktree(machine, worktree, directory string) error {
+	if machine == "" {
+		return verifyWorktree(worktree, directory)
+	}
+	if worktree != directory {
+		return fmt.Errorf("pane is outside remote task worktree")
 	}
 	return nil
 }

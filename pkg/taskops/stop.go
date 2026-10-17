@@ -32,7 +32,7 @@ func (service *Service) Stop(
 			return err
 		}
 		worker := current.Snapshot().Worker
-		target, err := herdr.ParseTarget(worker.Session, worker.Pane)
+		target, err := herdr.ParseEndpoint(worker.Machine, worker.Session, worker.Pane)
 		if err != nil {
 			return err
 		}
@@ -65,6 +65,6 @@ func CheckStop(task taskstate.Task, generation string) error {
 		worker.Tab == "" {
 		return taskstate.ErrInvalidTransition
 	}
-	_, err := herdr.ParseTarget(worker.Session, worker.Pane)
+	_, err := herdr.ParseEndpoint(worker.Machine, worker.Session, worker.Pane)
 	return err
 }

@@ -53,7 +53,8 @@ func (server *Server) trackedLaunchResult(
 			response.Outcome = Blocked
 		}
 		if intent.Endpoint != nil && response.Outcome == Pending {
-			client, err := herdr.NewClient(server.config.HerdrExecutable).ForSession(intent.Session)
+			client, err := herdr.NewClient(server.config.HerdrExecutable).
+				ForEndpoint(intent.Machine, intent.Session)
 			if err == nil {
 				agent, err := client.Get(inspection, intent.Name)
 				if err == nil &&
@@ -107,7 +108,7 @@ func (server *Server) launchRegistrationFailure(
 	worker := completed.Transition.Worker
 	state := server.controllers.launchRegistrationStatus(
 		controllerKey{kind: taskController, id: input.TaskID},
-		controllerEndpoint{session: worker.Session, pane: worker.Pane},
+		controllerEndpoint{machine: worker.Machine, session: worker.Session, pane: worker.Pane},
 		supervisionSpecification(
 			SupervisionRequest{TaskID: input.TaskID},
 			server.config.Supervision,

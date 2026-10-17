@@ -37,7 +37,11 @@ func taskOperationEndpoint(
 	if snapshot.Worker == nil {
 		return nil, nil
 	}
-	return &controllerEndpoint{session: snapshot.Worker.Session, pane: snapshot.Worker.Pane}, nil
+	return &controllerEndpoint{
+		machine: snapshot.Worker.Machine,
+		session: snapshot.Worker.Session,
+		pane:    snapshot.Worker.Pane,
+	}, nil
 }
 
 func (server *Server) withTaskEndpoint(
@@ -99,11 +103,14 @@ func (server *Server) rejectTaskBoundPane(ctx context.Context, endpoint controll
 	for _, task := range tasks {
 		snapshot := task.Snapshot()
 		worker := snapshot.Worker
-		if worker != nil && worker.Session == endpoint.session && worker.Pane == endpoint.pane {
+		if worker != nil && worker.Machine == endpoint.machine &&
+			worker.Session == endpoint.session &&
+			worker.Pane == endpoint.pane {
 			return fmt.Errorf("task-bound pane belongs to %s", task.ID())
 		}
 		intent := snapshot.LaunchIntent
-		if intent != nil && intent.Endpoint != nil && intent.Session == endpoint.session &&
+		if intent != nil && intent.Endpoint != nil && intent.Machine == endpoint.machine &&
+			intent.Session == endpoint.session &&
 			intent.Endpoint.Pane == endpoint.pane {
 			return fmt.Errorf("initial launch pane belongs to %s", task.ID())
 		}

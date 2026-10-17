@@ -30,6 +30,9 @@ func (worker *SupervisedWorker) Restart(ctx context.Context) error {
 		worker.taskID,
 		func(task *taskstate.LockedTask) error {
 			if bound := task.Current().Snapshot().Worker; bound != nil {
+				if bound.Machine != "" {
+					return ErrRemoteLaunchUnavailable
+				}
 				if err := checkWorktreeLease(ctx, bound.Lease, worker.service.pool); err != nil {
 					return err
 				}

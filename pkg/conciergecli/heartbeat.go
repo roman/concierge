@@ -305,7 +305,7 @@ func collectHeartbeatStatus(
 			continue
 		}
 		bound++
-		client, err := herdr.NewClient(executable).ForSession(worker.Session)
+		client, err := herdr.NewClient(executable).ForEndpoint(worker.Machine, worker.Session)
 		if err != nil {
 			return heartbeatStatus{}, err
 		}

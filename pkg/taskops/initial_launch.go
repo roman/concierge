@@ -17,6 +17,7 @@ import (
 
 var ErrInitialLaunchIdentity = errors.New("initial launch identity conflict")
 var ErrNativeCheckpoint = errors.New("native checkpoint requires operator review")
+var ErrRemoteLaunchUnavailable = errors.New("remote launch requires prepared worker transport")
 
 type InitialLaunchConfig struct {
 	Pool        worktree.PoolClient
@@ -62,6 +63,9 @@ func (service *Service) ContinueInitialLaunch(
 	if err != nil {
 		return taskstate.Task{}, err
 	}
+	if intent.Machine != "" {
+		return taskstate.Task{}, ErrRemoteLaunchUnavailable
+	}
 	if err := ValidateInitialLaunch(intent.Harness, intent.AgentArgs, intent.Body); err != nil {
 		return taskstate.Task{}, err
 	}
@@ -78,7 +82,7 @@ func (service *Service) ContinueInitialLaunch(
 	if err != nil {
 		return taskstate.Task{}, err
 	}
-	client, err := config.Herdr.ForSession(intent.Session)
+	client, err := config.Herdr.ForEndpoint(intent.Machine, intent.Session)
 	if err != nil {
 		return taskstate.Task{}, err
 	}
@@ -151,7 +155,8 @@ func (service *Service) ContinueInitialLaunch(
 		return taskstate.Task{}, err
 	}
 	adopted, err := service.AdoptWorker(ctx, AdoptionInput{
-		TaskID: taskID, Generation: generation, Name: intent.Name, Session: intent.Session,
+		Machine: intent.Machine,
+		TaskID:  taskID, Generation: generation, Name: intent.Name, Session: intent.Session,
 		Pane: intent.Endpoint.Pane, Project: intent.Project, Worktree: intent.Worktree, AgentArgs: resume,
 	}, config.Herdr)
 	if err != nil {

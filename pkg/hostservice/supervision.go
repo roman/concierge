@@ -157,7 +157,11 @@ func (server *Server) supervisionWithMode(
 			task.Snapshot().Completion != nil || task.Snapshot().LaunchIntent != nil {
 			return Response{}, taskstate.ErrInvalidTransition
 		}
-		endpoint = controllerEndpoint{session: worker.Session, pane: worker.Pane}
+		endpoint = controllerEndpoint{
+			machine: worker.Machine,
+			session: worker.Session,
+			pane:    worker.Pane,
+		}
 		prepare = func(ctx context.Context) (preparedController, error) {
 			return server.prepareTaskController(ctx, input.TaskID, endpoint)
 		}
@@ -201,6 +205,7 @@ func (server *Server) prepareTaskController(
 	if task.State() != taskstate.InFlight || task.Snapshot().Completion != nil || binding == nil ||
 		task.Snapshot().LaunchIntent != nil ||
 		binding.PendingAdoption ||
+		binding.Machine != endpoint.machine ||
 		binding.Session != endpoint.session ||
 		binding.Pane != endpoint.pane {
 		return fail(taskstate.ErrInvalidTransition)

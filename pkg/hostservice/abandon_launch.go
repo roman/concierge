@@ -41,7 +41,8 @@ func (server *Server) abandonLaunch(
 			*result = receipt
 			return nil
 		}
-		client, err := herdr.NewClient(server.config.HerdrExecutable).ForSession(intent.Session)
+		client, err := herdr.NewClient(server.config.HerdrExecutable).
+			ForEndpoint(intent.Machine, intent.Session)
 		if err != nil {
 			return err
 		}

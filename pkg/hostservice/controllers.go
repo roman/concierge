@@ -24,7 +24,7 @@ type controllerKey struct {
 	kind controllerKind
 	id   string
 }
-type controllerEndpoint struct{ session, pane string }
+type controllerEndpoint struct{ machine, session, pane string }
 type controllerRun func(context.Context, chan<- struct{}) error
 
 // Successful preparation transfers cleanup ownership to the registry.
