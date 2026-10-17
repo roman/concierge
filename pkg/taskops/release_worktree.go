@@ -10,6 +10,10 @@ import (
 	"github.com/roman/concierge/pkg/worktree"
 )
 
+var ErrRemoteWorktreeTransport = errors.New(
+	"lease return requires the native remote worktree transport; retain the recorded lease",
+)
+
 // ReleaseWorktree returns a retired generation's lease after an explicit request.
 func (service *Service) ReleaseWorktree(
 	ctx context.Context,
@@ -46,6 +50,9 @@ func (service *Service) returnRetiredLease(
 	}
 	if lease.State == taskstate.LeaseReturned {
 		return returned, nil
+	}
+	if lease.Remote != (taskstate.RemoteLease{}) {
+		return taskstate.Task{}, ErrRemoteWorktreeTransport
 	}
 	current, found, err := service.pool.Find(ctx, lease.Project, lease.Holder)
 	if err != nil {
@@ -86,6 +93,9 @@ func (service *Service) recoverAbandonedLease(
 	}
 	if receipt.LeaseHolder == "" || receipt.BaseCommit == "" {
 		return taskstate.ErrInvalidTransition
+	}
+	if receipt.Remote != (taskstate.RemoteLease{}) {
+		return ErrRemoteWorktreeTransport
 	}
 	lease, found, err := service.pool.Find(ctx, receipt.Project, receipt.LeaseHolder)
 	if err != nil {

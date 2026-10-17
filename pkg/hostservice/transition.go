@@ -183,6 +183,9 @@ func (server *Server) execute(
 	case ReleaseWorktree:
 		return service.ReleaseWorktree(ctx, input.TaskID, input.Generation)
 	case Cleanup:
+		if err := server.retireRemoteTransport(ctx, input.TaskID, input.Generation); err != nil {
+			return taskstate.Task{}, err
+		}
 		return service.Retire(
 			ctx,
 			input.TaskID,
