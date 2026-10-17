@@ -15,6 +15,7 @@ import (
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/taskmeta"
+	"github.com/roman/concierge/pkg/workeraccess"
 	"github.com/roman/tincan/pkg/inbox"
 )
 
@@ -76,25 +77,26 @@ type RestartPlan struct {
 
 // Worker preserves the exact launch and endpoint identity for recovery.
 type Worker struct {
-	Connections         *Connections    `json:"connections,omitempty"`
-	Machine             string          `json:"machine,omitempty"`
-	Lease               WorktreeLease   `json:"lease,omitzero"`
-	OwnedWorkspaceLabel string          `json:"owned_workspace_label,omitempty"`
-	PromptProgress      *PromptProgress `json:"prompt_progress,omitempty"`
-	Restarts            []RestartPlan   `json:"restarts,omitempty"`
-	Name                string          `json:"name"`
-	Harness             string          `json:"harness"`
-	Session             string          `json:"session"`
-	Workspace           string          `json:"workspace,omitempty"`
-	Tab                 string          `json:"tab,omitempty"`
-	Pane                string          `json:"pane"`
-	Project             string          `json:"project"`
-	Worktree            string          `json:"worktree"`
-	Generation          string          `json:"generation"`
-	PendingGeneration   string          `json:"pending_generation,omitempty"`
-	PendingLaunch       string          `json:"pending_launch,omitempty"`
-	PendingAdoption     bool            `json:"pending_adoption,omitempty"`
-	AgentArgs           []string        `json:"agent_args"`
+	Access              *workeraccess.Grant `json:"access,omitempty"`
+	Connections         *Connections        `json:"connections,omitempty"`
+	Machine             string              `json:"machine,omitempty"`
+	Lease               WorktreeLease       `json:"lease,omitzero"`
+	OwnedWorkspaceLabel string              `json:"owned_workspace_label,omitempty"`
+	PromptProgress      *PromptProgress     `json:"prompt_progress,omitempty"`
+	Restarts            []RestartPlan       `json:"restarts,omitempty"`
+	Name                string              `json:"name"`
+	Harness             string              `json:"harness"`
+	Session             string              `json:"session"`
+	Workspace           string              `json:"workspace,omitempty"`
+	Tab                 string              `json:"tab,omitempty"`
+	Pane                string              `json:"pane"`
+	Project             string              `json:"project"`
+	Worktree            string              `json:"worktree"`
+	Generation          string              `json:"generation"`
+	PendingGeneration   string              `json:"pending_generation,omitempty"`
+	PendingLaunch       string              `json:"pending_launch,omitempty"`
+	PendingAdoption     bool                `json:"pending_adoption,omitempty"`
+	AgentArgs           []string            `json:"agent_args"`
 }
 
 // CompletionMode selects the queue state after a worker result.
@@ -286,6 +288,11 @@ func cloneWorker(input *Worker) *Worker {
 	}
 	selected := *input
 	selected.PromptProgress = clonePromptProgress(input.PromptProgress)
+	if input.Access != nil {
+		access := *input.Access
+		access.Operations = slices.Clone(input.Access.Operations)
+		selected.Access = &access
+	}
 	if input.Connections != nil {
 		connections := *input.Connections
 		selected.Connections = &connections
@@ -336,6 +343,10 @@ func validate(selected record) error {
 		return ErrInvalidTask
 	}
 	if selected.Worker != nil && !validWorker(*selected.Worker) {
+		return ErrInvalidTask
+	}
+	if selected.Worker != nil && selected.Worker.Access != nil &&
+		selected.Worker.Access.Task != selected.Definition.ID {
 		return ErrInvalidTask
 	}
 	if selected.Worker != nil && selected.Worker.Workspace == "" &&
@@ -464,6 +475,10 @@ func validDefinition(input Definition) bool {
 }
 
 func validWorker(worker Worker) bool {
+	if access := worker.Access; access != nil &&
+		(worker.Machine == "" || access.Generation != worker.Generation || access.Validate() != nil) {
+		return false
+	}
 	if connections := worker.Connections; connections != nil &&
 		(worker.Machine == "" || !validConnection(connections.Herdr) || !validConnection(connections.Tunnel)) {
 		return false

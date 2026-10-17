@@ -46,6 +46,7 @@ func (task Task) AdvanceGeneration(next string) (Task, error) {
 		snapshot := task.Snapshot()
 		snapshot.Worker.PromptProgress = nil
 		snapshot.Worker.Connections = nil
+		snapshot.Worker.Access = nil
 		snapshot.Worker.Generation = next
 		snapshot.Worker.PendingGeneration = ""
 		if snapshot.Worker.PendingLaunch == "" {
@@ -62,6 +63,7 @@ func (task Task) AdvanceGeneration(next string) (Task, error) {
 	snapshot := task.Snapshot()
 	snapshot.Worker.PromptProgress = nil
 	snapshot.Worker.Connections = nil
+	snapshot.Worker.Access = nil
 	snapshot.Worker.Generation = next
 	return newTransition(snapshot)
 }
@@ -123,5 +125,8 @@ func (task Task) RecordRestart(plan RestartPlan) (Task, error) {
 		return Task{}, ErrInvalidTransition
 	}
 	worker.Restarts = append(worker.Restarts, plan)
+	if worker.Access != nil {
+		worker.Access.Revoked = true
+	}
 	return newTransition(snapshot)
 }

@@ -169,6 +169,9 @@ func (task Task) AcceptResult(
 	default:
 		return Task{}, ErrInvalidTransition
 	}
+	if snapshot.Worker != nil && snapshot.Worker.Access != nil {
+		snapshot.Worker.Access.Revoked = true
+	}
 	if snapshot.Completion == nil {
 		snapshot.Completion = &Completion{Generation: generation, Mode: mode, Phase: Accepted}
 	}
