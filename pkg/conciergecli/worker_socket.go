@@ -9,20 +9,31 @@ import (
 )
 
 type workerSocketCommands struct {
-	Prepare struct {
-		Directory  string `required:"" help:"Absolute private remote task directory."`
-		Task       string `required:"" help:"Task recorded by the primary."`
-		Generation string `required:"" help:"Generation recorded by the primary."`
-		Verifier   string `required:"" help:"SHA-256 verifier of the task secret."`
-	} `cmd:"" help:"Remove an owned stale socket only after excluding an active listener."`
+	Prepare workerSocketInput `cmd:"" help:"Remove an owned stale socket only after excluding an active listener."`
+	Probe   workerSocketInput `cmd:"" help:"Check an owned forward with a bounded worker protocol round trip."`
 }
 
-func (command *workerSocketCommands) run(ctx context.Context, output io.Writer) int {
+type workerSocketInput struct {
+	Directory  string `required:"" help:"Absolute private remote task directory."`
+	Task       string `required:"" help:"Task recorded by the primary."`
+	Generation string `required:"" help:"Generation recorded by the primary."`
+	Verifier   string `required:"" help:"SHA-256 verifier of the task secret."`
+}
+
+func (command *workerSocketCommands) run(
+	ctx context.Context,
+	selected string,
+	output io.Writer,
+) int {
 	input := command.Prepare
+	operation, status := remoteworker.PrepareSocket, "prepared"
+	if selected == "worker-socket probe" {
+		input, operation, status = command.Probe, remoteworker.ProbeSocket, "reachable"
+	}
 	owner := remoteworker.SocketOwner{
 		Task: input.Task, Generation: input.Generation, Verifier: input.Verifier,
 	}
-	if err := remoteworker.PrepareSocket(ctx, input.Directory, owner); err != nil {
+	if err := operation(ctx, input.Directory, owner); err != nil {
 		return fail(
 			output,
 			1,
@@ -30,7 +41,7 @@ func (command *workerSocketCommands) run(ctx context.Context, output io.Writer) 
 			"retain the tunnel and task directory; inspect ownership before retrying",
 		)
 	}
-	if _, err := fmt.Fprintln(output, "status: prepared"); err != nil {
+	if _, err := fmt.Fprintf(output, "status: %s\n", status); err != nil {
 		return 1
 	}
 	return 0

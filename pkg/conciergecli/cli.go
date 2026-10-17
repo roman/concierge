@@ -102,8 +102,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	switch selected.Command() {
 	case "worker-secret install", "worker-secret remove":
 		return command.WorkerSecret.run(selected.Command(), stdin, stdout)
-	case "worker-socket prepare":
-		return command.WorkerSocket.run(ctx, stdout)
+	case "worker-socket prepare", "worker-socket probe":
+		return command.WorkerSocket.run(ctx, selected.Command(), stdout)
 	}
 	command.hostExpectations.MessageRoot = command.MessageRoot
 	if strings.HasPrefix(selected.Command(), "supervise ") {
