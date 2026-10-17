@@ -1,7 +1,9 @@
 package taskops
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -40,11 +42,22 @@ func nativeLaunchArguments(
 	arguments []string,
 	generation, protocol string,
 ) ([]string, error) {
-	if strings.TrimSpace(protocol) == "" || strings.IndexFunc(protocol, unicode.IsControl) >= 0 {
-		return nil, fmt.Errorf("worker protocol must be a nonempty shell-safe native argument")
-	}
 	if err := taskmeta.ValidateSpawnGeneration(generation); err != nil {
 		return nil, fmt.Errorf("invalid launch generation: %w", err)
+	}
+	return nativeLaunchWithEnvironment(harness, arguments, protocol, map[string]string{
+		"CONCIERGE_SPAWN_GENERATION": generation,
+	})
+}
+
+func nativeLaunchWithEnvironment(
+	harness string,
+	arguments []string,
+	protocol string,
+	environment map[string]string,
+) ([]string, error) {
+	if strings.TrimSpace(protocol) == "" || strings.IndexFunc(protocol, unicode.IsControl) >= 0 {
+		return nil, fmt.Errorf("worker protocol must be a nonempty shell-safe native argument")
 	}
 	if err := validateNativeLaunch(harness, arguments); err != nil {
 		return nil, err
@@ -52,15 +65,26 @@ func nativeLaunchArguments(
 	var prefix []string
 	switch harness {
 	case "codex":
-		prefix = []string{
-			"-c",
-			fmt.Sprintf("shell_environment_policy.set.CONCIERGE_SPAWN_GENERATION=%q", generation),
+		keys := make([]string, 0, len(environment))
+		for key := range environment {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			prefix = append(
+				prefix,
+				"-c",
+				fmt.Sprintf("shell_environment_policy.set.%s=%q", key, environment[key]),
+			)
 		}
 	case "claude":
-		prefix = []string{
-			"--settings",
-			fmt.Sprintf(`{"env":{"CONCIERGE_SPAWN_GENERATION":%q}}`, generation),
+		settings, err := json.Marshal(struct {
+			Env map[string]string `json:"env"`
+		}{Env: environment})
+		if err != nil {
+			return nil, err
 		}
+		prefix = []string{"--settings", string(settings)}
 	}
 	return append(append(prefix, arguments...), protocol), nil
 }
