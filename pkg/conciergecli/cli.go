@@ -40,6 +40,7 @@ type cli struct {
 		} `cmd:"" help:"Inspect host readiness and verify package and configuration without primary ownership."`
 	} `cmd:"" help:"Run the host service for this state root."`
 	State        stateCommands        `cmd:"" help:"Initialize, back up, and migrate task state with all writers stopped."`
+	WorkerSecret workerSecretCommands `cmd:"" help:"Install or remove a private per-task secret for primary-controlled SSH setup."`
 	Launch       launchCommand        `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
 	Land         landCommand          `cmd:"" help:"Land an accepted worker result using the repository settings."`
 	Project      projectCommands      `cmd:"" help:"Inspect and set operator-owned repository settings."`
@@ -96,6 +97,10 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	}
 	if remoteWorkerMode() {
 		return command.runRemoteWorker(ctx, selected, stdin, stdout)
+	}
+	switch selected.Command() {
+	case "worker-secret install", "worker-secret remove":
+		return command.WorkerSecret.run(selected.Command(), stdin, stdout)
 	}
 	command.hostExpectations.MessageRoot = command.MessageRoot
 	if strings.HasPrefix(selected.Command(), "supervise ") {
