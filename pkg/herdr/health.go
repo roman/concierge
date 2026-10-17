@@ -17,7 +17,7 @@ import (
 var ErrPanePresent = errors.New("Herdr pane is still present")
 
 // Target binds every Herdr health read to one named session and pane.
-type Target struct{ session, paneID string }
+type Target struct{ machine, session, paneID string }
 
 // ParseTarget validates the exact session and pane to inspect.
 func ParseTarget(session, paneID string) (Target, error) {
@@ -118,6 +118,12 @@ func (client Client) sessionRead(
 	target Target,
 	args ...string,
 ) ([]byte, []byte, error) {
+	if target.machine != "" {
+		if client.MachineRunner == nil {
+			return nil, nil, ErrCommand
+		}
+		return client.MachineRunner.RunMachine(ctx, target.machine, args...)
+	}
 	if client.SessionRunner == nil {
 		return nil, nil, ErrCommand
 	}
@@ -152,7 +158,7 @@ func healthBody(stdout, stderr []byte) (json.RawMessage, string) {
 // ConfirmPaneGone requires a structured absence for the exact recorded pane.
 // A stopped server or a missing agent leaves the pane's fate uncertain.
 func (client Client) ConfirmPaneGone(ctx context.Context, target Target) error {
-	if target.session == "" || target.paneID == "" {
+	if (target.session == "" && target.machine == "") || target.paneID == "" {
 		return ErrResponse
 	}
 	stdout, stderr, err := client.sessionRead(ctx, target, "pane", "get", target.paneID)
@@ -207,7 +213,7 @@ func (client Client) ConfirmPaneGone(ctx context.Context, target Target) error {
 // Ambiguous responses stay unreadable unless the named server is stopped.
 func (client Client) Health(ctx context.Context, target Target) HealthStatus {
 	unknown := HealthStatus{Endpoint: Unreadable, Activity: HealthUnknown}
-	if target.session == "" || target.paneID == "" {
+	if (target.session == "" && target.machine == "") || target.paneID == "" {
 		return unknown
 	}
 	stdout, stderr, _ := client.sessionRead(ctx, target, "pane", "get", target.paneID)
@@ -257,6 +263,9 @@ func (client Client) Health(ctx context.Context, target Target) HealthStatus {
 		case processAgent:
 			return HealthStatus{Endpoint: Alive, Activity: activity}
 		case processShell:
+			if target.machine != "" {
+				return unknown
+			}
 			if client.Processes == nil {
 				return client.unreadableOrStopped(ctx, target)
 			}
@@ -348,6 +357,10 @@ func (client Client) processSample(ctx context.Context, target Target) (processC
 }
 
 func (client Client) unreadableOrStopped(ctx context.Context, target Target) HealthStatus {
+	if target.machine != "" {
+		// A stopped remote server cannot establish whether its worker still runs.
+		return HealthStatus{Endpoint: Unreadable, Activity: HealthUnknown}
+	}
 	stdout, stderr, _ := client.sessionRead(ctx, target, "status", "--json")
 	_, code := healthBody(stdout, stderr)
 	if code == "" {

@@ -56,14 +56,19 @@ type Runner = base.Runner
 type Client struct {
 	Runner        Runner
 	SessionRunner SessionRunner
+	MachineRunner MachineRunner
 	Processes     ProcessInspector
 }
 
 func NewClient(executable string) Client {
+	if executable == "" {
+		executable = "herdr"
+	}
 	shared := base.NewClient(executable)
 	return Client{
 		Runner:        shared.Runner,
 		SessionRunner: shared.SessionRunner,
+		MachineRunner: machineCommandRunner{executable: executable},
 		Processes:     psInspector{},
 	}
 }
