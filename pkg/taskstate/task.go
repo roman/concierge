@@ -78,6 +78,7 @@ type RestartPlan struct {
 // Worker preserves the exact launch and endpoint identity for recovery.
 type Worker struct {
 	Access              *workeraccess.Grant `json:"access,omitempty"`
+	TransportGeneration string              `json:"transport_generation,omitempty"`
 	Connections         *Connections        `json:"connections,omitempty"`
 	Machine             string              `json:"machine,omitempty"`
 	Lease               WorktreeLease       `json:"lease,omitzero"`
@@ -473,6 +474,10 @@ func validDefinition(input Definition) bool {
 }
 
 func validWorker(worker Worker) bool {
+	if worker.TransportGeneration != "" &&
+		(worker.Machine == "" || worker.Access == nil || worker.TransportGeneration != worker.Generation) {
+		return false
+	}
 	if remote := worker.Lease.Remote; remote != (RemoteLease{}) &&
 		remote.Machine != worker.Machine {
 		return false

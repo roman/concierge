@@ -219,6 +219,10 @@ func TestHostRemoteActivationRecoversWithoutAnotherSecretOrTunnel(t *testing.T) 
 			if err := fixture.activate(t); err == nil {
 				t.Fatal("confirmed a lost secret-copy response")
 			}
+			pending, err := fixture.server.store.Read(context.Background(), "task-1")
+			if err != nil || pending.Snapshot().Worker.TransportGeneration != "" {
+				t.Fatal("unconfirmed setup recorded a ready transport")
+			}
 		}
 		if err := fixture.activate(t); err != nil {
 			t.Fatal(err)
@@ -246,7 +250,9 @@ func TestHostRemoteActivationRecoversWithoutAnotherSecretOrTunnel(t *testing.T) 
 		if err != nil {
 			t.Fatal(err)
 		}
-		if task.Snapshot().Worker.Access.Verifier != verifier || fixture.ssh.installs != before ||
+		if task.Snapshot().Worker.Access.Verifier != verifier ||
+			task.Snapshot().Worker.TransportGeneration != "gen-1" ||
+			fixture.ssh.installs != before ||
 			fixture.processes.starts.Load() != 1 {
 			t.Fatal("restart replaced the secret or tunnel")
 		}
