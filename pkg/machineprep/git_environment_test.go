@@ -47,7 +47,7 @@ func TestRepositoryReadCheckDoesNotForwardRemoteModelCredentials(t *testing.T) {
 	log := filepath.Join(directory, "environment")
 	script := "#!/bin/sh\nprintf '%s\\n' \"${OPENAI_API_KEY-unset}\" >> " + sshcommand.Quote(
 		log,
-	) + "\nprintf '0000'\n"
+	) + "\nprintf '0000'\ncat >/dev/null\n"
 	if err := os.WriteFile(filepath.Join(directory, "ssh"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
