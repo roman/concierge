@@ -33,6 +33,13 @@ const (
 
 type ReplyConfirmation string
 
+type replyPublicationMode int
+
+const (
+	currentGenerationReply replyPublicationMode = iota
+	trustedOriginalReply
+)
+
 const (
 	ReplyConfirmed    ReplyConfirmation = "confirmed"
 	ReplyUnconfirmed  ReplyConfirmation = "unconfirmed"
@@ -51,7 +58,7 @@ type ReplyDelivery struct {
 func (service *Service) SendReply(
 	ctx context.Context, messageRoot string, input ReplyInput,
 ) (ReplyDelivery, error) {
-	return service.sendReply(ctx, messageRoot, input, nil)
+	return service.sendReply(ctx, messageRoot, input, nil, currentGenerationReply)
 }
 
 func (service *Service) sendReply(
@@ -59,6 +66,7 @@ func (service *Service) sendReply(
 	messageRoot string,
 	input ReplyInput,
 	authorize func(taskstate.Task) error,
+	mode replyPublicationMode,
 ) (ReplyDelivery, error) {
 	if err := taskmeta.ValidateSpawnGeneration(input.Generation); err != nil {
 		return ReplyDelivery{}, err
@@ -117,7 +125,8 @@ func (service *Service) sendReply(
 		)
 		publish := messages.ConfirmExisting
 		bound, bindingErr := assignmentWorker(task.Current())
-		if bindingErr == nil && bound.Generation == input.Generation {
+		if mode == trustedOriginalReply ||
+			bindingErr == nil && bound.Generation == input.Generation {
 			publish = messages.Send
 		}
 		message, err := publish(service.primaryRecipient, key, string(envelope))
@@ -129,7 +138,7 @@ func (service *Service) sendReply(
 		if input.AssignmentID != "" {
 			result.Assignment = ReplyAcknowledgementUnconfirmed
 		}
-		if authorize != nil || input.AssignmentID != "" ||
+		if mode == trustedOriginalReply || authorize != nil || input.AssignmentID != "" ||
 			task.Current().Definition().Kind == "scout" {
 			result.Archive = ReplyUnconfirmed
 			if err := service.archiveReply(message); err != nil {

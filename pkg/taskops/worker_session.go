@@ -115,5 +115,5 @@ func (session *WorkerSession) SendReply(
 	return session.service.sendReply(ctx, session.messages.Root(), ReplyInput{
 		TaskID: session.taskID, Generation: session.generation, Key: key,
 		AssignmentID: assignmentID, Body: body,
-	}, session.authorize(workeraccess.SendReply))
+	}, session.authorize(workeraccess.SendReply), currentGenerationReply)
 }

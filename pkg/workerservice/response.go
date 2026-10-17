@@ -12,6 +12,11 @@ import (
 
 var errInvalidResponse = errors.New("invalid worker response")
 
+// ValidateFor checks typed outcomes before another protocol reuses receipts.
+func (response Response) ValidateFor(request Request) error {
+	return validateResponse(response, request)
+}
+
 func validateResponse(response Response, request Request) error {
 	payloads := 0
 	for _, present := range []bool{len(response.Pending) > 0, response.Bootstrap != nil,

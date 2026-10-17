@@ -55,6 +55,9 @@ func (server *Server) perform(ctx context.Context, request Request) (Response, e
 }
 
 func (server *Server) performOperation(ctx context.Context, request Request) (Response, error) {
+	if request.Operation == ReconcileReply {
+		return server.reconcileReply(ctx, *request.Reconciliation)
+	}
 	if request.Operation == AbandonLaunch {
 		return server.abandonLaunch(ctx, *request.Transition)
 	}

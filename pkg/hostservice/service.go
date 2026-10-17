@@ -16,6 +16,7 @@ import (
 	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/primary"
 	"github.com/roman/concierge/pkg/remoteworker"
+	"github.com/roman/concierge/pkg/replyoutbox"
 	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskops"
@@ -35,17 +36,18 @@ const Intake Operation = "intake"
 
 // Request never carries caller identity or a selectable state root.
 type Request struct {
-	Status       *StatusRequest         `json:"status,omitempty"`
-	Launch       *LaunchRequest         `json:"launch,omitempty"`
-	Supervision  *SupervisionRequest    `json:"supervision,omitempty"`
-	Control      *ControlRequest        `json:"control,omitempty"`
-	Adoption     *taskops.AdoptionInput `json:"adoption,omitempty"`
-	Assignment   *AssignmentRequest     `json:"assignment,omitempty"`
-	Resolve      *ResolveRequest        `json:"resolve,omitempty"`
-	Expectations *Expectations          `json:"expectations,omitempty"`
-	Operation    Operation              `json:"operation"`
-	Intake       *taskstate.Definition  `json:"intake,omitempty"`
-	Transition   *TransitionRequest     `json:"transition,omitempty"`
+	Reconciliation *replyoutbox.Payload   `json:"reconciliation,omitempty"`
+	Status         *StatusRequest         `json:"status,omitempty"`
+	Launch         *LaunchRequest         `json:"launch,omitempty"`
+	Supervision    *SupervisionRequest    `json:"supervision,omitempty"`
+	Control        *ControlRequest        `json:"control,omitempty"`
+	Adoption       *taskops.AdoptionInput `json:"adoption,omitempty"`
+	Assignment     *AssignmentRequest     `json:"assignment,omitempty"`
+	Resolve        *ResolveRequest        `json:"resolve,omitempty"`
+	Expectations   *Expectations          `json:"expectations,omitempty"`
+	Operation      Operation              `json:"operation"`
+	Intake         *taskstate.Definition  `json:"intake,omitempty"`
+	Transition     *TransitionRequest     `json:"transition,omitempty"`
 }
 
 type Outcome string
@@ -72,6 +74,7 @@ type StopResult struct {
 }
 
 type Response struct {
+	Reconciled        *workerservice.Reply `json:"reconciled,omitempty"`
 	RemovedStoreLinks []string             `json:"removed_store_links,omitempty"`
 	Checkpoint        *NativeCheckpoint    `json:"checkpoint,omitempty"`
 	Abandoned         *AbandonedLaunch     `json:"abandoned,omitempty"`
@@ -367,6 +370,9 @@ func Call(ctx context.Context, socket string, request Request) (Response, error)
 }
 
 func validateResponse(response Response, request Request) error {
+	if request.Operation == ReconcileReply || response.Reconciled != nil {
+		return validateReconciliationResponse(response, request)
+	}
 	if response.Checkpoint != nil && (request.Operation != Launch || response.Outcome != Blocked) {
 		return errors.New("host returned unrelated native checkpoint data")
 	}
