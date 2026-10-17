@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/roman/concierge/pkg/replyoutbox"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/workeraccess"
 	"github.com/roman/concierge/pkg/workerservice"
@@ -26,12 +27,18 @@ func remoteCLI(t *testing.T, response workerservice.Response) <-chan workerservi
 	if err := os.Chmod(directory, 0700); err != nil {
 		t.Fatal(err)
 	}
-	_, secret, err := workeraccess.Issue("task-1", "test-generation", workeraccess.Operations())
+	grant, secret, err := workeraccess.Issue("task-1", "test-generation", workeraccess.Operations())
 	if err != nil {
 		t.Fatal(err)
 	}
 	secretFile := filepath.Join(directory, "secret")
 	if err := os.WriteFile(secretFile, secret.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := replyoutbox.InstallContext(directory, replyoutbox.Context{
+		Format: 1, Root: "/primary/state", Recipient: "concierge", Task: grant.Task,
+		Generation: grant.Generation, Verifier: grant.Verifier,
+	}); err != nil {
 		t.Fatal(err)
 	}
 	socket := filepath.Join(directory, "worker.sock")

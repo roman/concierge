@@ -2,6 +2,7 @@ package workerservice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"os"
@@ -130,5 +131,44 @@ func TestWorkerClientRequiresIndependentReplyConfirmations(t *testing.T) {
 	reply.Archive, reply.Assignment = taskops.ReplyUnconfirmed, taskops.ReplyAcknowledgementUnconfirmed
 	if err := validateResponse(Response{Outcome: Uncertain, Reply: &reply, Error: "archive unavailable"}, request); err != nil {
 		t.Fatalf("partial publication confirmation was discarded: %v", err)
+	}
+}
+
+func TestWorkerClientDiscardsInvalidReplyConfirmations(t *testing.T) {
+	directory, err := os.MkdirTemp("", "invalid-reply-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(directory)
+	path := filepath.Join(directory, "worker.sock")
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	id := "k-" + strings.Repeat("a", 64)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		connection, err := listener.AcceptUnix()
+		if err != nil {
+			return
+		}
+		defer connection.Close()
+		var request Request
+		_ = decodeBounded(connection, &request)
+		_ = json.NewEncoder(connection).Encode(Response{Outcome: Completed,
+			Reply: &Reply{MessageID: id, Assignment: taskops.ReplyAcknowledged,
+				Publication: taskops.ReplyConfirmed, Archive: taskops.ReplyConfirmed}})
+	}()
+	response, err := Call(context.Background(), path, Request{Task: "task-1", Generation: "gen-1",
+		Secret: "secret", Operation: workeraccess.SendReply, MessageID: id, Key: "result", Body: "Done"})
+	<-done
+	if !errors.Is(err, ErrOutcomeUnknown) || response.Reply != nil {
+		t.Fatalf(
+			"unvalidated confirmation remained available for persistence: %+v %v",
+			response,
+			err,
+		)
 	}
 }

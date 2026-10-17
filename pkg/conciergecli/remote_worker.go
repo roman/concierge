@@ -88,11 +88,6 @@ func (command *cli) runRemoteWorker(
 			remoteWorkerHelp,
 		)
 	}
-	secret, err := workeraccess.ReadSecretFile(secretFile)
-	if err != nil {
-		return fail(output, 1, err, remoteWorkerHelp)
-	}
-	request.Secret = string(secret)
 	if bodyFile != "" {
 		request.Body, err = readRemoteBody(bodyFile, stdin)
 		if err != nil {
@@ -104,7 +99,25 @@ func (command *cli) runRemoteWorker(
 			)
 		}
 	}
-	response, err := workerservice.Call(ctx, socket, request)
+	var response workerservice.Response
+	retained := ""
+	if request.Operation == workeraccess.SendReply {
+		response, retained, err = sendRemoteReply(ctx, socket, secretFile, request)
+	} else {
+		secret, secretError := workeraccess.ReadSecretFile(secretFile)
+		if secretError != nil {
+			return fail(output, 1, secretError, remoteWorkerHelp)
+		}
+		binding, bindingError := remoteReplyContext(secretFile, task, generation)
+		if bindingError != nil {
+			return fail(output, 1, bindingError, remoteWorkerHelp)
+		}
+		if err := binding.Match(task, generation, secret); err != nil {
+			return fail(output, 1, err, remoteWorkerHelp)
+		}
+		request.Secret = string(secret)
+		response, err = workerservice.Call(ctx, socket, request)
+	}
 	if response.Reply != nil {
 		if _, writeError := fmt.Fprintf(output, "message_id: %s\npublication: %s\narchive: %s\nassignment: %s\n",
 			quote(response.Reply.MessageID), response.Reply.Publication, response.Reply.Archive,
@@ -113,6 +126,11 @@ func (command *cli) runRemoteWorker(
 		}
 	}
 	if err != nil {
+		if retained != "" {
+			if _, writeError := fmt.Fprintf(output, "retained_reply: %s\n", quote(retained)); writeError != nil {
+				return 1
+			}
+		}
 		return fail(
 			output,
 			1,
