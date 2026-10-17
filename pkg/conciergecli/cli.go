@@ -39,25 +39,26 @@ type cli struct {
 			Timeout time.Duration `default:"1s" help:"Maximum time for the readiness request."`
 		} `cmd:"" help:"Inspect host readiness and verify package and configuration without primary ownership."`
 	} `cmd:"" help:"Run the host service for this state root."`
-	State         stateCommands         `cmd:"" help:"Initialize, back up, and migrate task state with all writers stopped."`
-	WorkerSecret  workerSecretCommands  `cmd:"" help:"Install or remove a private per-task secret for primary-controlled SSH setup."`
-	WorkerSocket  workerSocketCommands  `cmd:"" help:"Prepare an owned worker socket for primary-controlled SSH setup."`
-	WorkerContext workerContextCommands `cmd:"" help:"Install immutable reply metadata for primary-controlled SSH setup."`
-	Launch        launchCommand         `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
-	Land          landCommand           `cmd:"" help:"Land an accepted worker result using the repository settings."`
-	Project       projectCommands       `cmd:"" help:"Inspect and set operator-owned repository settings."`
-	Machine       machineCommands       `cmd:"" help:"Check saved remote machines using config/machines.json keyed by saved machine ID."`
-	Operator      operatorCommands      `cmd:"" help:"Record, resolve, list, and remind about open operator actions."`
-	Heartbeat     heartbeatCommands     `cmd:"" help:"Configure and claim periodic primary status updates."`
-	BriefInclude  briefIncludeCommands  `cmd:"" help:"Set or clear operator-owned standing worker instructions."`
-	Supervise     supervisionCommands   `cmd:"" help:"Monitor workers and recover missing agents."`
-	Control       controlCommands       `cmd:"" help:"Inspect and control live Herdr agents."`
-	Primary       primaryCommands       `cmd:"" help:"Manage the root session owner through native process lifecycle hooks."`
-	Root          string                `help:"Absolute Concierge state root; defaults to .concierge in the current directory." env:"CONCIERGE_HOME"`
-	MessageRoot   string                `help:"Absolute message root; defaults to .tincan in the current directory." env:"TINCAN_HOME"`
-	Recipient     string                `help:"Primary inbox recipient." default:"${primaryRecipient}"`
-	Backlog       backlogCommands       `cmd:"" help:"Queue and inspect authoritative task records."`
-	Worker        struct {
+	State          stateCommands          `cmd:"" help:"Initialize, back up, and migrate task state with all writers stopped."`
+	WorkerSecret   workerSecretCommands   `cmd:"" help:"Install or remove a private per-task secret for primary-controlled SSH setup."`
+	WorkerSocket   workerSocketCommands   `cmd:"" help:"Prepare an owned worker socket for primary-controlled SSH setup."`
+	WorkerContext  workerContextCommands  `cmd:"" help:"Install immutable reply metadata for primary-controlled SSH setup."`
+	WorkerWorktree workerWorktreeCommands `cmd:"" help:"Manage an owned remote worktree for primary-controlled SSH setup."`
+	Launch         launchCommand          `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
+	Land           landCommand            `cmd:"" help:"Land an accepted worker result using the repository settings."`
+	Project        projectCommands        `cmd:"" help:"Inspect and set operator-owned repository settings."`
+	Machine        machineCommands        `cmd:"" help:"Check saved remote machines using config/machines.json keyed by saved machine ID."`
+	Operator       operatorCommands       `cmd:"" help:"Record, resolve, list, and remind about open operator actions."`
+	Heartbeat      heartbeatCommands      `cmd:"" help:"Configure and claim periodic primary status updates."`
+	BriefInclude   briefIncludeCommands   `cmd:"" help:"Set or clear operator-owned standing worker instructions."`
+	Supervise      supervisionCommands    `cmd:"" help:"Monitor workers and recover missing agents."`
+	Control        controlCommands        `cmd:"" help:"Inspect and control live Herdr agents."`
+	Primary        primaryCommands        `cmd:"" help:"Manage the root session owner through native process lifecycle hooks."`
+	Root           string                 `help:"Absolute Concierge state root; defaults to .concierge in the current directory." env:"CONCIERGE_HOME"`
+	MessageRoot    string                 `help:"Absolute message root; defaults to .tincan in the current directory." env:"TINCAN_HOME"`
+	Recipient      string                 `help:"Primary inbox recipient." default:"${primaryRecipient}"`
+	Backlog        backlogCommands        `cmd:"" help:"Queue and inspect authoritative task records."`
+	Worker         struct {
 		List struct{} `cmd:"" help:"List confirmed workers and pending adoptions."`
 		Show struct {
 			TaskID string `arg:"" help:"Task ID."`
@@ -108,6 +109,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return command.WorkerSocket.run(ctx, selected.Command(), stdout)
 	case "worker-context install":
 		return command.WorkerContext.run(stdout)
+	case "worker-worktree acquire":
+		return command.WorkerWorktree.run(ctx, stdin, stdout)
 	}
 	command.hostExpectations.MessageRoot = command.MessageRoot
 	if strings.HasPrefix(selected.Command(), "supervise ") {
