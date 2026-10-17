@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -62,8 +60,7 @@ func withWorktreeJournal(
 	if err := syncSocketDirectory(root); err != nil {
 		return err
 	}
-	digest := sha256.Sum256([]byte(request.Location.PrimaryRoot + "\x00" + request.Task))
-	name := hex.EncodeToString(digest[:])
+	name := worktreeOwnershipKey(request)
 	lock, err := lockfile.Open(directory, name+".lock")
 	if err != nil {
 		return err

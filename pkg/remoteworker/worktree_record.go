@@ -1,6 +1,7 @@
 package remoteworker
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"path/filepath"
@@ -23,6 +24,13 @@ type WorktreeRequest struct {
 	Holder     string                `json:"holder"`
 	Branch     string                `json:"branch"`
 	BaseCommit string                `json:"base_commit"`
+}
+
+func worktreeOwnershipKey(request WorktreeRequest) string {
+	digest := sha256.Sum256(
+		[]byte(request.Location.PrimaryRoot + "\x00" + request.Task + "\x00" + request.Holder),
+	)
+	return hex.EncodeToString(digest[:])
 }
 
 func (request WorktreeRequest) Validate() error {

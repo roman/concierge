@@ -185,3 +185,41 @@ func TestRemoteTreehouseIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRemoteWorktreeUsesANewHolderForTheNextLaunch(t *testing.T) {
+	manager, location := remoteProjectFixture(t)
+	bare := filepath.Join(location.Base, "repositories", "repo.git")
+	request := WorktreeRequest{
+		Task:       "task-one",
+		Location:   location,
+		Holder:     "first-launch",
+		Branch:     "task/first",
+		BaseCommit: remoteProjectGit(t, manager.Git.Executable, bare, "rev-parse", "HEAD"),
+	}
+	first, err := manager.Acquire(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remoteProjectGit(t, manager.Git.Executable, first.Project, "worktree", "remove", first.Path)
+	if err := withWorktreeJournal(context.Background(), request, func(journal *worktreeJournal) error {
+		record, err := journal.read()
+		if err != nil {
+			return err
+		}
+		record.Phase = worktreeReturning
+		if err := journal.save(*record); err != nil {
+			return err
+		}
+		record.Phase = worktreeReturned
+		record.Lease.State = taskstate.LeaseReturned
+		return journal.save(*record)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	request.Holder = "next-launch"
+	request.Branch = "task/next"
+	next, err := manager.Acquire(context.Background(), request)
+	if err != nil || next.ID == first.ID || next.Path == first.Path {
+		t.Fatalf("reused or rejected another launch lifetime: %+v %v", next, err)
+	}
+}

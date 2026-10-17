@@ -2,8 +2,6 @@ package remoteworker
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -157,8 +155,7 @@ func (manager Worktrees) acquireWorktree(
 		lease.ID, lease.Path = captured.ID, captured.Path
 		return lease, nil
 	}
-	digest := sha256.Sum256([]byte(location.PrimaryRoot + "\x00" + request.Task))
-	identity := hex.EncodeToString(digest[:])
+	identity := worktreeOwnershipKey(request)
 	lease.ID = "git-" + identity
 	lease.Path = filepath.Join(location.PoolRoot(), "git", identity)
 	if manager.Git.Prepare(ctx, remoteWorktreeSpecification(lease)) != nil {
