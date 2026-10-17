@@ -35,13 +35,17 @@ func (worker *SupervisedWorker) observeRemote(
 		return taskstate.ErrInvalidTransition
 	}
 	herdrError := worker.observeRemoteHerdr(ctx, task, bound)
-	if herdrError != nil && !errors.Is(herdrError, supervise.ErrUnreachable) {
+	if herdrError != nil && !errors.Is(herdrError, supervise.ErrUnreachable) &&
+		!errors.Is(herdrError, supervise.ErrMissing) {
 		return herdrError
 	}
 	if worker.tunnelProbe == nil {
 		return herdrError
 	}
 	if bound.Connections != nil && bound.Connections.Tunnel.Waiting(worker.now()) {
+		if errors.Is(herdrError, supervise.ErrMissing) {
+			return supervise.ErrUnreachable
+		}
 		return errors.Join(herdrError, supervise.ErrUnreachable)
 	}
 	probe, cancel := context.WithTimeout(ctx, remoteProbeTimeout)
@@ -55,6 +59,9 @@ func (worker *SupervisedWorker) observeRemote(
 	}
 	tunnelError = worker.recordConnection(task, taskstate.TunnelChannel, tunnelError)
 	if tunnelError != nil && !errors.Is(tunnelError, supervise.ErrUnreachable) {
+		return tunnelError
+	}
+	if errors.Is(herdrError, supervise.ErrMissing) && tunnelError != nil {
 		return tunnelError
 	}
 	return errors.Join(herdrError, tunnelError)
@@ -79,6 +86,12 @@ func (worker *SupervisedWorker) observeRemoteHerdr(
 	}
 	if errors.Is(err, taskstate.ErrPublicationUnconfirmed) {
 		return err
+	}
+	if errors.Is(err, supervise.ErrMissing) && probe.Err() == nil {
+		if err := worker.recordConnection(task, taskstate.HerdrChannel, nil); err != nil {
+			return err
+		}
+		return supervise.ErrMissing
 	}
 	if err == nil {
 		err = probe.Err()
