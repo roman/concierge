@@ -62,6 +62,9 @@ func TestRepositoryPreparationClonesAndFetchesWithoutMovingTaskBranches(t *testi
 		t.Fatal(err)
 	}
 	repository := filepath.Join(configuration.Base, "repositories", "concierge.git")
+	if head := gitCommand(t, repository, "symbolic-ref", "refs/remotes/origin/HEAD"); head != "refs/remotes/origin/main" {
+		t.Fatalf("prepared repository has no default branch for Treehouse release: %s", head)
+	}
 	first := gitCommand(t, repository, "rev-parse", "refs/remotes/origin/main")
 	gitCommand(t, repository, "branch", "task-branch", first)
 	commitFixture(t, source, "second")

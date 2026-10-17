@@ -102,6 +102,7 @@ while [ "$#" -gt 0 ]; do
         temporary=
     fi
     git -C "$repository" fetch --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+    git -C "$repository" remote set-head origin --auto >&2
 done
 printf 'status: repositories-ready\n'
 `
