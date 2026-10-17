@@ -133,6 +133,10 @@ func (manager *TunnelManager) reconcile(
 			return err
 		}
 		process, err := manager.processes.Start(ctx, record.Spec, manager.localSocket)
+		if errors.Is(err, ErrTunnelNotStarted) {
+			record.Phase = TunnelRetry
+			return errors.Join(tunnelRetry(lease, record, now), err)
+		}
 		if err != nil || process.Validate() != nil {
 			return ErrTunnelOwnership
 		}

@@ -12,9 +12,10 @@ import (
 )
 
 type tunnelProcesses struct {
-	starts atomic.Int32
-	status primary.ProcessStatus
-	err    error
+	starts     atomic.Int32
+	status     primary.ProcessStatus
+	err        error
+	startError error
 }
 
 func (processes *tunnelProcesses) Start(
@@ -23,12 +24,36 @@ func (processes *tunnelProcesses) Start(
 	string,
 ) (primary.ProcessToken, error) {
 	processes.starts.Add(1)
+	if processes.startError != nil {
+		return primary.ProcessToken{}, processes.startError
+	}
 	return primary.ProcessToken{
 		PID:          123,
 		StartTicks:   "100",
 		BootID:       "boot",
 		PIDNamespace: "namespace",
 	}, nil
+}
+
+func TestTunnelManagerRetriesConfirmedStartFailure(t *testing.T) {
+	root, spec := tunnelFixture(t)
+	processes := &tunnelProcesses{status: primary.ProcessRunning,
+		startError: errors.Join(ErrTunnelNotStarted, ErrTunnelUnreachable)}
+	remote := &tunnelRemote{}
+	manager, _ := NewTunnelManager(root, processes, remote)
+	now := time.Now().UTC()
+	manager.Now = func() time.Time { return now }
+	if err := manager.Ensure(context.Background(), spec); !errors.Is(err, ErrTunnelUnreachable) {
+		t.Fatalf("confirmed pre-spawn failure lost retryability: %v", err)
+	}
+	now = now.Add(time.Second)
+	processes.startError = nil
+	if err := manager.Ensure(context.Background(), spec); err != nil {
+		t.Fatalf("confirmed failed start could not recover: %v", err)
+	}
+	if processes.starts.Load() != 2 {
+		t.Fatal("failed start was not retried")
+	}
 }
 
 func (processes *tunnelProcesses) Status(primary.ProcessToken) (primary.ProcessStatus, error) {
