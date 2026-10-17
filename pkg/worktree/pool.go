@@ -18,7 +18,10 @@ type Lease struct {
 	Holder string `json:"lease_holder"`
 }
 
-type PoolClient struct{ Executable string }
+type PoolClient struct {
+	Executable string
+	Root       string
+}
 
 type poolEntry struct {
 	Lease
@@ -52,7 +55,14 @@ func (client PoolClient) run(
 	if !cleanPoolPath(client.Executable) || !cleanPoolPath(project) {
 		return nil, fmt.Errorf("treehouse executable and project must be clean absolute paths")
 	}
-	command := exec.CommandContext(ctx, client.Executable, arguments...)
+	commandArguments := arguments
+	if client.Root != "" {
+		if !cleanPoolPath(client.Root) {
+			return nil, fmt.Errorf("treehouse pool root must be a clean absolute path")
+		}
+		commandArguments = append([]string{"--root", client.Root}, arguments...)
+	}
+	command := exec.CommandContext(ctx, client.Executable, commandArguments...)
 	command.Dir = project
 	output, err := command.Output()
 	if err != nil {
