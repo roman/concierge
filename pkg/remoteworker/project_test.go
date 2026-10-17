@@ -14,11 +14,16 @@ import (
 
 func remoteProjectFixture(t *testing.T) (Worktrees, taskstate.RemoteLease) {
 	t.Helper()
+	return remoteProjectAt(t, t.TempDir())
+}
+
+func remoteProjectAt(t *testing.T, base string) (Worktrees, taskstate.RemoteLease) {
+	t.Helper()
 	git, err := exec.LookPath("git")
 	if err != nil {
 		t.Fatal(err)
 	}
-	base, err := filepath.EvalSymlinks(t.TempDir())
+	base, err = filepath.EvalSymlinks(base)
 	if err != nil {
 		t.Fatal(err)
 	}
