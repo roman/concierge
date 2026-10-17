@@ -18,6 +18,7 @@ type workerWorktreeCommands struct {
 	Acquire       struct{} `cmd:"" help:"Acquire or recover an owned remote lease from a bounded JSON request on stdin."`
 	Import        struct{} `cmd:"" help:"Import a selected base from one bounded JSON header line and a Git bundle on stdin."`
 	PrepareLaunch struct{} `cmd:"" help:"Prepare a private generation directory and inspect the owned worktree environment from bounded JSON stdin."`
+	Return        struct{} `cmd:"" help:"Return a clean, quiet remote lease with the primary's immutable commit proof from bounded JSON stdin."`
 }
 
 func (command *workerWorktreeCommands) run(
@@ -28,6 +29,7 @@ func (command *workerWorktreeCommands) run(
 ) int {
 	var request remoteworker.WorktreeRequest
 	var launchRequest remoteworker.LaunchSiteRequest
+	var returnRequest remoteworker.WorktreeReturnRequest
 	var bundle io.Reader
 	var err error
 	switch selected {
@@ -35,6 +37,8 @@ func (command *workerWorktreeCommands) run(
 		request, bundle, err = remoteworker.DecodeBaseImport(input)
 	case "worker-worktree prepare-launch":
 		launchRequest, err = remoteworker.DecodeLaunchSiteRequest(input)
+	case "worker-worktree return":
+		returnRequest, err = remoteworker.DecodeWorktreeReturnRequest(input)
 	default:
 		request, err = remoteworker.DecodeWorktreeRequest(input)
 	}
@@ -72,6 +76,21 @@ func (command *workerWorktreeCommands) run(
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	manager := remoteworker.Worktrees{Git: worktree.Client{Executable: git}, Treehouse: pool}
+	if selected == "worker-worktree return" {
+		lease, err := manager.Return(ctx, returnRequest)
+		if err != nil {
+			return fail(
+				output,
+				1,
+				err,
+				"retain the original lease and return proof; confirm a clean, quiet checkout before retrying from the primary",
+			)
+		}
+		if json.NewEncoder(output).Encode(lease) != nil {
+			return 1
+		}
+		return 0
+	}
 	if selected == "worker-worktree prepare-launch" {
 		site, err := manager.PrepareLaunchSite(ctx, launchRequest)
 		if err != nil {
