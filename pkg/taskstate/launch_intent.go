@@ -34,6 +34,7 @@ type LaunchEndpoint struct {
 // LaunchIntent keeps initial launch recovery independent of the primary session.
 type LaunchIntent struct {
 	Machine          string          `json:"machine,omitempty"`
+	Remote           RemoteLease     `json:"remote,omitzero"`
 	Lease            WorktreeLease   `json:"lease,omitzero"`
 	LeaseHolder      string          `json:"lease_holder,omitempty"`
 	Generation       string          `json:"generation"`
@@ -262,6 +263,7 @@ func (task Task) AbandonInitialLaunch(generation string) (Task, error) {
 	snapshot.AbandonedLaunches = append(
 		snapshot.AbandonedLaunches,
 		LaunchAbandonment{
+			Remote:      intent.Remote,
 			BaseCommit:  baseCommit,
 			Generation:  generation,
 			Worktree:    intent.Worktree,
@@ -309,6 +311,21 @@ func validLaunchIntent(selected record) bool {
 	}
 	if !validWorktreeLease(intent.Lease) || !optionalLine(intent.LeaseHolder) {
 		return false
+	}
+	if remote := intent.Remote; remote != (RemoteLease{}) {
+		if remote.Validate() != nil || remote.Backend != "" || remote.Machine != intent.Machine ||
+			remote.ProjectPath() != intent.Project {
+			return false
+		}
+		if intent.Lease != (WorktreeLease{}) {
+			captured := intent.Lease.Remote
+			captured.Backend = ""
+			if captured != remote {
+				return false
+			}
+		} else if intent.Worktree != "" {
+			return false
+		}
 	}
 	if remote := intent.Lease.Remote; remote != (RemoteLease{}) &&
 		remote.Machine != intent.Machine {
@@ -407,6 +424,21 @@ func validLaunchIntent(selected record) bool {
 func validLaunchAbandonments(selected record) bool {
 	seen := map[string]bool{}
 	for _, receipt := range selected.AbandonedLaunches {
+		if remote := receipt.Remote; remote != (RemoteLease{}) {
+			if remote.Validate() != nil || remote.Backend != "" ||
+				receipt.Project != remote.ProjectPath() {
+				return false
+			}
+			if receipt.Lease != (WorktreeLease{}) {
+				captured := receipt.Lease.Remote
+				captured.Backend = ""
+				if captured != remote {
+					return false
+				}
+			} else if receipt.Worktree != "" {
+				return false
+			}
+		}
 		if taskmeta.ValidateSpawnGeneration(receipt.Generation) != nil ||
 			seen[receipt.Generation] ||
 			!singleLine(receipt.Branch) ||

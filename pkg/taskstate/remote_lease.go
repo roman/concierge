@@ -77,7 +77,7 @@ func recordUsesRemote(selected record) bool {
 		return true
 	}
 	if intent := selected.LaunchIntent; intent != nil &&
-		(intent.Machine != "" || intent.Lease.Remote != (RemoteLease{})) {
+		(intent.Machine != "" || intent.Remote != (RemoteLease{}) || intent.Lease.Remote != (RemoteLease{})) {
 		return true
 	}
 	if selected.Receipt != nil && selected.Receipt.Lease.Remote != (RemoteLease{}) {
@@ -89,7 +89,7 @@ func recordUsesRemote(selected record) bool {
 		}
 	}
 	for _, abandoned := range selected.AbandonedLaunches {
-		if abandoned.Lease.Remote != (RemoteLease{}) {
+		if abandoned.Remote != (RemoteLease{}) || abandoned.Lease.Remote != (RemoteLease{}) {
 			return true
 		}
 	}
