@@ -37,6 +37,11 @@ func (runner *preparationSSH) Run(
 	arguments []string,
 	input io.Reader,
 ) ([]byte, []byte, error) {
+	if arguments[0] == "-G" {
+		return []byte(
+			"hostname fake-target\nforwardagent no\nforwardx11 no\ntunnel false\n",
+		), nil, nil
+	}
 	command := arguments[len(arguments)-1]
 	if strings.Contains(command, "concierge-client-build") {
 		data, err := io.ReadAll(input)

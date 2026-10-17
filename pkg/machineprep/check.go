@@ -80,6 +80,13 @@ func (checker Checker) Check(
 	if !connected {
 		return report, nil
 	}
+	policy := Check{Name: "ssh-policy", Status: "ready"}
+	if err := sshcommand.CheckNativePolicy(ctx, checker.Runner, machine.Target); err != nil {
+		policy.Status, policy.Step = "missing", err.Error()
+		report.Checks = append(report.Checks, policy)
+		return report, nil
+	}
+	report.Checks = append(report.Checks, policy)
 	osName, osOK := checker.probe(ctx, machine.Target, "uname", "-s")
 	architecture, archOK := checker.probe(ctx, machine.Target, "uname", "-m")
 	platform := Check{Name: "platform", Status: "ready", Detail: osName + " " + architecture}

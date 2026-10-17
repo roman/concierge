@@ -27,6 +27,11 @@ func (runner *probeRunner) Run(
 	if !found || time.Until(deadline) > 15*time.Second || input != nil {
 		runner.t.Fatal("probe must have a deadline and no input")
 	}
+	if arguments[0] == "-G" {
+		return []byte(
+			"hostname fake-target\nforwardagent no\nforwardx11 no\ntunnel false\n",
+		), nil, nil
+	}
 	joined := strings.Join(arguments, " ")
 	for _, option := range []string{"StrictHostKeyChecking=yes", "UpdateHostKeys=no", "ForwardAgent=no", "ClearAllForwardings=yes", "BatchMode=yes"} {
 		if !strings.Contains(joined, option) {
@@ -71,7 +76,7 @@ func TestCheckReportsPrerequisitesWithoutCredentialsOrWrites(t *testing.T) {
 			if err != nil || !report.Ready() {
 				t.Fatalf("report=%+v error=%v", report, err)
 			}
-			if len(report.Checks) != 7 || report.Checks[1].Detail != "Darwin arm64" {
+			if len(report.Checks) != 8 || report.Checks[2].Detail != "Darwin arm64" {
 				t.Fatalf("incomplete report: %+v", report)
 			}
 			for _, command := range runner.commands {
