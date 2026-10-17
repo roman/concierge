@@ -57,6 +57,7 @@ type Client struct {
 	Runner        Runner
 	SessionRunner SessionRunner
 	MachineRunner MachineRunner
+	RemoteChecks  RemoteChecks
 	Processes     ProcessInspector
 }
 
@@ -69,7 +70,11 @@ func NewClient(executable string) Client {
 		Runner:        shared.Runner,
 		SessionRunner: shared.SessionRunner,
 		MachineRunner: machineCommandRunner{executable: executable},
-		Processes:     psInspector{},
+		RemoteChecks: SSHRemoteChecks{
+			Machines: MachineCatalog{Runner: shared.Runner},
+			Runner:   base.NewClient("ssh").Runner,
+		},
+		Processes: psInspector{},
 	}
 }
 
