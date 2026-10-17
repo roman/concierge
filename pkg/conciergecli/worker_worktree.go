@@ -15,8 +15,9 @@ import (
 )
 
 type workerWorktreeCommands struct {
-	Acquire struct{} `cmd:"" help:"Acquire or recover an owned remote lease from a bounded JSON request on stdin."`
-	Import  struct{} `cmd:"" help:"Import a selected base from one bounded JSON header line and a Git bundle on stdin."`
+	Acquire       struct{} `cmd:"" help:"Acquire or recover an owned remote lease from a bounded JSON request on stdin."`
+	Import        struct{} `cmd:"" help:"Import a selected base from one bounded JSON header line and a Git bundle on stdin."`
+	PrepareLaunch struct{} `cmd:"" help:"Prepare a private generation directory and inspect the owned worktree environment from bounded JSON stdin."`
 }
 
 func (command *workerWorktreeCommands) run(
@@ -26,11 +27,15 @@ func (command *workerWorktreeCommands) run(
 	output io.Writer,
 ) int {
 	var request remoteworker.WorktreeRequest
+	var launchRequest remoteworker.LaunchSiteRequest
 	var bundle io.Reader
 	var err error
-	if selected == "worker-worktree import" {
+	switch selected {
+	case "worker-worktree import":
 		request, bundle, err = remoteworker.DecodeBaseImport(input)
-	} else {
+	case "worker-worktree prepare-launch":
+		launchRequest, err = remoteworker.DecodeLaunchSiteRequest(input)
+	default:
 		request, err = remoteworker.DecodeWorktreeRequest(input)
 	}
 	if err != nil {
@@ -67,6 +72,21 @@ func (command *workerWorktreeCommands) run(
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	manager := remoteworker.Worktrees{Git: worktree.Client{Executable: git}, Treehouse: pool}
+	if selected == "worker-worktree prepare-launch" {
+		site, err := manager.PrepareLaunchSite(ctx, launchRequest)
+		if err != nil {
+			return fail(
+				output,
+				1,
+				err,
+				"retain the captured lease and generation; inspect remote directory ownership before retrying",
+			)
+		}
+		if json.NewEncoder(output).Encode(site) != nil {
+			return 1
+		}
+		return 0
+	}
 	if selected == "worker-worktree import" {
 		if err := manager.ImportBase(ctx, request, bundle); err != nil {
 			return fail(

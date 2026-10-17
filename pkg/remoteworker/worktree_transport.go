@@ -17,21 +17,27 @@ type WorktreeTransport struct{ Runner sshcommand.Runner }
 
 // DecodeWorktreeRequest accepts only the bounded native setup protocol.
 func DecodeWorktreeRequest(input io.Reader) (WorktreeRequest, error) {
-	if input == nil {
-		return WorktreeRequest{}, ErrWorktreeOwnership
-	}
-	data, err := io.ReadAll(io.LimitReader(input, (64<<10)+1))
-	if err != nil || len(data) > 64<<10 {
-		return WorktreeRequest{}, ErrWorktreeOwnership
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
 	var request WorktreeRequest
-	if decoder.Decode(&request) != nil || !errors.Is(decoder.Decode(new(any)), io.EOF) ||
-		request.Validate() != nil {
+	if decodeSetupRequest(input, &request) != nil || request.Validate() != nil {
 		return WorktreeRequest{}, ErrWorktreeOwnership
 	}
 	return request, nil
+}
+
+func decodeSetupRequest(input io.Reader, destination any) error {
+	if input == nil {
+		return ErrWorktreeOwnership
+	}
+	data, err := io.ReadAll(io.LimitReader(input, (64<<10)+1))
+	if err != nil || len(data) > 64<<10 {
+		return ErrWorktreeOwnership
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(destination) != nil || !errors.Is(decoder.Decode(new(any)), io.EOF) {
+		return ErrWorktreeOwnership
+	}
+	return nil
 }
 
 func (transport WorktreeTransport) Acquire(

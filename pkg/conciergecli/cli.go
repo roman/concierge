@@ -109,7 +109,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return command.WorkerSocket.run(ctx, selected.Command(), stdout)
 	case "worker-context install":
 		return command.WorkerContext.run(stdout)
-	case "worker-worktree acquire", "worker-worktree import":
+	case "worker-worktree acquire", "worker-worktree import", "worker-worktree prepare-launch":
 		return command.WorkerWorktree.run(ctx, selected.Command(), stdin, stdout)
 	}
 	command.hostExpectations.MessageRoot = command.MessageRoot
