@@ -18,7 +18,10 @@ func (resolver preparationMachines) Resolve(context.Context, string) (herdr.Save
 	return resolver.machine, nil
 }
 
-type preparationSSH struct{ calls int }
+type preparationSSH struct {
+	calls        int
+	clientCommit string
+}
 
 func (runner *preparationSSH) Run(
 	_ context.Context,
@@ -27,6 +30,9 @@ func (runner *preparationSSH) Run(
 ) ([]byte, []byte, error) {
 	runner.calls++
 	command := arguments[len(arguments)-1]
+	if strings.Contains(command, "concierge-client-status") {
+		return []byte(runner.clientCommit), nil, nil
+	}
 	if strings.Contains(command, "'uname' '-s'") {
 		return []byte("Darwin"), nil, nil
 	}
@@ -112,6 +118,42 @@ func TestMachineCheckAndStatusHelp(t *testing.T) {
 				"machines.json",
 			) || !strings.Contains(output.String(), `"repositories"`) {
 			t.Fatalf("code %d: %s", code, &output)
+		}
+	}
+}
+
+func TestMachineStatusRequiresAConfirmedPreparedClient(t *testing.T) {
+	for _, commit := range []string{"", strings.Repeat("a", 40)} {
+		root := t.TempDir()
+		if err := os.Mkdir(filepath.Join(root, "config"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		configuration := `{"machine-id":{"target":"baker","base":"/remote/base","agent":"codex","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"}]}}`
+		if err := os.WriteFile(filepath.Join(root, "config", "machines.json"), []byte(configuration), 0600); err != nil {
+			t.Fatal(err)
+		}
+		machine := herdr.SavedMachine{
+			ID:      "machine-id",
+			Label:   "baker",
+			Target:  "baker",
+			Session: "default",
+			Enabled: true,
+		}
+		var output bytes.Buffer
+		code := runMachineStatus(
+			context.Background(),
+			root,
+			"baker",
+			preparationMachines{machine},
+			&preparationSSH{clientCommit: commit},
+			&output,
+		)
+		if commit == "" {
+			if code == 0 || !strings.Contains(output.String(), "status: unconfirmed") {
+				t.Fatalf("reported an unprepared client ready: %s", &output)
+			}
+		} else if code != 0 || !strings.Contains(output.String(), "client_commit: "+quote(commit)) {
+			t.Fatalf("prepared status failed: %s", &output)
 		}
 	}
 }

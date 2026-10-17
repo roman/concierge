@@ -33,7 +33,7 @@ Examples:
 type machineCommands struct {
 	Herdr   string                `default:"herdr" help:"Executable that owns the saved machine catalog."`
 	Check   machineLabelCommand   `cmd:"" help:"Check SSH trust, platform, tools, repository access, and agent login without changes."`
-	Status  machineLabelCommand   `cmd:"" help:"Read fresh prerequisite status for a configured saved machine."`
+	Status  machineLabelCommand   `cmd:"" help:"Read fresh prerequisites and confirm the built client on a configured saved machine."`
 	Prepare machinePrepareCommand `cmd:"" help:"Prepare private repositories and build the committed client through the primary host."`
 }
 
@@ -42,19 +42,60 @@ func (commands machineCommands) run(
 	root, selected string,
 	output io.Writer,
 ) int {
-	label := commands.Check.Label
-	if selected == "machine status <label>" {
-		label = commands.Status.Label
-	}
 	catalog := herdr.MachineCatalog{Runner: herdr.NewClient(commands.Herdr).Runner}
-	return runMachineCheck(ctx, root, label, catalog, sshcommand.SystemRunner{}, output)
+	if selected == "machine status <label>" {
+		return runMachineStatus(
+			ctx,
+			root,
+			commands.Status.Label,
+			catalog,
+			sshcommand.SystemRunner{},
+			output,
+		)
+	}
+	return runMachineCheck(
+		ctx,
+		root,
+		commands.Check.Label,
+		catalog,
+		sshcommand.SystemRunner{},
+		output,
+	)
 }
+
+type machineInspection int
+
+const (
+	inspectPrerequisites machineInspection = iota
+	inspectPreparedClient
+)
 
 func runMachineCheck(
 	ctx context.Context,
 	root, label string,
 	machines herdr.MachineResolver,
 	runner sshcommand.Runner,
+	output io.Writer,
+) int {
+	return inspectMachine(ctx, root, label, machines, runner, inspectPrerequisites, output)
+}
+
+func runMachineStatus(
+	ctx context.Context,
+	root, label string,
+	machines herdr.MachineResolver,
+	runner sshcommand.Runner,
+	output io.Writer,
+) int {
+	return inspectMachine(ctx, root, label, machines, runner, inspectPreparedClient, output)
+}
+
+func inspectMachine(
+	ctx context.Context,
+	root, label string,
+	machines herdr.MachineResolver,
+	runner sshcommand.Runner,
+	inspection machineInspection,
 	output io.Writer,
 ) int {
 	machine, err := machines.Resolve(ctx, label)
@@ -85,11 +126,40 @@ func runMachineCheck(
 		return fail(output, 1, err, "correct "+configurationPath+" and retry")
 	}
 	status := "missing"
+	var client machineprep.Client
+	if inspection == inspectPreparedClient {
+		clientCheck := machineprep.Check{
+			Name:   "client",
+			Status: "unconfirmed",
+			Step: "Restore SSH access and run concierge machine prepare " + quote(
+				label,
+			) + " through the primary.",
+		}
+		if len(report.Checks) > 0 && report.Checks[0].Status == "ready" {
+			client, err = (machineprep.Preparer{Runner: runner}).ReadClient(
+				ctx,
+				machine,
+				configuration,
+			)
+			if err == nil {
+				clientCheck.Status, clientCheck.Step = "ready", ""
+			}
+		}
+		report.Checks = append(report.Checks, clientCheck)
+		if clientCheck.Status == "unconfirmed" {
+			status = "unconfirmed"
+		}
+	}
 	if report.Ready() {
 		status = "ready"
 	}
 	if _, err = fmt.Fprintf(output, "machine: %s\nmachine_id: %s\nbase: %s\nstatus: %s\nchecks: %d\n", quote(label), quote(machine.ID), quote(configuration.Base), status, len(report.Checks)); err != nil {
 		return 1
+	}
+	if client.Commit != "" {
+		if _, err := fmt.Fprintf(output, "client_commit: %s\nclient: %s\n", quote(client.Commit), quote(client.Executable)); err != nil {
+			return 1
+		}
 	}
 	for _, check := range report.Checks {
 		if _, err = fmt.Fprintf(output, "check: %s\n  status: %s\n", quote(check.Name), check.Status); err != nil {

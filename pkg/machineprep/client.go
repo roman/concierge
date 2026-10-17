@@ -87,8 +87,10 @@ flake=$4
 [ "$(cat "$base/machine-owner")" = "$identity" ] || exit 1
 mkdir "$base/.prepare-lock" || exit 1
 bundle=
+ready=
 cleanup() {
     if [ -n "$bundle" ]; then rm -f "$bundle"; fi
+    if [ -n "$ready" ]; then rm -f "$ready"; fi
     rmdir "$base/.prepare-lock"
 }
 trap cleanup EXIT
@@ -121,5 +123,11 @@ if [ -e "$client" ] && [ ! -L "$client" ]; then exit 1; fi
 nix build --extra-experimental-features 'nix-command flakes' --no-write-lock-file --out-link "$client" "$flake" >&2
 [ -x "$client/bin/concierge" ] || exit 1
 "$client/bin/concierge" --version >/dev/null
+[ ! -L "$base/client-commit" ] || exit 1
+if [ -e "$base/client-commit" ]; then [ -f "$base/client-commit" ] || exit 1; fi
+ready=$(mktemp "$base/.client-ready.XXXXXX")
+printf '%s\n' "$commit" > "$ready"
+mv "$ready" "$base/client-commit"
+ready=
 printf 'status: client-ready\n'
 `

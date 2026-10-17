@@ -88,6 +88,10 @@ if [ ! -L "$output" ]; then ln -s "$FAKE_CLIENT" "$output"; fi
 			) {
 			t.Fatalf("wrong client: %+v", client)
 		}
+		prepared, err := preparer.ReadClient(context.Background(), testMachine(), configuration)
+		if err != nil || prepared != client {
+			t.Fatalf("successful build did not publish prepared client: %+v %v", prepared, err)
+		}
 	}
 	arguments, err := os.ReadFile(nixLog)
 	if err != nil || !strings.Contains(string(arguments), "rev="+commit) ||
