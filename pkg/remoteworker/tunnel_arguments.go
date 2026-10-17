@@ -50,6 +50,7 @@ func tunnelOptions(spec TunnelSpec, localSocket string) ([]string, error) {
 		"-S", "none", "-o", "ControlMaster=no", "-o", "ControlPersist=no",
 		"-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
 		"-o", "ForwardAgent=no", "-o", "ForwardX11=no", "-o", "ForwardX11Trusted=no",
+		"-o", "SetEnv=CONCIERGE_SSH_TRANSPORT=1",
 		"-o", "StrictHostKeyChecking=yes", "-o", "UpdateHostKeys=no",
 		"-o", "ForkAfterAuthentication=no", "-o", "StdinNull=yes",
 		"-o", "PermitLocalCommand=no", "-o", "StreamLocalBindUnlink=no",

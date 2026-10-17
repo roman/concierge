@@ -70,6 +70,8 @@ func TestSSHRemoteChecksUseFixedCommandsAndDeadline(t *testing.T) {
 				"ForwardX11=no",
 				"-o",
 				"ForwardX11Trusted=no",
+				"-o",
+				"SetEnv=CONCIERGE_SSH_TRANSPORT=1",
 				"--",
 				"user@baker",
 				test.command,

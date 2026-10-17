@@ -43,6 +43,7 @@ func BatchArguments(target string, command ...string) ([]string, error) {
 		"-S", "none", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
 		"-o", "ForwardAgent=no", "-o", "ClearAllForwardings=yes",
 		"-o", "ForwardX11=no", "-o", "ForwardX11Trusted=no",
+		"-o", "SetEnv=CONCIERGE_SSH_TRANSPORT=1",
 		"--", target, strings.Join(quoted, " "),
 	}, nil
 }

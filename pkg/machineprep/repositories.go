@@ -82,7 +82,7 @@ for directory in "$base/tasks" "$base/repositories"; do
     if [ -e "$directory" ]; then [ -d "$directory" ] || exit 1; else mkdir "$directory"; fi
 done
 export GIT_TERMINAL_PROMPT=0
-export GIT_SSH_COMMAND='ssh -S none -oBatchMode=yes -oStrictHostKeyChecking=yes -oUpdateHostKeys=no -oForwardAgent=no -oClearAllForwardings=yes'
+export GIT_SSH_COMMAND='` + repositorySSHCommand + `'
 while [ "$#" -gt 0 ]; do
     name=$1
     source=$2

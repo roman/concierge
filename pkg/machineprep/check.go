@@ -125,7 +125,7 @@ func (checker Checker) Check(
 			)+" and verify its host key.",
 			"env",
 			"GIT_TERMINAL_PROMPT=0",
-			"GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=yes -oUpdateHostKeys=no -oForwardAgent=no -oClearAllForwardings=yes",
+			"GIT_SSH_COMMAND="+repositorySSHCommand,
 			"git",
 			"ls-remote",
 			"--",

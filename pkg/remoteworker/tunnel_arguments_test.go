@@ -20,6 +20,7 @@ func TestTunnelArgumentsForwardOnlyWorkerSocket(t *testing.T) {
 		t.Fatalf("wrong tunnel command: %q", arguments)
 	}
 	for _, required := range []string{"BatchMode=yes", "ForwardAgent=no", "ClearAllForwardings=no",
+		"SetEnv=CONCIERGE_SSH_TRANSPORT=1",
 		"StrictHostKeyChecking=yes", "UpdateHostKeys=no", "ExitOnForwardFailure=yes",
 		"ControlMaster=no", "ForkAfterAuthentication=no", "StreamLocalBindUnlink=no"} {
 		if !slices.Contains(arguments, required) {
