@@ -93,6 +93,13 @@ func (client PoolClient) entries(ctx context.Context, project string) ([]poolEnt
 		if !cleanPoolPath(entry.Path) || paths[entry.Path] || entry.Processes == nil {
 			return nil, fmt.Errorf("%w: incomplete or duplicate treehouse inventory", ErrIdentity)
 		}
+		if client.Root != "" &&
+			!strings.HasPrefix(entry.Path, client.Root+string(filepath.Separator)) {
+			return nil, fmt.Errorf(
+				"%w: worktree inventory escapes the explicit pool root",
+				ErrIdentity,
+			)
+		}
 		paths[entry.Path] = true
 	}
 	return entries, nil
@@ -131,16 +138,22 @@ func (client PoolClient) Acquire(ctx context.Context, project, holder string) (L
 	if !poolText(holder) {
 		return Lease{}, ErrIdentity
 	}
-	output, err := client.run(
-		ctx,
-		project,
+	arguments := []string{
 		"get",
 		"--lease",
 		"--json",
 		"--no-fetch",
 		"--lease-holder",
 		holder,
-	)
+	}
+	if client.Root != "" {
+		if _, err := client.entries(ctx, project); err != nil {
+			return Lease{}, err
+		}
+		// Repository configuration and older slots can specify paths outside the pool.
+		arguments = append(arguments, "--worktree-path", "{pool}/{slot}/{repo}")
+	}
+	output, err := client.run(ctx, project, arguments...)
 	if err != nil {
 		return Lease{}, err
 	}
