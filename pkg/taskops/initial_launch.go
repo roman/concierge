@@ -9,6 +9,7 @@ import (
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/hostactivity"
+	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/worktree"
@@ -65,7 +66,14 @@ func (service *Service) ContinueInitialLaunch(
 		return taskstate.Task{}, err
 	}
 	if intent.Machine != "" {
-		return taskstate.Task{}, ErrRemoteLaunchUnavailable
+		if config.Remote == nil || config.Remote.Activate == nil {
+			return taskstate.Task{}, ErrRemoteLaunchUnavailable
+		}
+		if err := service.validateRemoteInitialLaunch(intent, config); err != nil {
+			return taskstate.Task{}, err
+		}
+	} else if config.Remote != nil {
+		return taskstate.Task{}, ErrInitialLaunchIdentity
 	}
 	if err := ValidateInitialLaunch(intent.Harness, intent.AgentArgs, intent.Body); err != nil {
 		return taskstate.Task{}, err
@@ -75,11 +83,7 @@ func (service *Service) ContinueInitialLaunch(
 			return taskstate.Task{}, err
 		}
 	}
-	protocol, err := service.workerProtocol(taskID, config.MessageRoot)
-	if err != nil {
-		return taskstate.Task{}, err
-	}
-	arguments, err := nativeLaunchArguments(intent.Harness, intent.AgentArgs, generation, protocol)
+	arguments, err := service.initialLaunchArguments(taskID, intent, config)
 	if err != nil {
 		return taskstate.Task{}, err
 	}
@@ -87,7 +91,7 @@ func (service *Service) ContinueInitialLaunch(
 	if err != nil {
 		return taskstate.Task{}, err
 	}
-	if err := checkInitialLease(ctx, intent, config.Pool); err != nil {
+	if err := service.checkLaunchLease(ctx, taskID, intent, config); err != nil {
 		return taskstate.Task{}, err
 	}
 	if err := service.prepareInitialPane(ctx, taskID, intent, config, client); err != nil {
@@ -97,10 +101,10 @@ func (service *Service) ContinueInitialLaunch(
 	if err != nil {
 		return taskstate.Task{}, err
 	}
-	if err := checkInitialLease(ctx, intent, config.Pool); err != nil {
+	if err := service.checkLaunchLease(ctx, taskID, intent, config); err != nil {
 		return taskstate.Task{}, err
 	}
-	if err := service.prepareInitialAgent(ctx, taskID, task.Definition().DisplayName(), intent, config.Git, client, arguments); err != nil {
+	if err := service.prepareInitialAgent(ctx, taskID, task.Definition().DisplayName(), intent, config, client, arguments); err != nil {
 		if errors.Is(err, herdr.ErrAgentNotReady) {
 			agent, inspectionErr := client.Get(ctx, intent.Name)
 			if inspectionErr == nil && agent.PaneID == intent.Endpoint.Pane &&
@@ -141,7 +145,7 @@ func (service *Service) ContinueInitialLaunch(
 		return taskstate.Task{}, err
 	}
 	resume = append(slices.Clone(intent.AgentArgs), resume...)
-	if err := config.Git.VerifyIdentity(ctx, launchWorktree(intent)); err != nil {
+	if err := service.verifyInitialWorktree(ctx, taskID, intent, config); err != nil {
 		return taskstate.Task{}, err
 	}
 	if _, err := service.store.Update(ctx, taskID, func(task taskstate.Task) (taskstate.Task, error) {
@@ -152,7 +156,7 @@ func (service *Service) ContinueInitialLaunch(
 	if err := service.checkInitialLaunchActive(ctx, taskID, generation); err != nil {
 		return taskstate.Task{}, err
 	}
-	if err := checkInitialLease(ctx, intent, config.Pool); err != nil {
+	if err := service.checkLaunchLease(ctx, taskID, intent, config); err != nil {
 		return taskstate.Task{}, err
 	}
 	adopted, err := service.AdoptWorker(ctx, AdoptionInput{
@@ -169,6 +173,9 @@ func (service *Service) ContinueInitialLaunch(
 		}
 	}
 	if err := service.checkInitialLaunchActive(ctx, taskID, generation); err != nil {
+		return taskstate.Task{}, err
+	}
+	if err := service.activateInitialRemote(ctx, taskID, intent, config); err != nil {
 		return taskstate.Task{}, err
 	}
 	if _, err := service.SendAssignment(ctx, config.MessageRoot, taskID, "initial-launch", intent.Body, config.Herdr); err != nil {
@@ -234,7 +241,11 @@ func (service *Service) prepareInitialPane(
 		intent.Phase = taskstate.LaunchPreparing
 	}
 	var leaseErr error
-	intent, leaseErr = service.prepareInitialLease(ctx, taskID, intent, config.Pool)
+	if intent.Machine != "" {
+		intent, leaseErr = service.prepareRemoteInitialLease(ctx, taskID, intent, config)
+	} else {
+		intent, leaseErr = service.prepareInitialLease(ctx, taskID, intent, config.Pool)
+	}
 	if leaseErr != nil {
 		return leaseErr
 	}
@@ -243,14 +254,7 @@ func (service *Service) prepareInitialPane(
 		if err := service.checkInitialLaunchActive(ctx, taskID, generation); err != nil {
 			return err
 		}
-		if intent.Lease != (taskstate.WorktreeLease{}) {
-			if err := checkInitialLease(ctx, intent, config.Pool); err != nil {
-				return err
-			}
-			if err := config.Git.PrepareLeased(ctx, launchWorktree(intent)); err != nil {
-				return err
-			}
-		} else if err := config.Git.Prepare(ctx, launchWorktree(intent)); err != nil {
+		if err := service.prepareInitialWorktree(ctx, taskID, intent, config); err != nil {
 			return err
 		}
 		if _, err := service.store.Update(ctx, taskID, func(task taskstate.Task) (taskstate.Task, error) {
@@ -262,11 +266,9 @@ func (service *Service) prepareInitialPane(
 			return err
 		}
 		var err error
-		environment := []string{
-			"CONCIERGE_WORKER=1",
-			"CONCIERGE_HOME=" + service.root,
-			"TINCAN_HOME=" + config.MessageRoot,
-			"CONCIERGE_TASK_ID=" + taskID,
+		environment, err := service.initialPaneEnvironment(taskID, intent, config)
+		if err != nil {
+			return err
 		}
 		if intent.Workspace == "" {
 			details, err = client.CreateWorkspace(
@@ -296,7 +298,7 @@ func (service *Service) prepareInitialPane(
 	} else {
 		return nil
 	}
-	if err := verifyWorktree(intent.Worktree, details.ForegroundDirectory); err != nil {
+	if err := verifyEndpointWorktree(intent.Machine, intent.Worktree, details.ForegroundDirectory); err != nil {
 		return fmt.Errorf("%w: %w", ErrInitialLaunchIdentity, err)
 	}
 	endpoint := taskstate.LaunchEndpoint{
@@ -313,7 +315,7 @@ func (service *Service) prepareInitialAgent(
 	ctx context.Context,
 	taskID, displayName string,
 	intent *taskstate.LaunchIntent,
-	git worktree.Client,
+	config InitialLaunchConfig,
 	client herdr.Client,
 	arguments []string,
 ) error {
@@ -327,7 +329,7 @@ func (service *Service) prepareInitialAgent(
 			ErrInitialLaunchIdentity,
 		)
 	}
-	if err := verifyWorktree(intent.Worktree, details.ForegroundDirectory); err != nil {
+	if err := verifyEndpointWorktree(intent.Machine, intent.Worktree, details.ForegroundDirectory); err != nil {
 		return fmt.Errorf("%w: %w", ErrInitialLaunchIdentity, err)
 	}
 	if err := client.ReportPaneTitle(ctx, intent.Endpoint.Pane, displayName); err != nil {
@@ -339,7 +341,22 @@ func (service *Service) prepareInitialAgent(
 	if err := service.checkInitialLaunchActive(ctx, taskID, intent.Generation); err != nil {
 		return err
 	}
-	if err := git.Prepare(ctx, launchWorktree(intent)); err != nil {
+	var remoteEnvironment herdr.WorktreeEnvironment
+	if intent.Machine != "" {
+		request := remoteworker.LaunchSiteRequest{
+			Worktree:   remoteInitialWorktreeRequest(taskID, intent),
+			Lease:      intent.Lease,
+			Generation: intent.Generation,
+		}
+		site, err := config.Remote.Worktrees.PrepareLaunchSite(ctx, config.Remote.Profile, request)
+		if err != nil {
+			return err
+		}
+		if err := site.Validate(request); err != nil {
+			return err
+		}
+		remoteEnvironment = site.Environment
+	} else if err := config.Git.Prepare(ctx, launchWorktree(intent)); err != nil {
 		return err
 	}
 	if _, err := client.Get(ctx, intent.Name); err == nil {
@@ -354,6 +371,17 @@ func (service *Service) prepareInitialAgent(
 	}
 	if err := service.checkInitialLaunchActive(ctx, taskID, intent.Generation); err != nil {
 		return err
+	}
+	if intent.Machine != "" {
+		return client.StartRemoteInWorktree(
+			ctx,
+			intent.Endpoint.Pane,
+			intent.Name,
+			intent.Harness,
+			intent.Worktree,
+			arguments,
+			remoteEnvironment,
+		)
 	}
 	return client.StartInWorktree(
 		ctx,

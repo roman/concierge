@@ -60,11 +60,16 @@ func (remote *initialRemoteWorktrees) Acquire(
 }
 
 func (remote *initialRemoteWorktrees) PrepareLaunchSite(
-	context.Context,
-	herdr.SavedMachine,
-	remoteworker.LaunchSiteRequest,
+	_ context.Context,
+	_ herdr.SavedMachine,
+	request remoteworker.LaunchSiteRequest,
 ) (remoteworker.LaunchSite, error) {
-	return remoteworker.LaunchSite{}, errors.New("site is outside this test")
+	tools, err := request.Tools()
+	return remoteworker.LaunchSite{
+		Lease:       request.Lease,
+		Tools:       tools,
+		Environment: herdr.PlainWorktree,
+	}, err
 }
 
 func remoteInitialLeaseFixture(
