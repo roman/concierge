@@ -127,6 +127,9 @@ func (journal *worktreeJournal) save(record worktreeRecord) error {
 			return ErrWorktreeOwnership
 		}
 	} else {
+		if previous.ReturnProof != (WorktreeReturnProof{}) && previous.ReturnProof != record.ReturnProof {
+			return ErrWorktreeOwnership
+		}
 		if record.Backend != previous.Backend || !nextWorktreePhase(previous.Phase, record.Phase) {
 			return ErrWorktreeOwnership
 		}

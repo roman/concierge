@@ -180,8 +180,23 @@ func TestRemoteTreehouseIntegration(t *testing.T) {
 	if err := os.Remove(file); err != nil {
 		t.Fatal(err)
 	}
+	manager.CheckQuiet = func(context.Context, string) error { return nil }
+	returned, err := manager.Return(context.Background(), WorktreeReturnRequest{
+		Worktree: request, Lease: lease,
+		Proof: WorktreeReturnProof{Outcome: WorktreeUnchanged, Commit: base},
+	})
+	if err != nil || returned.State != taskstate.LeaseReturned {
+		t.Fatalf("native Treehouse return: %+v %v", returned, err)
+	}
 	pool := worktree.PoolClient{Executable: executable, Root: location.PoolRoot()}
-	if err := pool.Return(context.Background(), lease.Project, worktree.Lease{ID: lease.ID, Holder: lease.Holder, Path: lease.Path}); err != nil {
+	if _, held, err := pool.Find(context.Background(), lease.Project, lease.Holder); err != nil ||
+		held {
+		t.Fatalf("native return retained the pool lease: %v", err)
+	}
+	if _, err := manager.Return(context.Background(), WorktreeReturnRequest{
+		Worktree: request, Lease: lease,
+		Proof: WorktreeReturnProof{Outcome: WorktreeUnchanged, Commit: base},
+	}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -200,19 +215,10 @@ func TestRemoteWorktreeUsesANewHolderForTheNextLaunch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	remoteProjectGit(t, manager.Git.Executable, first.Project, "worktree", "remove", first.Path)
-	if err := withWorktreeJournal(context.Background(), request, func(journal *worktreeJournal) error {
-		record, err := journal.read()
-		if err != nil {
-			return err
-		}
-		record.Phase = worktreeReturning
-		if err := journal.save(*record); err != nil {
-			return err
-		}
-		record.Phase = worktreeReturned
-		record.Lease.State = taskstate.LeaseReturned
-		return journal.save(*record)
+	manager.CheckQuiet = func(context.Context, string) error { return nil }
+	if _, err := manager.Return(context.Background(), WorktreeReturnRequest{
+		Worktree: request, Lease: first,
+		Proof: WorktreeReturnProof{Outcome: WorktreeUnchanged, Commit: request.BaseCommit},
 	}); err != nil {
 		t.Fatal(err)
 	}

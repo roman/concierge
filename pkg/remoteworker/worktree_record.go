@@ -70,16 +70,24 @@ const (
 )
 
 type worktreeRecord struct {
-	Format  int                          `json:"format"`
-	Request WorktreeRequest              `json:"request"`
-	Backend taskstate.RemoteLeaseBackend `json:"backend"`
-	Phase   worktreePhase                `json:"phase"`
-	Lease   taskstate.WorktreeLease      `json:"lease"`
+	Format      int                          `json:"format"`
+	Request     WorktreeRequest              `json:"request"`
+	Backend     taskstate.RemoteLeaseBackend `json:"backend"`
+	Phase       worktreePhase                `json:"phase"`
+	Lease       taskstate.WorktreeLease      `json:"lease"`
+	ReturnProof WorktreeReturnProof          `json:"return_proof,omitzero"`
 }
 
 func (record worktreeRecord) validate() error {
 	if record.Format != 1 || record.Request.Validate() != nil ||
 		(record.Backend != taskstate.RemoteGit && record.Backend != taskstate.RemoteTreehouse) {
+		return ErrWorktreeOwnership
+	}
+	if record.Phase == worktreeReturning || record.Phase == worktreeReturned {
+		if record.ReturnProof.validate(record.Request) != nil {
+			return ErrWorktreeOwnership
+		}
+	} else if record.ReturnProof != (WorktreeReturnProof{}) {
 		return ErrWorktreeOwnership
 	}
 	switch record.Phase {

@@ -21,8 +21,9 @@ var ErrProjectOwnership = errors.New(
 )
 
 type Worktrees struct {
-	Git       worktree.Client
-	Treehouse string
+	Git        worktree.Client
+	Treehouse  string
+	CheckQuiet func(context.Context, string) error
 }
 
 // PrepareProject supplies a working-directory checkout for Treehouse's repository discovery.
