@@ -17,20 +17,29 @@ import (
 // WorktreeStartupTimeout includes cold devshell evaluation before native startup.
 const WorktreeStartupTimeout = 2 * time.Minute
 
-func worktreeEnvironment(ctx context.Context, worktree string) ([]string, error) {
+type WorktreeEnvironment string
+
+const (
+	PlainWorktree  WorktreeEnvironment = "plain"
+	DirenvWorktree WorktreeEnvironment = "direnv"
+	NixWorktree    WorktreeEnvironment = "nix"
+)
+
+// DetectWorktreeEnvironment runs on the machine that owns the checkout.
+func DetectWorktreeEnvironment(ctx context.Context, worktree string) (WorktreeEnvironment, error) {
 	if _, err := os.Stat(filepath.Join(worktree, ".envrc")); err == nil {
-		return []string{"direnv", "exec", worktree}, nil
+		return DirenvWorktree, nil
 	} else if !os.IsNotExist(err) {
-		return nil, err
+		return "", err
 	}
 	if _, err := os.Stat(filepath.Join(worktree, "flake.nix")); os.IsNotExist(err) {
-		return nil, nil
+		return PlainWorktree, nil
 	} else if err != nil {
-		return nil, err
+		return "", err
 	}
 	architecture := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[runtime.GOARCH]
 	if architecture == "" || (runtime.GOOS != "linux" && runtime.GOOS != "darwin") {
-		return nil, fmt.Errorf("unsupported Nix platform %s/%s", runtime.GOOS, runtime.GOARCH)
+		return "", fmt.Errorf("unsupported Nix platform %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
 	path := strings.ReplaceAll(strconv.Quote(worktree), "${", `\${`)
 	expression := fmt.Sprintf(
@@ -42,16 +51,59 @@ func worktreeEnvironment(ctx context.Context, worktree string) ([]string, error)
 	output, err := exec.CommandContext(ctx, "nix", "eval", "--json", "--impure", "--expr", expression).
 		Output()
 	if err != nil {
-		return nil, fmt.Errorf("inspect worktree devshell: %w", err)
+		return "", fmt.Errorf("inspect worktree devshell: %w", err)
 	}
 	var available bool
 	if err := json.Unmarshal(output, &available); err != nil {
-		return nil, fmt.Errorf("inspect worktree devshell: %w", err)
+		return "", fmt.Errorf("inspect worktree devshell: %w", err)
 	}
 	if !available {
-		return nil, nil
+		return PlainWorktree, nil
 	}
-	return []string{"nix", "develop", worktree, "-c"}, nil
+	return NixWorktree, nil
+}
+
+func worktreeEnvironment(ctx context.Context, worktree string) ([]string, error) {
+	environment, err := DetectWorktreeEnvironment(ctx, worktree)
+	if err != nil {
+		return nil, err
+	}
+	return worktreeEnvironmentPrefix(worktree, environment)
+}
+
+func worktreeEnvironmentPrefix(worktree string, environment WorktreeEnvironment) ([]string, error) {
+	switch environment {
+	case PlainWorktree:
+		return nil, nil
+	case DirenvWorktree:
+		return []string{"direnv", "exec", worktree}, nil
+	case NixWorktree:
+		return []string{"nix", "develop", worktree, "-c"}, nil
+	default:
+		return nil, fmt.Errorf("unknown worktree environment %q", environment)
+	}
+}
+
+// StartRemoteInWorktree uses the environment verified by the native remote helper.
+func (client Client) StartRemoteInWorktree(
+	ctx context.Context,
+	paneID, name, kind, worktree string,
+	arguments []string,
+	environment WorktreeEnvironment,
+) error {
+	if client.Machine() == "" || !filepath.IsAbs(worktree) ||
+		filepath.Clean(worktree) != worktree ||
+		strings.ContainsAny(worktree, "\x00\r\n") {
+		return fmt.Errorf("remote startup requires a bound machine and absolute worktree")
+	}
+	if kind != "codex" && kind != "claude" {
+		return fmt.Errorf("unsupported worker harness %q", kind)
+	}
+	prefix, err := worktreeEnvironmentPrefix(worktree, environment)
+	if err != nil {
+		return err
+	}
+	return client.startWithEnvironment(ctx, paneID, name, kind, arguments, prefix)
 }
 
 // StartInWorktree applies the environment to the native executable after pane shell startup.
