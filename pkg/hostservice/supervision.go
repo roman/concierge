@@ -218,6 +218,9 @@ func (server *Server) prepareTaskController(
 	if err != nil {
 		return fail(err)
 	}
+	if binding.Machine != "" {
+		worker = worker.WithTunnelProbe(taskTunnelProbe{server: server})
+	}
 	if err := supervise.Check(ctx, worker); err != nil && !errors.Is(err, supervise.ErrRestarted) {
 		return fail(err)
 	}

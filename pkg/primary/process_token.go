@@ -3,6 +3,7 @@ package primary
 import (
 	"errors"
 	"os"
+	"syscall"
 )
 
 var ErrProcessOwnership = errors.New("process ownership cannot be confirmed")
@@ -82,7 +83,9 @@ func probeProcessToken(
 		return ProcessExited, nil
 	}
 	process, err := lookup(token.PID)
-	if errors.Is(err, os.ErrNotExist) {
+	// Linux can reap a process after opening its stat file, making the read
+	// return ESRCH rather than the ENOENT returned by a later open.
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
 		return ProcessExited, nil
 	}
 	if err != nil || process.PID != token.PID || process.StartTicks == "" {

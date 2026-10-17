@@ -3,6 +3,7 @@ package primary
 import (
 	"errors"
 	"os"
+	"syscall"
 	"testing"
 )
 
@@ -21,6 +22,7 @@ func TestProcessTokenUsesBootNamespaceAndStartTime(t *testing.T) {
 		{name: "reused pid", boot: "boot", namespace: "namespace", process: Process{PID: 123, StartTicks: "101"}, want: ProcessExited},
 		{name: "prior boot", boot: "new-boot", namespace: "namespace", want: ProcessExited},
 		{name: "missing process", boot: "boot", namespace: "namespace", err: os.ErrNotExist, want: ProcessExited},
+		{name: "reaped after opening stat", boot: "boot", namespace: "namespace", err: syscall.ESRCH, want: ProcessExited},
 		{name: "other namespace", boot: "boot", namespace: "other", wantError: true},
 		{name: "unreadable process", boot: "boot", namespace: "namespace", err: os.ErrPermission, wantError: true},
 	} {

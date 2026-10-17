@@ -15,6 +15,8 @@ import (
 
 	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/primary"
+	"github.com/roman/concierge/pkg/remoteworker"
+	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
@@ -87,6 +89,7 @@ type Response struct {
 
 // Server binds operations to roots selected by the host process.
 type Server struct {
+	tunnels             *remoteworker.TunnelManager
 	workerServer        *workerservice.Server
 	workerListener      *net.UnixListener
 	shutdownMu          sync.Mutex
@@ -130,7 +133,13 @@ func New(config Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	tunnels, err := remoteworker.NewTunnelManager(root, remoteworker.SSHProcesses{},
+		remoteworker.SSHTunnelRemote{Runner: sshcommand.SystemRunner{}})
+	if err != nil {
+		return nil, err
+	}
 	return &Server{
+		tunnels:             tunnels,
 		config:              config,
 		store:               store,
 		service:             service,
@@ -180,10 +189,10 @@ func (server *Server) ServeReady(
 			result = errors.Join(result, server.shutdownLease.Close())
 		}
 	}()
+	workerResult = server.startWorkerSocket(ctx, cancel, &running)
 	if err := server.restoreTaskControllers(ctx); err != nil {
 		return err
 	}
-	workerResult = server.startWorkerSocket(ctx, cancel, &running)
 	if ready != nil {
 		if err := ready(); err != nil {
 			return err
