@@ -137,6 +137,16 @@ func TestRemoteProjectRefusesIncompletePreparedRepository(t *testing.T) {
 	}
 }
 
+func TestRemoteProjectRefusesSymbolicOwnershipLock(t *testing.T) {
+	manager, location := remoteProjectFixture(t)
+	if err := os.Symlink("machine-owner", filepath.Join(location.Base, ".project-lock")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.PrepareProject(context.Background(), location); err == nil {
+		t.Fatal("accepted a lock alias to another private file")
+	}
+}
+
 func remoteProjectGit(t *testing.T, git, directory string, arguments ...string) string {
 	t.Helper()
 	command := exec.Command(git, append([]string{"-C", directory}, arguments...)...)

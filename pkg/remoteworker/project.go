@@ -56,7 +56,11 @@ func (manager Worktrees) PrepareProject(
 		return "", ErrProjectOwnership
 	}
 	defer lock.Close()
-	if info, err := lock.Stat(); err != nil || !privateProjectFile(info) {
+	selected, err := root.Lstat(".project-lock")
+	if err != nil || !privateProjectFile(selected) {
+		return "", ErrProjectOwnership
+	}
+	if info, err := lock.Stat(); err != nil || !os.SameFile(info, selected) {
 		return "", ErrProjectOwnership
 	}
 	if syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) != nil {
