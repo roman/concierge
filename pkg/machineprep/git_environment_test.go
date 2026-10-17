@@ -30,9 +30,12 @@ func (runner gitCredentialProbe) Run(
 	command := exec.CommandContext(ctx, "sh", "-c", commandText)
 	command.Env = runner.environment
 	output, err := command.Output()
+	if err != nil && runner.failure != nil {
+		*runner.failure = err.Error()
+	}
 	if failure, ok := err.(*exec.ExitError); ok {
 		if runner.failure != nil {
-			*runner.failure = string(failure.Stderr)
+			*runner.failure += "; stderr: " + string(failure.Stderr)
 		}
 		return output, failure.Stderr, err
 	}
