@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
-	"unicode"
+
+	"github.com/roman/concierge/pkg/sshcommand"
 )
 
 var ErrUnreachable = errors.New("remote machine is unreachable")
@@ -64,15 +64,9 @@ func (checks SSHRemoteChecks) RunCheck(
 		return nil, nil, fmt.Errorf("%w: saved machine destination or session changed", ErrResponse)
 	}
 	command := append([]string{"herdr", "--session", session}, arguments...)
-	for index := range command {
-		command[index] = shellQuote(command[index])
-	}
-	// Disable configured forwarding as well as agent forwarding for these checks.
-	// The worker tunnel has its own separately managed SSH process.
-	sshArguments := []string{
-		"-S", "none", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
-		"-o", "ForwardAgent=no", "-o", "ClearAllForwardings=yes",
-		"--", profile.Target, strings.Join(command, " "),
+	sshArguments, err := sshcommand.BatchArguments(profile.Target, command...)
+	if err != nil {
+		return nil, nil, err
 	}
 	stdout, stderr, err := checks.Runner.Run(ctx, sshArguments...)
 	if err != nil || len(stderr) != 0 || ctx.Err() != nil {
@@ -82,11 +76,7 @@ func (checks SSHRemoteChecks) RunCheck(
 }
 
 func validSSHDestination(target string) bool {
-	return target != "" && !strings.HasPrefix(target, "-") &&
-		strings.IndexFunc(
-			target,
-			func(character rune) bool { return unicode.IsControl(character) || unicode.IsSpace(character) },
-		) < 0
+	return sshcommand.ValidTarget(target)
 }
 
 func remoteCheckArguments(check RemoteCheck) ([]string, error) {
