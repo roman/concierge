@@ -44,6 +44,7 @@ func (service *Service) ReadAssignment(
 		messageID,
 		generation,
 		readAssignment,
+		nil,
 	)
 }
 
@@ -58,6 +59,7 @@ func (service *Service) AcknowledgeAssignment(
 		messageID,
 		generation,
 		acknowledgeAssignment,
+		nil,
 	)
 }
 
@@ -65,6 +67,7 @@ func (service *Service) receiveAssignment(
 	ctx context.Context,
 	messageRoot, taskID, messageID, generation string,
 	operation assignmentOperation,
+	authorize func(taskstate.Task) error,
 ) (AssignmentStatus, error) {
 	if err := taskmeta.ValidateSpawnGeneration(generation); err != nil {
 		return AssignmentStatus{}, err
@@ -83,6 +86,11 @@ func (service *Service) receiveAssignment(
 	}
 	var result AssignmentStatus
 	_, err = service.store.WithTask(ctx, taskID, func(task *taskstate.LockedTask) error {
+		if authorize != nil {
+			if err := authorize(task.Current()); err != nil {
+				return err
+			}
+		}
 		bound, err := assignmentWorker(task.Current())
 		if err != nil {
 			return err

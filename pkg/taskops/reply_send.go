@@ -41,6 +41,15 @@ type ReplyDelivery struct {
 func (service *Service) SendReply(
 	ctx context.Context, messageRoot string, input ReplyInput,
 ) (ReplyDelivery, error) {
+	return service.sendReply(ctx, messageRoot, input, nil)
+}
+
+func (service *Service) sendReply(
+	ctx context.Context,
+	messageRoot string,
+	input ReplyInput,
+	authorize func(taskstate.Task) error,
+) (ReplyDelivery, error) {
 	if err := taskmeta.ValidateSpawnGeneration(input.Generation); err != nil {
 		return ReplyDelivery{}, err
 	}
@@ -67,6 +76,11 @@ func (service *Service) SendReply(
 	}
 	var result ReplyDelivery
 	_, err = service.store.WithTask(ctx, input.TaskID, func(task *taskstate.LockedTask) error {
+		if authorize != nil {
+			if err := authorize(task.Current()); err != nil {
+				return err
+			}
+		}
 		if input.AssignmentID != "" {
 			if err := taskprotocol.ValidateBoundAssignment(messages, service.root, input.TaskID, input.Generation, assignmentID); err != nil {
 				return err
