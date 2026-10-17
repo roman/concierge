@@ -13,6 +13,18 @@ import (
 
 const remoteProbeTimeout = 10 * time.Second
 
+// TunnelProbe checks one persisted task tunnel without acquiring the task lock.
+// The caller holds that lock throughout the probe and records its outcome.
+type TunnelProbe interface {
+	Probe(context.Context, string, string) error
+}
+
+func (worker *SupervisedWorker) WithTunnelProbe(probe TunnelProbe) *SupervisedWorker {
+	configured := *worker
+	configured.tunnelProbe = probe
+	return &configured
+}
+
 func (worker *SupervisedWorker) observeRemote(
 	ctx context.Context,
 	task *taskstate.LockedTask,
@@ -22,6 +34,37 @@ func (worker *SupervisedWorker) observeRemote(
 	if snapshot.State != taskstate.InFlight || snapshot.Completion != nil || bound.PendingAdoption {
 		return taskstate.ErrInvalidTransition
 	}
+	herdrError := worker.observeRemoteHerdr(ctx, task, bound)
+	if herdrError != nil && !errors.Is(herdrError, supervise.ErrUnreachable) {
+		return herdrError
+	}
+	if worker.tunnelProbe == nil {
+		return herdrError
+	}
+	if bound.Connections != nil && bound.Connections.Tunnel.Waiting(worker.now()) {
+		return errors.Join(herdrError, supervise.ErrUnreachable)
+	}
+	probe, cancel := context.WithTimeout(ctx, remoteProbeTimeout)
+	defer cancel()
+	tunnelError := worker.tunnelProbe.Probe(probe, worker.taskID, bound.Generation)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if tunnelError == nil {
+		tunnelError = probe.Err()
+	}
+	tunnelError = worker.recordConnection(task, taskstate.TunnelChannel, tunnelError)
+	if tunnelError != nil && !errors.Is(tunnelError, supervise.ErrUnreachable) {
+		return tunnelError
+	}
+	return errors.Join(herdrError, tunnelError)
+}
+
+func (worker *SupervisedWorker) observeRemoteHerdr(
+	ctx context.Context,
+	task *taskstate.LockedTask,
+	bound taskstate.Worker,
+) error {
 	if bound.Connections != nil && bound.Connections.Herdr.Waiting(worker.now()) {
 		return supervise.ErrUnreachable
 	}

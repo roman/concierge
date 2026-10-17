@@ -62,6 +62,11 @@ func WriteWorker(output io.Writer, task taskstate.Task) error {
 	if _, err := fmt.Fprintf(output, "task: %s\nname: %s\nkind: %s\npane_id: %s\nherdr_session: %s\nworkspace: %s\ntab: %s\nproject: %s\nworktree: %s\nspawn_generation: %s\n", task.ID(), worker.Name, worker.Harness, worker.Pane, worker.Session, worker.Workspace, worker.Tab, quote(worker.Project), quote(worker.Worktree), worker.Generation); err != nil {
 		return err
 	}
+	if worker.Machine != "" {
+		if err := writeConnections(output, worker); err != nil {
+			return err
+		}
+	}
 	if worker.PendingGeneration != "" {
 		if _, err := fmt.Fprintf(output, "pending_generation: %s\n", worker.PendingGeneration); err != nil {
 			return err

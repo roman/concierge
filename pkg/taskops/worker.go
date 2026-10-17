@@ -17,12 +17,13 @@ import (
 
 // SupervisedWorker revalidates a task's endpoint under its task lock.
 type SupervisedWorker struct {
-	now       func() time.Time
-	service   *Service
-	taskID    string
-	messages  *inbox.Store
-	recipient inbox.Recipient
-	client    herdr.Client
+	now         func() time.Time
+	service     *Service
+	taskID      string
+	messages    *inbox.Store
+	recipient   inbox.Recipient
+	client      herdr.Client
+	tunnelProbe TunnelProbe
 }
 
 type taskBootstrap struct {

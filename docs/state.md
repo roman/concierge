@@ -86,3 +86,20 @@ concierge state recover-upgrade --backup /absolute/concierge-version-two-backup
 Recovery compares all task records against that backup before finishing the
 marker. It refuses changed records. `state recover` remains restricted to the
 legacy version 1 to 2 migration.
+
+### Remote connection history
+
+Version 3 worker records retain separate Herdr and worker-tunnel observations.
+`concierge worker show TASK_ID` reports each channel's status, last successful
+probe, last error and next retry. An unprobed channel reports `unknown`.
+
+A failed remote probe records `unreachable`. Retries start after one second
+and double to a maximum interval of one minute. The deadline survives host
+restarts. Each channel has its own retry schedule. Successful probes clear
+that channel's error and retry deadline. A new worker generation starts with
+unknown connection history.
+
+Unreachable observations do not consume the restart tolerance or stop the
+inbox watcher. They preserve the generation, worktree and lease. Notifications
+wait until the Herdr retry deadline. The tunnel channel remains unknown until
+the host has a tunnel probe for that task.
