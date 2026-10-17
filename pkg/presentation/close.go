@@ -42,6 +42,11 @@ func closeBoundPane(
 		checkBinding == nil {
 		return herdr.ErrResponse
 	}
+	bound, err := client.ForEndpoint(target.Machine(), target.Session())
+	if err != nil {
+		return err
+	}
+	client = bound
 	return withLockSocket(ctx, client, target.Session(), namespace, func(socket string) error {
 		return closeLocked(ctx, client, target, workspaceID, tabID, checkBinding, socket, namespace)
 	})
@@ -160,7 +165,7 @@ func recoverCloseJournal(
 func checkPaneLocation(
 	ctx context.Context, client herdr.Client, target herdr.Target, workspaceID, tabID string,
 ) error {
-	bound, err := client.ForSession(target.Session())
+	bound, err := client.ForEndpoint(target.Machine(), target.Session())
 	if err != nil {
 		return err
 	}
@@ -177,13 +182,16 @@ func checkPaneLocation(
 func runResult(
 	ctx context.Context, client herdr.Client, session string, args ...string,
 ) (json.RawMessage, error) {
-	if client.SessionRunner == nil {
-		return nil, herdr.ErrCommand
+	stdout, stderr, err := client.RunScoped(ctx, session, args...)
+	return commandResult(stdout, stderr, err, args[0])
+}
+
+func commandResult(stdout, stderr []byte, err error, operation string) (json.RawMessage, error) {
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s failed: %w", herdr.ErrCommand, operation, err)
 	}
-	args = append(args, "--session", session)
-	stdout, stderr, err := client.SessionRunner.RunSession(ctx, session, args...)
-	if err != nil || len(stderr) != 0 {
-		return nil, fmt.Errorf("%w: %s failed: %v", herdr.ErrCommand, args[0], err)
+	if len(stderr) != 0 {
+		return nil, fmt.Errorf("%w: %s returned diagnostics", herdr.ErrCommand, operation)
 	}
 	var response struct {
 		Result json.RawMessage `json:"result"`
@@ -193,7 +201,7 @@ func runResult(
 	}
 	if json.Unmarshal(stdout, &response) != nil || response.Error.Code != "" ||
 		len(response.Result) == 0 {
-		return nil, fmt.Errorf("%w: ambiguous %s response", herdr.ErrResponse, args[0])
+		return nil, fmt.Errorf("%w: ambiguous %s response", herdr.ErrResponse, operation)
 	}
 	return response.Result, nil
 }
@@ -253,7 +261,8 @@ func readFocus(ctx context.Context, client herdr.Client, session string) (focus,
 }
 
 func readViewer(ctx context.Context, client herdr.Client, session string) (string, error) {
-	result, err := runResult(ctx, client, session, "terminal", "title", "clear")
+	stdout, stderr, checkError := client.RunPresentationCheck(ctx, session, herdr.ForegroundViewer)
+	result, err := commandResult(stdout, stderr, checkError, "terminal")
 	if err != nil {
 		return "", err
 	}

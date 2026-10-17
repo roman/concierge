@@ -54,6 +54,8 @@ var (
 type Runner = base.Runner
 
 type Client struct {
+	machine       string
+	session       string
 	Runner        Runner
 	SessionRunner SessionRunner
 	MachineRunner MachineRunner

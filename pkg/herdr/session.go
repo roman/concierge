@@ -19,6 +19,12 @@ type PaneDetails struct {
 
 // ForSession routes worker operations through one explicit Herdr session.
 func (client Client) ForSession(session string) (Client, error) {
+	if client.machine != "" {
+		return Client{}, fmt.Errorf(
+			"%w: a remote client requires its complete endpoint",
+			ErrResponse,
+		)
+	}
 	shared, err := client.shared().ForSession(session)
 	if err != nil {
 		return Client{}, err

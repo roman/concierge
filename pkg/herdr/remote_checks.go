@@ -50,14 +50,9 @@ func (checks SSHRemoteChecks) RunCheck(
 	if checks.Machines == nil || checks.Runner == nil || !healthAtom(session, false) {
 		return nil, nil, ErrResponse
 	}
-	var arguments []string
-	switch check {
-	case SessionInventory:
-		arguments = []string{"session", "list", "--json"}
-	case ForegroundViewer:
-		arguments = []string{"terminal", "title", "clear"}
-	default:
-		return nil, nil, fmt.Errorf("%w: unsupported remote check", ErrResponse)
+	arguments, err := remoteCheckArguments(check)
+	if err != nil {
+		return nil, nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -92,4 +87,15 @@ func validSSHDestination(target string) bool {
 			target,
 			func(character rune) bool { return unicode.IsControl(character) || unicode.IsSpace(character) },
 		) < 0
+}
+
+func remoteCheckArguments(check RemoteCheck) ([]string, error) {
+	switch check {
+	case SessionInventory:
+		return []string{"session", "list", "--json"}, nil
+	case ForegroundViewer:
+		return []string{"terminal", "title", "clear"}, nil
+	default:
+		return nil, fmt.Errorf("%w: unsupported remote check", ErrResponse)
+	}
 }

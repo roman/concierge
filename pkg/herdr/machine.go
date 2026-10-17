@@ -65,7 +65,83 @@ func (client Client) ForMachine(machine string) (Client, error) {
 	}
 	client.Runner = boundMachineRunner{machine: machine, runner: client.MachineRunner}
 	client.SessionRunner = nil
+	client.machine, client.session = machine, ""
 	return client, nil
+}
+
+// Machine identifies the saved machine selected by this client.
+func (client Client) Machine() string { return client.machine }
+
+// ForEndpoint selects a local session or a saved machine's recorded session.
+func (client Client) ForEndpoint(machine, session string) (Client, error) {
+	if machine == "" {
+		return client.ForSession(session)
+	}
+	if !healthAtom(session, false) {
+		return Client{}, ErrResponse
+	}
+	bound, err := client.ForMachine(machine)
+	if err != nil {
+		return Client{}, err
+	}
+	bound.session = session
+	return bound, nil
+}
+
+// ParseEndpoint validates a pane's complete machine and session identity.
+func ParseEndpoint(machine, session, paneID string) (Target, error) {
+	target, err := ParseTarget(session, paneID)
+	if err != nil || machine == "" {
+		return target, err
+	}
+	if _, err := ParseMachineTarget(machine, paneID); err != nil {
+		return Target{}, err
+	}
+	target.machine = machine
+	return target, nil
+}
+
+// Machine returns the saved machine for a remote health target.
+func (target Target) Machine() string { return target.machine }
+
+// RunScoped preserves raw responses for commands whose callers validate absence.
+func (client Client) RunScoped(
+	ctx context.Context,
+	session string,
+	args ...string,
+) ([]byte, []byte, error) {
+	if !healthAtom(session, false) || len(args) == 0 {
+		return nil, nil, ErrResponse
+	}
+	if client.machine != "" {
+		if client.session != session || client.MachineRunner == nil {
+			return nil, nil, ErrResponse
+		}
+		return client.MachineRunner.RunMachine(ctx, client.machine, args...)
+	}
+	if client.SessionRunner == nil {
+		return nil, nil, ErrResponse
+	}
+	return client.SessionRunner.RunSession(ctx, session, append(args, "--session", session)...)
+}
+
+// RunPresentationCheck retains local routing and isolates the remote exception.
+func (client Client) RunPresentationCheck(
+	ctx context.Context,
+	session string,
+	check RemoteCheck,
+) ([]byte, []byte, error) {
+	arguments, err := remoteCheckArguments(check)
+	if err != nil {
+		return nil, nil, err
+	}
+	if client.machine == "" {
+		return client.RunScoped(ctx, session, arguments...)
+	}
+	if client.RemoteChecks == nil || client.session != session {
+		return nil, nil, ErrResponse
+	}
+	return client.RemoteChecks.RunCheck(ctx, client.machine, session, check)
 }
 
 // ParseMachineTarget validates a pane on a saved remote machine.

@@ -47,7 +47,7 @@ func withLockSocket(
 	operation func(string) error,
 ) (result error) {
 	if _, err := herdr.ParseTarget(session, "validation-pane"); err != nil ||
-		operation == nil || client.SessionRunner == nil {
+		operation == nil {
 		return herdr.ErrResponse
 	}
 	socket, err := sessionSocket(ctx, client, session)
@@ -92,16 +92,11 @@ func securePresentationNamespace(path string) error {
 }
 
 func sessionSocket(ctx context.Context, client herdr.Client, session string) (string, error) {
-	stdout, stderr, err := client.SessionRunner.RunSession(
-		ctx,
-		session,
-		"session",
-		"list",
-		"--json",
-		"--session",
-		session,
-	)
-	if err != nil || len(stderr) > 0 {
+	stdout, stderr, err := client.RunPresentationCheck(ctx, session, herdr.SessionInventory)
+	if err != nil {
+		return "", fmt.Errorf("%w: Herdr session list unavailable: %w", herdr.ErrCommand, err)
+	}
+	if len(stderr) > 0 {
 		return "", fmt.Errorf("%w: Herdr session list unavailable", herdr.ErrCommand)
 	}
 	var response struct {
@@ -124,6 +119,9 @@ func sessionSocket(ctx context.Context, client herdr.Client, session string) (st
 	}
 	if count != 1 || !filepath.IsAbs(socket) {
 		return "", fmt.Errorf("%w: named Herdr session is ambiguous", herdr.ErrResponse)
+	}
+	if client.Machine() != "" {
+		return client.Machine() + "\x00" + socket, nil
 	}
 	parent := filepath.Dir(socket)
 	resolved, err := filepath.EvalSymlinks(parent)
