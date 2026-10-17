@@ -16,6 +16,7 @@ import (
 
 type workerWorktreeCommands struct {
 	Acquire       struct{} `cmd:"" help:"Acquire or recover an owned remote lease from a bounded JSON request on stdin."`
+	Inspect       struct{} `cmd:"" help:"Inspect a completed native acquisition without acquiring or preparing another worktree."`
 	Import        struct{} `cmd:"" help:"Import a selected base from one bounded JSON header line and a Git bundle on stdin."`
 	PrepareLaunch struct{} `cmd:"" help:"Prepare a private generation directory and inspect the owned worktree environment from bounded JSON stdin."`
 	Return        struct{} `cmd:"" help:"Return a clean, quiet remote lease with the primary's immutable commit proof from bounded JSON stdin."`
@@ -120,7 +121,11 @@ func (command *workerWorktreeCommands) run(
 		}
 		return 0
 	}
-	lease, err := manager.Acquire(
+	leaseOperation := manager.Acquire
+	if selected == "worker-worktree inspect" {
+		leaseOperation = manager.Inspect
+	}
+	lease, err := leaseOperation(
 		ctx,
 		request,
 	)

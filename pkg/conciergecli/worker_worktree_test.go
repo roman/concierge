@@ -10,7 +10,7 @@ import (
 )
 
 func TestWorkerWorktreeHelperRejectsInvalidInputBeforeOpeningPrimaryPaths(t *testing.T) {
-	for _, operation := range []string{"acquire", "import", "prepare-launch", "return"} {
+	for _, operation := range []string{"acquire", "import", "prepare-launch", "return", "inspect"} {
 		t.Run(operation, func(t *testing.T) {
 			directory := t.TempDir()
 			root, messages := filepath.Join(
@@ -43,7 +43,7 @@ func TestWorkerWorktreeHelperRejectsInvalidInputBeforeOpeningPrimaryPaths(t *tes
 
 func TestRemoteWorkerCannotAcquireItsOwnWorktree(t *testing.T) {
 	t.Setenv("CONCIERGE_WORKER_SOCKET", "/remote/worker.sock")
-	for _, operation := range []string{"acquire", "import", "prepare-launch", "return"} {
+	for _, operation := range []string{"acquire", "import", "prepare-launch", "return", "inspect"} {
 		t.Run(operation, func(t *testing.T) {
 			var output bytes.Buffer
 			code := Run(

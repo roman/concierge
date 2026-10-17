@@ -45,6 +45,23 @@ func (transport WorktreeTransport) Acquire(
 	profile herdr.SavedMachine,
 	request WorktreeRequest,
 ) (taskstate.WorktreeLease, error) {
+	return transport.requestLease(ctx, profile, request, "acquire")
+}
+
+func (transport WorktreeTransport) Inspect(
+	ctx context.Context,
+	profile herdr.SavedMachine,
+	request WorktreeRequest,
+) (taskstate.WorktreeLease, error) {
+	return transport.requestLease(ctx, profile, request, "inspect")
+}
+
+func (transport WorktreeTransport) requestLease(
+	ctx context.Context,
+	profile herdr.SavedMachine,
+	request WorktreeRequest,
+	operation string,
+) (taskstate.WorktreeLease, error) {
 	if transport.Runner == nil || request.Validate() != nil || !profile.Enabled ||
 		profile.ID != request.Location.Machine ||
 		profile.Target != request.Location.Target {
@@ -54,7 +71,7 @@ func (transport WorktreeTransport) Acquire(
 		profile.Target,
 		request.Location.ClientPath(),
 		"worker-worktree",
-		"acquire",
+		operation,
 	)
 	if err != nil {
 		return taskstate.WorktreeLease{}, err

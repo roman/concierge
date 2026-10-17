@@ -13,10 +13,11 @@ import (
 )
 
 type worktreeSSHFixture struct {
-	t        *testing.T
-	request  WorktreeRequest
-	response taskstate.WorktreeLease
-	calls    int
+	t         *testing.T
+	request   WorktreeRequest
+	response  taskstate.WorktreeLease
+	calls     int
+	operation string
 }
 
 func (fixture *worktreeSSHFixture) Run(
@@ -26,7 +27,11 @@ func (fixture *worktreeSSHFixture) Run(
 ) ([]byte, []byte, error) {
 	fixture.calls++
 	command := arguments[len(arguments)-1]
-	if !strings.Contains(command, "'worker-worktree' 'acquire'") ||
+	operation := fixture.operation
+	if operation == "" {
+		operation = "acquire"
+	}
+	if !strings.Contains(command, "'worker-worktree' '"+operation+"'") ||
 		!strings.Contains(command, "'"+fixture.request.Location.ClientPath()+"'") {
 		fixture.t.Fatalf("unexpected native command: %s", command)
 	}
