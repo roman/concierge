@@ -20,6 +20,7 @@ var ErrNativeCheckpoint = errors.New("native checkpoint requires operator review
 var ErrRemoteLaunchUnavailable = errors.New("remote launch requires prepared worker transport")
 
 type InitialLaunchConfig struct {
+	Remote      *RemoteInitialLaunchConfig
 	Pool        worktree.PoolClient
 	Git         worktree.Client
 	Herdr       herdr.Client
