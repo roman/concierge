@@ -20,8 +20,9 @@ type Config struct {
 }
 
 type Server struct {
-	config  Config
-	service *taskops.Service
+	config    Config
+	service   *taskops.Service
+	admission admissionLimiter
 }
 
 func New(config Config) (*Server, error) {
