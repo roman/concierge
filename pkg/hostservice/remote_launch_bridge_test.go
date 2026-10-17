@@ -14,6 +14,7 @@ import (
 
 	"github.com/roman/concierge/pkg/machineprep"
 	"github.com/roman/concierge/pkg/remoteworker"
+	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/workeraccess"
 	"github.com/roman/concierge/pkg/worktree"
 )
@@ -24,6 +25,7 @@ type launchBridgeSSH struct {
 	site                    remoteworker.LaunchSiteRequest
 	secretCopies            int
 	lostContextConfirmation bool
+	lostReturnConfirmation  bool
 }
 
 func (runner *launchBridgeSSH) Run(
@@ -92,12 +94,41 @@ func (runner *launchBridgeSSH) Run(
 			return nil, nil, errors.New("context confirmation lost")
 		}
 		return []byte("status: bound"), nil, nil
+	case strings.Contains(command, "'worker-secret' 'remove'"):
+		task, err := runner.server.store.Read(ctx, runner.site.Worktree.Task)
+		if err != nil {
+			return nil, nil, err
+		}
+		worker := task.Snapshot().Worker
+		if worker == nil || worker.Access == nil || !worker.Access.Revoked {
+			return nil, nil, errors.New("removed a secret before revocation")
+		}
+		tools, err := runner.site.Tools()
+		if err == nil {
+			err = workeraccess.RemoveSecretFile(tools.TaskDirectory, worker.Access.Verifier)
+		}
+		return []byte("status: removed"), nil, err
+	case strings.Contains(command, "'worker-worktree' 'return'"):
+		request, err := remoteworker.DecodeWorktreeReturnRequest(input)
+		if err != nil {
+			return nil, nil, err
+		}
+		lease, err := runner.manager.Return(ctx, request)
+		if err != nil {
+			return nil, nil, err
+		}
+		if runner.lostReturnConfirmation {
+			runner.lostReturnConfirmation = false
+			return nil, nil, errors.New("return confirmation lost")
+		}
+		data, err := json.Marshal(lease)
+		return data, nil, err
 	}
 	return nil, nil, errors.New("unexpected bridge operation")
 }
 
 func TestHostRemoteLaunchConnectsNativeWorktreeActivationAndDispatch(t *testing.T) {
-	for _, mode := range []string{"complete", "context confirmation lost"} {
+	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost"} {
 		t.Run(mode, func(t *testing.T) { testHostRemoteLaunchBridge(t, mode) })
 	}
 }
@@ -148,12 +179,14 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	runner := &launchBridgeSSH{
 		server: server,
 		manager: remoteworker.Worktrees{
-			Git: worktree.Client{Executable: server.config.GitExecutable},
+			Git:        worktree.Client{Executable: server.config.GitExecutable},
+			CheckQuiet: func(context.Context, string) error { return nil },
 		},
 	}
 	runner.lostContextConfirmation = mode == "context confirmation lost"
+	runner.lostReturnConfirmation = mode == "return confirmation lost"
 	server.preparationSSH = runner
-	processes := &hostTunnelProcesses{}
+	processes := &retirementProcesses{}
 	server.tunnels, err = remoteworker.NewTunnelManager(
 		server.config.Root,
 		processes,
@@ -232,6 +265,54 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		string(data) != "start\n" {
 		t.Fatalf("agent startup: %q %v", data, err)
 	}
+	pendingReply := filepath.Join(toolsForWorker.TaskDirectory, "unsent-result")
+	if err := os.WriteFile(pendingReply, []byte("retain this reply"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.service.Finish(context.Background(), input.TaskID, worker.Generation, taskstate.Close, "2026-10-17"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tools, "gone"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	cleanup := Request{
+		Operation:  Cleanup,
+		Transition: &TransitionRequest{TaskID: input.TaskID, Generation: worker.Generation},
+	}
+	retired, err := server.execute(context.Background(), cleanup, nil)
+	if mode == "return confirmation lost" {
+		if err == nil {
+			t.Fatal("lost native return confirmation completed primary cleanup")
+		}
+		pending, readErr := server.store.Read(context.Background(), input.TaskID)
+		if readErr != nil || pending.Snapshot().Worker == nil ||
+			pending.Snapshot().Completion == nil ||
+			!pending.Snapshot().Worker.Access.Revoked ||
+			pending.Snapshot().Worker.Lease.State != taskstate.LeaseHeld {
+			t.Fatal("uncertain return lost the primary's cleanup binding")
+		}
+		retired, err = server.execute(context.Background(), cleanup, nil)
+	}
+	if err != nil || retired.Snapshot().Worker != nil || retired.Snapshot().Completion != nil ||
+		retired.Snapshot().Receipt == nil ||
+		retired.Snapshot().Receipt.Lease.State != taskstate.LeaseReturned {
+		t.Fatalf("native cleanup: %+v %v", retired.Snapshot(), err)
+	}
+	if _, err := os.Lstat(worker.Worktree); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("native physical checkout remains: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(toolsForWorker.TaskDirectory, "secret")); !errors.Is(
+		err,
+		os.ErrNotExist,
+	) {
+		t.Fatalf("native secret remains: %v", err)
+	}
+	if data, err := os.ReadFile(pendingReply); err != nil || string(data) != "retain this reply" {
+		t.Fatal("cleanup discarded an unsent result")
+	}
+	if processes.stops.Load() != 1 || processes.starts.Load() != 1 {
+		t.Fatal("cleanup did not stop exactly the owned tunnel")
+	}
 }
 
 const remoteLaunchBridgeHerdr = `#!/bin/sh
@@ -251,7 +332,10 @@ case "$1 $2" in
  done
  printf '{"result":{"workspace":{"workspace_id":"w1","label":"%%s"},"tab":{"workspace_id":"w1","tab_id":"w1:t1"},"root_pane":{"pane_id":"w1:p1"}}}' "$(cat "$state/label")"
  ;;
-'pane get') printf '{"result":{"pane":{"workspace_id":"w1","tab_id":"w1:t1","pane_id":"w1:p1","foreground_cwd":"%%s"}}}' "$(cat "$state/cwd")" ;;
+'pane get')
+ if [ -f "$state/gone" ]; then printf '%%s' '{"error":{"code":"pane_not_found"}}' >&2; exit 1; fi
+ printf '{"result":{"pane":{"workspace_id":"w1","tab_id":"w1:t1","pane_id":"w1:p1","foreground_cwd":"%%s"}}}' "$(cat "$state/cwd")"
+ ;;
 'pane process-info') printf '%%s' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"w1:p1","shell_pid":100,"foreground_processes":[{"pid":101,"name":"codex","argv0":"codex"}]}}}' ;;
 'agent get')
  if [ ! -f "$state/started" ]; then printf '%%s' '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi

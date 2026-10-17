@@ -147,7 +147,7 @@ func New(config Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{
+	server := &Server{
 		tunnels:             tunnels,
 		config:              config,
 		store:               store,
@@ -155,7 +155,9 @@ func New(config Config) (*Server, error) {
 		authorize:           func(caller primary.Caller) error { return primary.AuthorizeCaller(config.Root, caller) },
 		create:              service.Create,
 		reserveLaunchIntent: store.ReserveInitialLaunch,
-	}, nil
+	}
+	server.service = service.WithRemoteLeases(hostRemoteLeases{server: server})
+	return server, nil
 }
 
 // Serve owns the listener until cancellation. Every connection admits at most
