@@ -14,7 +14,10 @@ import (
 
 // Execute only the quoted remote command in a temporary local fixture. No SSH
 // process or network connection participates in these preparation tests.
-type localPreparation struct{ origin string }
+type localPreparation struct {
+	origin      string
+	environment []string
+}
 
 func (runner localPreparation) Run(
 	ctx context.Context,
@@ -32,6 +35,7 @@ func (runner localPreparation) Run(
 		"GIT_CONFIG_KEY_0=url.file://"+runner.origin+"/.insteadOf",
 		"GIT_CONFIG_VALUE_0=ssh://git.test/",
 	)
+	command.Env = append(command.Env, runner.environment...)
 	output, err := command.Output()
 	if failure, ok := err.(*exec.ExitError); ok {
 		return output, failure.Stderr, err
