@@ -33,13 +33,19 @@ type TransitionRequest struct {
 
 func validateRequest(request Request) error {
 	payloads := 0
-	for _, present := range []bool{request.Intake != nil, request.Transition != nil, request.Resolve != nil, request.Adoption != nil, request.Assignment != nil, request.Control != nil, request.Supervision != nil, request.Launch != nil, request.Status != nil, request.Reconciliation != nil} {
+	for _, present := range []bool{request.Intake != nil, request.Transition != nil, request.Resolve != nil, request.Adoption != nil, request.Assignment != nil, request.Control != nil, request.Supervision != nil, request.Launch != nil, request.Status != nil, request.Reconciliation != nil, request.MachinePreparation != nil} {
 		if present {
 			payloads++
 		}
 	}
 	if payloads != 1 {
 		return errors.New("host operation requires exactly one payload")
+	}
+	if request.Operation == PrepareMachine {
+		return validateMachinePreparation(request.MachinePreparation)
+	}
+	if request.MachinePreparation != nil {
+		return errors.New("unrelated machine preparation payload")
 	}
 	if request.Operation == ReconcileReply {
 		if request.Reconciliation == nil {

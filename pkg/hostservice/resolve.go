@@ -55,6 +55,9 @@ func (server *Server) perform(ctx context.Context, request Request) (Response, e
 }
 
 func (server *Server) performOperation(ctx context.Context, request Request) (Response, error) {
+	if request.Operation == PrepareMachine {
+		return server.prepareMachine(ctx, *request.MachinePreparation)
+	}
 	if request.Operation == ReconcileReply {
 		return server.reconcileReply(ctx, *request.Reconciliation)
 	}

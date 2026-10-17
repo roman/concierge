@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/primary"
 	"github.com/roman/concierge/pkg/remoteworker"
@@ -36,18 +37,19 @@ const Intake Operation = "intake"
 
 // Request never carries caller identity or a selectable state root.
 type Request struct {
-	Reconciliation *replyoutbox.Payload   `json:"reconciliation,omitempty"`
-	Status         *StatusRequest         `json:"status,omitempty"`
-	Launch         *LaunchRequest         `json:"launch,omitempty"`
-	Supervision    *SupervisionRequest    `json:"supervision,omitempty"`
-	Control        *ControlRequest        `json:"control,omitempty"`
-	Adoption       *taskops.AdoptionInput `json:"adoption,omitempty"`
-	Assignment     *AssignmentRequest     `json:"assignment,omitempty"`
-	Resolve        *ResolveRequest        `json:"resolve,omitempty"`
-	Expectations   *Expectations          `json:"expectations,omitempty"`
-	Operation      Operation              `json:"operation"`
-	Intake         *taskstate.Definition  `json:"intake,omitempty"`
-	Transition     *TransitionRequest     `json:"transition,omitempty"`
+	MachinePreparation *MachinePreparationRequest `json:"machine_preparation,omitempty"`
+	Reconciliation     *replyoutbox.Payload       `json:"reconciliation,omitempty"`
+	Status             *StatusRequest             `json:"status,omitempty"`
+	Launch             *LaunchRequest             `json:"launch,omitempty"`
+	Supervision        *SupervisionRequest        `json:"supervision,omitempty"`
+	Control            *ControlRequest            `json:"control,omitempty"`
+	Adoption           *taskops.AdoptionInput     `json:"adoption,omitempty"`
+	Assignment         *AssignmentRequest         `json:"assignment,omitempty"`
+	Resolve            *ResolveRequest            `json:"resolve,omitempty"`
+	Expectations       *Expectations              `json:"expectations,omitempty"`
+	Operation          Operation                  `json:"operation"`
+	Intake             *taskstate.Definition      `json:"intake,omitempty"`
+	Transition         *TransitionRequest         `json:"transition,omitempty"`
 }
 
 type Outcome string
@@ -74,24 +76,28 @@ type StopResult struct {
 }
 
 type Response struct {
-	Reconciled        *workerservice.Reply `json:"reconciled,omitempty"`
-	RemovedStoreLinks []string             `json:"removed_store_links,omitempty"`
-	Checkpoint        *NativeCheckpoint    `json:"checkpoint,omitempty"`
-	Abandoned         *AbandonedLaunch     `json:"abandoned,omitempty"`
-	Status            *StatusResult        `json:"status,omitempty"`
-	Supervision       *SupervisionResult   `json:"supervision,omitempty"`
-	Control           *ControlResult       `json:"control,omitempty"`
-	Assignment        *AssignmentResult    `json:"assignment,omitempty"`
-	Stopped           *StopResult          `json:"stopped,omitempty"`
-	Resolution        *taskops.ReplyResult `json:"resolution,omitempty"`
-	Outcome           Outcome              `json:"outcome"`
-	Task              *TaskResult          `json:"task,omitempty"`
-	Error             string               `json:"error,omitempty"`
-	Transition        *taskstate.Snapshot  `json:"transition,omitempty"`
+	PreparedMachine   *PreparedMachineResult `json:"prepared_machine,omitempty"`
+	Reconciled        *workerservice.Reply   `json:"reconciled,omitempty"`
+	RemovedStoreLinks []string               `json:"removed_store_links,omitempty"`
+	Checkpoint        *NativeCheckpoint      `json:"checkpoint,omitempty"`
+	Abandoned         *AbandonedLaunch       `json:"abandoned,omitempty"`
+	Status            *StatusResult          `json:"status,omitempty"`
+	Supervision       *SupervisionResult     `json:"supervision,omitempty"`
+	Control           *ControlResult         `json:"control,omitempty"`
+	Assignment        *AssignmentResult      `json:"assignment,omitempty"`
+	Stopped           *StopResult            `json:"stopped,omitempty"`
+	Resolution        *taskops.ReplyResult   `json:"resolution,omitempty"`
+	Outcome           Outcome                `json:"outcome"`
+	Task              *TaskResult            `json:"task,omitempty"`
+	Error             string                 `json:"error,omitempty"`
+	Transition        *taskstate.Snapshot    `json:"transition,omitempty"`
 }
 
 // Server binds operations to roots selected by the host process.
 type Server struct {
+	machineMu           sync.Mutex
+	preparationMachines herdr.MachineResolver
+	preparationSSH      sshcommand.Runner
 	tunnels             *remoteworker.TunnelManager
 	workerServer        *workerservice.Server
 	workerListener      *net.UnixListener
@@ -287,7 +293,7 @@ func (server *Server) handle(ctx context.Context, connection *net.UnixConn) {
 		server.respond(connection, Response{Outcome: Invalid, Error: err.Error()})
 		return
 	}
-	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout(request.Operation))
 	defer cancel()
 	if err := ctx.Err(); err != nil {
 		server.respond(connection, Response{Outcome: Failed, Error: err.Error()})
@@ -352,7 +358,7 @@ func Call(ctx context.Context, socket string, request Request) (Response, error)
 	defer connection.Close()
 	stop := context.AfterFunc(ctx, func() { _ = connection.Close() })
 	defer stop()
-	_ = connection.SetDeadline(time.Now().Add(operationTimeout + ioTimeout))
+	_ = connection.SetDeadline(time.Now().Add(requestTimeout(request.Operation) + ioTimeout))
 	if _, err := connection.Write(data); err != nil {
 		return Response{}, fmt.Errorf("%w: %v", ErrOutcomeUnknown, err)
 	}
@@ -370,6 +376,9 @@ func Call(ctx context.Context, socket string, request Request) (Response, error)
 }
 
 func validateResponse(response Response, request Request) error {
+	if request.Operation == PrepareMachine || response.PreparedMachine != nil {
+		return validateMachinePreparationResponse(response, request)
+	}
 	if request.Operation == ReconcileReply || response.Reconciled != nil {
 		return validateReconciliationResponse(response, request)
 	}
