@@ -8,12 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/hostservice"
 	"github.com/roman/concierge/pkg/taskops"
 )
 
 type launchCommand struct {
 	TaskID     string   `arg:"" help:"Queued task ID."`
+	Machine    string   `help:"Saved Herdr machine label or ID; omit for a local worker."`
+	Herdr      string   `default:"herdr" env:"TINCAN_HERDR" help:"Executable that owns the saved machine catalog."`
 	Harness    string   `required:"" enum:"codex,claude" help:"Worker harness."`
 	Project    string   `required:"" help:"Absolute source repository path."`
 	Worktree   string   `help:"Existing launch worktree path; omit for a treehouse lease."`
@@ -47,10 +50,26 @@ func (command *launchCommand) run(
 			"ask the operator to correct config/brief-include.md; no launch was requested",
 		)
 	}
+	machineID := ""
+	if command.Machine != "" {
+		profile, err := (herdr.MachineCatalog{Runner: herdr.NewClient(command.Herdr).Runner}).Resolve(
+			ctx,
+			command.Machine,
+		)
+		if err != nil {
+			return fail(
+				output,
+				2,
+				err,
+				"select an enabled saved machine from herdr machine list --json",
+			)
+		}
+		machineID = profile.ID
+	}
 	response, err := hostservice.Call(ctx, filepath.Join(root, "host.sock"), hostservice.Request{
 		Operation: hostservice.Launch, Expectations: &expectations,
 		Launch: &hostservice.LaunchRequest{
-			TaskID: command.TaskID, Harness: command.Harness, Project: command.Project,
+			TaskID: command.TaskID, Machine: machineID, Harness: command.Harness, Project: command.Project,
 			Worktree: command.Worktree, Branch: command.Branch, BaseCommit: command.BaseCommit,
 			Workspace: command.Workspace, AgentArgs: command.AgentArgs, Body: body,
 		},
@@ -87,6 +106,11 @@ func (command *launchCommand) run(
 	if err != nil {
 		return 1
 	}
+	if worker.Machine != "" {
+		if _, err := fmt.Fprintf(output, "machine: %s\n", quote(worker.Machine)); err != nil {
+			return 1
+		}
+	}
 	return 0
 }
 
@@ -122,6 +146,18 @@ func writeLaunchProgress(output io.Writer, taskID string, response hostservice.R
 	if _, err := fmt.Fprintf(output, "task: %s\nlaunch: %s\ntracking: %s\ngeneration: %s\nphase: %s\nreason: %s\nhelp: %s\n",
 		quote(taskID), response.Outcome, tracking, quote(generation), phase, quote(response.Error), quote("inspect completion with concierge worker show "+quote(taskID))); err != nil {
 		return 1
+	}
+	machine := ""
+	if snapshot.Worker != nil {
+		machine = snapshot.Worker.Machine
+	}
+	if snapshot.LaunchIntent != nil {
+		machine = snapshot.LaunchIntent.Machine
+	}
+	if machine != "" {
+		if _, err := fmt.Fprintf(output, "machine: %s\n", quote(machine)); err != nil {
+			return 1
+		}
 	}
 	if response.Checkpoint != nil {
 		intent := snapshot.LaunchIntent
