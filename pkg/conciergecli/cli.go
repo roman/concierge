@@ -94,6 +94,9 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	if err != nil {
 		return fail(stdout, 2, err, cliHelp)
 	}
+	if remoteWorkerMode() {
+		return command.runRemoteWorker(ctx, selected, stdin, stdout)
+	}
 	command.hostExpectations.MessageRoot = command.MessageRoot
 	if strings.HasPrefix(selected.Command(), "supervise ") {
 		command.supervisionExpectations = &hostservice.SupervisionSettings{}
