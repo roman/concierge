@@ -1,31 +1,16 @@
 package taskops
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 // RemoteWorkerTools contains paths on the selected machine.
-type RemoteWorkerTools struct {
-	Concierge     string
-	TaskDirectory string
-}
-
-func (tools RemoteWorkerTools) Validate() error {
-	for _, path := range []string{tools.Concierge, tools.TaskDirectory} {
-		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
-			return err
-		}
-	}
-	if tools.TaskDirectory == "/" {
-		return errors.New("remote task directory cannot be the filesystem root")
-	}
-	return nil
-}
+type RemoteWorkerTools = remoteworker.Tools
 
 // RemoteWorkerProtocol contains no primary filesystem paths or credentials.
 func RemoteWorkerProtocol(taskID string, tools RemoteWorkerTools) (string, error) {
