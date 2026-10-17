@@ -46,6 +46,7 @@ type cli struct {
 	Launch        launchCommand         `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
 	Land          landCommand           `cmd:"" help:"Land an accepted worker result using the repository settings."`
 	Project       projectCommands       `cmd:"" help:"Inspect and set operator-owned repository settings."`
+	Machine       machineCommands       `cmd:"" help:"Check saved remote machines using config/machines.json keyed by saved machine ID."`
 	Operator      operatorCommands      `cmd:"" help:"Record, resolve, list, and remind about open operator actions."`
 	Heartbeat     heartbeatCommands     `cmd:"" help:"Configure and claim periodic primary status updates."`
 	BriefInclude  briefIncludeCommands  `cmd:"" help:"Set or clear operator-owned standing worker instructions."`
@@ -216,6 +217,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return command.Land.run(ctx, root, stdout)
 	case "project show <repo>":
 		return command.Project.show(root, stdout)
+	case "machine check <label>", "machine status <label>":
+		return command.Machine.run(ctx, root, selected.Command(), stdout)
 	case "project set <repo>":
 		return command.Project.set(root, stdout)
 	case "brief-include set", "brief-include clear":

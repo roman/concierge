@@ -57,14 +57,8 @@ func (checker Checker) Check(
 	if agent != "codex" && agent != "claude" {
 		return Report{}, errors.New("agent must be codex or claude")
 	}
-	names := make(map[string]bool)
-	for _, repository := range repositories {
-		if repository.Name == "" || names[repository.Name] || !validRepositoryURL(repository.URL) {
-			return Report{}, errors.New(
-				"repositories require unique names and credential-free SSH or HTTPS URLs",
-			)
-		}
-		names[repository.Name] = true
+	if err := validateRepositories(repositories); err != nil {
+		return Report{}, err
 	}
 	report := Report{MachineID: machine.ID}
 	probe := func(name, step string, command ...string) (string, bool) {
