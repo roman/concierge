@@ -17,18 +17,26 @@ const (
 
 // WorktreeLease keeps the pool identity and result branch after worker retirement.
 type WorktreeLease struct {
-	ID         string     `json:"id"`
-	Holder     string     `json:"holder"`
-	Project    string     `json:"project"`
-	Path       string     `json:"path"`
-	Branch     string     `json:"branch"`
-	BaseCommit string     `json:"base_commit"`
-	State      LeaseState `json:"state"`
+	Remote     RemoteLease `json:"remote,omitzero"`
+	ID         string      `json:"id"`
+	Holder     string      `json:"holder"`
+	Project    string      `json:"project"`
+	Path       string      `json:"path"`
+	Branch     string      `json:"branch"`
+	BaseCommit string      `json:"base_commit"`
+	State      LeaseState  `json:"state"`
 }
 
 func validWorktreeLease(lease WorktreeLease) bool {
 	if lease == (WorktreeLease{}) {
 		return true
+	}
+	if lease.Remote.Validate() != nil {
+		return false
+	}
+	if remote := lease.Remote; remote != (RemoteLease{}) &&
+		(remote.Backend == "" || lease.Project != remote.ProjectPath() || !strings.HasPrefix(lease.Path, remote.PoolRoot()+"/")) {
+		return false
 	}
 	if !singleLine(lease.ID) || !singleLine(lease.Holder) || !singleLine(lease.Branch) ||
 		strings.HasPrefix(lease.Branch, "-") ||

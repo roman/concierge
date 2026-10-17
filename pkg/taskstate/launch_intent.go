@@ -310,6 +310,10 @@ func validLaunchIntent(selected record) bool {
 	if !validWorktreeLease(intent.Lease) || !optionalLine(intent.LeaseHolder) {
 		return false
 	}
+	if remote := intent.Lease.Remote; remote != (RemoteLease{}) &&
+		remote.Machine != intent.Machine {
+		return false
+	}
 	if intent.Lease != (WorktreeLease{}) &&
 		(intent.Lease.State != LeaseHeld || intent.Lease.Holder != intent.LeaseHolder || intent.Lease.Project != intent.Project || intent.Lease.Path != intent.Worktree || intent.Lease.Branch != intent.Branch || intent.Lease.BaseCommit != intent.BaseCommit) {
 		return false

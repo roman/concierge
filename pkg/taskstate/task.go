@@ -186,8 +186,7 @@ func NewMigrated(input Snapshot) (Task, error) {
 		Completion:   cloneCompletion(input.Completion),
 		Receipt:      cloneReceipt(input.Receipt), PriorReceipts: slices.Clone(input.PriorReceipts),
 	}
-	if (input.Worker != nil && input.Worker.Machine != "") ||
-		(input.LaunchIntent != nil && input.LaunchIntent.Machine != "") {
+	if recordUsesRemote(selected) {
 		selected.Format = remoteFormatVersion
 	}
 	if err := validate(selected); err != nil {
@@ -331,9 +330,7 @@ func validate(selected record) error {
 		!validDefinition(selected.Definition) {
 		return ErrInvalidTask
 	}
-	if selected.Format == formatVersion &&
-		((selected.Worker != nil && selected.Worker.Machine != "") ||
-			(selected.LaunchIntent != nil && selected.LaunchIntent.Machine != "")) {
+	if selected.Format == formatVersion && recordUsesRemote(selected) {
 		return ErrInvalidTask
 	}
 	if selected.State != Queued && selected.State != InFlight && selected.State != Done {
@@ -475,6 +472,10 @@ func validDefinition(input Definition) bool {
 }
 
 func validWorker(worker Worker) bool {
+	if remote := worker.Lease.Remote; remote != (RemoteLease{}) &&
+		remote.Machine != worker.Machine {
+		return false
+	}
 	if access := worker.Access; access != nil &&
 		(worker.Machine == "" || access.Generation != worker.Generation || access.Validate() != nil) {
 		return false
