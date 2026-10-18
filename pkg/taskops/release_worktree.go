@@ -49,7 +49,7 @@ func (service *Service) returnRetiredLease(
 		return taskstate.Task{}, err
 	}
 	if lease.State == taskstate.LeaseReturned {
-		return returned, nil
+		return service.returnPrimaryResultLease(ctx, returned, generation)
 	}
 	if lease.Remote != (taskstate.RemoteLease{}) {
 		if service.remoteLeases == nil {
@@ -67,7 +67,7 @@ func (service *Service) returnRetiredLease(
 				worktree.ErrIdentity,
 			)
 		}
-		return returned, nil
+		return service.returnPrimaryResultLease(ctx, returned, generation)
 	}
 	current, found, err := service.pool.Find(ctx, lease.Project, lease.Holder)
 	if err != nil {

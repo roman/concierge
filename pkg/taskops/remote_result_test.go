@@ -171,6 +171,11 @@ status)
     printf '['; cat "$RESULT_TEST_POOL/inventory"; printf ']'
   else printf '[]'; fi
   ;;
+return)
+  printf 'return\n' >> "$RESULT_TEST_POOL/returns"
+  printf '{"path":"%s/lease","lease_id":"","lease_holder":"","flavor":"git","processes":[]}' "$RESULT_TEST_POOL" > "$RESULT_TEST_POOL/inventory"
+  if [ -f "$RESULT_TEST_POOL/lose-return" ]; then exit 72; fi
+  ;;
 *) exit 73 ;;
 esac
 `
