@@ -378,19 +378,23 @@ func TestResolveRejectsRetainDateAfterRetirement(t *testing.T) {
 }
 
 func TestResolveDoesNotReportUnappliedPartialResult(t *testing.T) {
-	for _, mode := range []string{"disposition conflict", "finish rejection"} {
+	for _, mode := range []string{"disposition conflict", "finish rejection", "missing task confirmation"} {
 		t.Run(mode, func(t *testing.T) {
 			root := testRoot(t)
 			service := runningReplyTask(t, root)
 			messageRoot := t.TempDir()
 			reply := sendBoundReply(t, root, messageRoot, "gen-1")
-			if mode == "disposition conflict" {
+			if mode == "disposition conflict" || mode == "missing task confirmation" {
 				messages, _ := inbox.New(messageRoot)
 				recipient, _ := inbox.ParseRecipient("concierge")
 				if _, _, err := messages.BeginDisposition(recipient, reply.ID, "finish:task-1:gen-1:close:2026-10-12"); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := messages.CompleteDisposition(recipient, reply.ID, "queued"); err != nil {
+				outcome := "queued"
+				if mode == "missing task confirmation" {
+					outcome = "done"
+				}
+				if _, err := messages.CompleteDisposition(recipient, reply.ID, outcome); err != nil {
 					t.Fatal(err)
 				}
 			}

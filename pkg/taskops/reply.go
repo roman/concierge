@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/roman/concierge/pkg/taskmeta"
 	"os"
-	"strings"
 
 	"github.com/roman/concierge/pkg/taskprotocol"
 	"github.com/roman/concierge/pkg/taskstate"
@@ -86,41 +84,27 @@ func (service *Service) resolve(
 		reply.SpawnGeneration, assignmentID); err != nil {
 		return ReplyResult{}, err
 	}
+	if err := service.prepareReplyAcceptance(ctx, messages, id, reply, mode, closedOn); err != nil {
+		return ReplyResult{}, err
+	}
 
 	var result ReplyResult
 	_, err = service.store.WithTask(ctx, reply.Task, func(task *taskstate.LockedTask) error {
 		current := task.Current()
-		generation := reply.SpawnGeneration
-		existing, dispositionErr := messages.ReadDisposition(concierge, id)
-		suffix := ":" + string(mode)
-		if mode == taskstate.Close {
-			suffix += ":" + closedOn
+		generation, action, err := service.replyResolutionBinding(
+			current,
+			messages,
+			id,
+			reply,
+			mode,
+			closedOn,
+		)
+		if err != nil {
+			return err
 		}
-		prefix := "finish:" + reply.Task + ":"
-		if dispositionErr == nil {
-			if !strings.HasPrefix(existing.Action, prefix) ||
-				!strings.HasSuffix(existing.Action, suffix) {
-				return inbox.ErrDispositionConflict
-			}
-			generation = strings.TrimSuffix(strings.TrimPrefix(existing.Action, prefix), suffix)
-			if taskmeta.ValidateSpawnGeneration(generation) != nil {
-				return inbox.ErrDispositionConflict
-			}
-		} else if !errors.Is(dispositionErr, os.ErrNotExist) {
-			return dispositionErr
-		} else if worker, err := assignmentWorker(current); err == nil && preservedReply(worker, replyID) {
-			generation = worker.Generation
-		}
-		action := fmt.Sprintf("finish:%s:%s%s", reply.Task, generation, suffix)
-		if (mode == taskstate.Retain && closedOn != "") ||
-			(mode == taskstate.Close && (closedOn == "" || (resultAlreadyApplied(current, generation, mode) && current.Definition().Closed != closedOn))) {
-			return taskstate.ErrInvalidTransition
-		}
-		if errors.Is(dispositionErr, os.ErrNotExist) {
-			if !current.HasReceipt(generation, mode) {
-				if _, err := current.AcceptResult(generation, mode, closedOn); err != nil {
-					return err
-				}
+		if !current.HasReceipt(generation, mode) {
+			if _, err := current.AcceptResult(generation, mode, closedOn); err != nil {
+				return err
 			}
 		}
 		disposition, _, err := messages.BeginDisposition(concierge, id, action)

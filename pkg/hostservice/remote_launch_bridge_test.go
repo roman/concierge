@@ -161,7 +161,7 @@ func (runner *launchBridgeSSH) Run(
 }
 
 func TestHostRemoteLaunchConnectsNativeWorktreeActivationAndDispatch(t *testing.T) {
-	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost", "restart", "restart start lost", "restart activation lost", "result export", "result confirmation lost"} {
+	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost", "restart", "restart start lost", "restart activation lost", "result export", "result confirmation lost", "ship", "ship return confirmation lost"} {
 		t.Run(mode, func(t *testing.T) { testHostRemoteLaunchBridge(t, mode) })
 	}
 }
@@ -170,6 +170,17 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	t.Helper()
 	server, input, _ := remoteHostLaunchFixture(t)
 	server.config.Session, server.config.TreehouseExecutable = "", ""
+	if strings.HasPrefix(mode, "ship") {
+		configureShipBridge(t, server, input)
+	} else if !strings.HasPrefix(mode, "result") {
+		if _, err := server.store.Update(context.Background(), input.TaskID, func(task taskstate.Task) (taskstate.Task, error) {
+			snapshot := task.Snapshot()
+			snapshot.Definition.Kind = "scout"
+			return taskstate.NewMigrated(snapshot)
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	base, err := os.MkdirTemp("/tmp", "host-remote-")
 	if err != nil {
 		t.Fatal(err)
@@ -217,7 +228,7 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		},
 	}
 	runner.lostContextConfirmation = mode == "context confirmation lost"
-	runner.lostReturnConfirmation = mode == "return confirmation lost"
+	runner.lostReturnConfirmation = strings.HasSuffix(mode, "return confirmation lost")
 	server.preparationSSH = runner
 	processes := &retirementProcesses{}
 	server.tunnels, err = remoteworker.NewTunnelManager(
@@ -341,6 +352,9 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		}
 		return
 	}
+	if strings.HasPrefix(mode, "ship") {
+		commitShipBridgeResult(t, server, *worker)
+	}
 	expectedTunnels := int32(1)
 	if strings.HasPrefix(mode, "restart") {
 		oldGeneration := worker.Generation
@@ -436,6 +450,9 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	if _, err := server.service.Finish(context.Background(), input.TaskID, worker.Generation, taskstate.Close, "2026-10-17"); err != nil {
 		t.Fatal(err)
 	}
+	if strings.HasPrefix(mode, "ship") {
+		landShipBridgeResult(t, server, input, *worker)
+	}
 	if err := os.WriteFile(filepath.Join(tools, "gone"), nil, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +461,7 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		Transition: &TransitionRequest{TaskID: input.TaskID, Generation: worker.Generation},
 	}
 	retired, err := server.execute(context.Background(), cleanup, nil)
-	if mode == "return confirmation lost" {
+	if strings.HasSuffix(mode, "return confirmation lost") {
 		if err == nil {
 			t.Fatal("lost native return confirmation completed primary cleanup")
 		}
@@ -455,12 +472,22 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 			pending.Snapshot().Worker.Lease.State != taskstate.LeaseHeld {
 			t.Fatal("uncertain return lost the primary's cleanup binding")
 		}
+		if strings.HasPrefix(mode, "ship") &&
+			pending.Snapshot().Worker.RemoteResult.Lease.State != taskstate.LeaseHeld {
+			t.Fatal("uncertain native return released the primary result lease")
+		}
 		retired, err = server.execute(context.Background(), cleanup, nil)
 	}
 	if err != nil || retired.Snapshot().Worker != nil || retired.Snapshot().Completion != nil ||
 		retired.Snapshot().Receipt == nil ||
 		retired.Snapshot().Receipt.Lease.State != taskstate.LeaseReturned {
 		t.Fatalf("native cleanup: %+v %v", retired.Snapshot(), err)
+	}
+	if strings.HasPrefix(mode, "ship") {
+		result, found := retired.RetiredRemoteResult(worker.Generation)
+		if !found || result.Lease.State != taskstate.LeaseReturned {
+			t.Fatal("ship cleanup retained the primary result lease")
+		}
 	}
 	if _, err := os.Lstat(worker.Worktree); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("native physical checkout remains: %v", err)

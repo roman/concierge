@@ -130,6 +130,9 @@ func (service *Service) Start(ctx context.Context, taskID string) (taskstate.Tas
 func (service *Service) Finish(
 	ctx context.Context, taskID, generation string, mode taskstate.CompletionMode, closedOn string,
 ) (taskstate.Task, error) {
+	if err := service.prepareRemoteAcceptance(ctx, taskID, generation, mode, closedOn); err != nil {
+		return taskstate.Task{}, err
+	}
 	updated, err := service.store.Update(
 		ctx,
 		taskID,
