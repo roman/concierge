@@ -15,7 +15,7 @@ import (
 type retirementProcesses struct{ hostTunnelProcesses }
 
 func (processes *retirementProcesses) Status(primary.ProcessToken) (primary.ProcessStatus, error) {
-	if processes.stops.Load() != 0 {
+	if processes.stops.Load() >= processes.starts.Load() {
 		return primary.ProcessExited, nil
 	}
 	return primary.ProcessRunning, nil
