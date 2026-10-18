@@ -48,6 +48,38 @@ primary ownership and start the host. Ask the primary to queue and launch work.
 Inspect progress with `concierge backlog list` and `concierge worker list`.
 Existing state requires the [migration procedure](docs/state.md).
 
+## Remote workers
+
+Register an SSH machine with Herdr once. Concierge supports Apple Silicon macOS
+remotes. Install Nix with flakes, Herdr, and the selected agent on the remote.
+Provision read-only repository keys and complete the agent login there by hand.
+Verify the SSH host keys on both machines before running unattended commands.
+
+Declare the saved machine ID, its SSH target, a private remote base directory,
+the agent, and repository URLs in `config/machines.json` under the state root.
+Include the `concierge` repository and every project or dependency repository.
+See the [remote worker guide](docs/remote-workers.md) for the configuration.
+
+```sh
+concierge machine check baker
+concierge machine prepare baker --client-source /path/to/clean/concierge
+concierge machine status baker
+```
+
+Preparation builds the committed client with the remote Nix installation.
+Launch a queued task with the usual launch arguments plus `--machine baker`.
+The primary owns supervision, result acceptance, landing, and lease cleanup.
+It imports a ship worker's immutable commit into a primary worktree before
+acceptance. Fast-forward delivery needs no remote push. PR delivery publishes
+from the primary under the existing merge authority.
+
+`worker show TASK_ID` reports Herdr and tunnel reachability separately.
+An unreachable worker keeps its generation, lease, and unsent reply. A revoked
+secret stops remote retries. Preserve its outbox record and use the trusted
+primary command `concierge task reply reconcile --file RECORD` at the original
+root. Keep the original generation, assignment, reply key, recipient, and body.
+The guide explains recovery and cleanup checks.
+
 ## Develop
 
 Copy `.envrc.template` to `.envrc` for optional direnv setup, then run
@@ -66,6 +98,7 @@ architectures on each platform.
 - [Commands and project settings](docs/commands.md)
 - [Task lifecycle and lease cleanup](docs/tasks.md)
 - [Worker launch and native checkpoints](docs/launch.md)
+- [Remote workers and reply recovery](docs/remote-workers.md)
 - [Supervision and root hooks](docs/supervision.md)
 - [State roots and migration](docs/state.md)
 - [Development shell integration](docs/development-shell.md)

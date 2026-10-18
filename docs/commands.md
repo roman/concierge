@@ -88,7 +88,7 @@ and unspecified fields. Invalid existing configuration stops an update.
 | Setting | Path under `$CONCIERGE_HOME` | Default |
 | --- | --- | --- |
 | Per-repository `merge` | `config/projects.json` | `off`: operator approval for every landing. |
-| Per-repository `delivery` | `config/projects.json` | `pr`: worker opens a PR. |
+| Per-repository `delivery` | `config/projects.json` | `pr`: local worker or remote primary opens a PR. |
 | Standing worker instructions | `config/brief-include.md` | Absent: append no text. |
 
 For example:
@@ -117,7 +117,8 @@ Merge authority and delivery mode are independent. `merge: on` authorizes the
 primary to land green, in-scope work. `merge: off` requires approval for each
 landing. `delivery: fast-forward` leaves the worker's clean ready branch for a
 fast-forward of the default branch. The worker commits its changes and does not
-push or open a PR. `delivery: pr` has the worker push and open a PR.
+push or open a PR. `delivery: pr` has the local worker push and open a PR.
+For a remote worker, the primary imports its accepted commit and publishes the PR.
 Neither mode authorizes red work, force pushes, or discarding unlanded work.
 Destructive, irreversible, or security-sensitive landings require separate
 operator approval even with merge on.
