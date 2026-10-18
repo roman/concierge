@@ -16,6 +16,12 @@
       };
       checks = {
         inherit (self'.packages) concierge;
+        native-hook-python = pkgs.runCommand "concierge-native-hook-python" {
+          nativeBuildInputs = self'.devShells.default.nativeBuildInputs;
+        } ''
+          python3 -c 'import json, socket, tempfile; socket.socket(socket.AF_UNIX).close()'
+          touch "$out"
+        '';
         devshell = import ./tests/devshell.nix {
           inherit pkgs;
           devshellModules = inputs.devshell-modules;

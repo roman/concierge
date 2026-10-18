@@ -106,6 +106,10 @@ root for the result and transport files. User configuration files stay unchanged
 
 Copy `.envrc.template` to `.envrc` for optional direnv setup, then run
 `direnv allow`. Otherwise use `nix develop`.
+The shell and reusable Concierge module include Nix Python for Herdr's native
+session hook. On macOS, Apple's Python launcher fails under the Nix SDK
+settings. Project shells configured without the module must also declare
+Python 3 when running native Codex workers.
 
 ```sh
 nix fmt

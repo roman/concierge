@@ -49,6 +49,7 @@ in
     packages = [
       cfg.package
       cfg.tincanPackage
+      pkgs.python3
     ];
     files = {
       ".agents/hooks/concierge-session-start".source = hook "concierge-session-start";

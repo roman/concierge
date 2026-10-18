@@ -100,7 +100,7 @@ let
 in
 pkgs.runCommand "concierge-devshell"
   {
-    nativeBuildInputs = [
+    nativeBuildInputs = result.config.packages ++ [
       pkgs.bash
       pkgs.coreutils
       pkgs.gnugrep
@@ -111,6 +111,7 @@ pkgs.runCommand "concierge-devshell"
     shellEntry = result.shellHook;
   }
   ''
+    python3 -c 'import json, socket, tempfile; socket.socket(socket.AF_UNIX).close()'
     export TEST_CALLS="$TMPDIR/calls"
     touch "$TEST_CALLS"
     mkdir -p "$TMPDIR/project/subdirectory"
