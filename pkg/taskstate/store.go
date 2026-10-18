@@ -290,6 +290,13 @@ func sameWorkerIdentity(current, candidate Task) bool {
 	if worker == nil {
 		return true
 	}
+	if previous != nil {
+		before, after := previous.RemoteResult, worker.RemoteResult
+		if before.Commit != after.Commit || before.Holder != after.Holder ||
+			before.Lease != after.Lease {
+			return false
+		}
+	}
 	return previous != nil && previous.Machine == worker.Machine &&
 		previous.Session == worker.Session &&
 		previous.Name == worker.Name &&
@@ -297,6 +304,9 @@ func sameWorkerIdentity(current, candidate Task) bool {
 }
 
 func checkWorkerIdentity(tasks []Task, candidate Task) error {
+	if err := checkPrimaryResultReservations(tasks, candidate); err != nil {
+		return err
+	}
 	worker := candidate.Snapshot().Worker
 	launch := candidate.record.LaunchIntent
 	if worker == nil && launch == nil {
