@@ -1,6 +1,7 @@
 package remoteworker
 
 import (
+	"bytes"
 	"errors"
 	"net"
 	"os"
@@ -77,19 +78,34 @@ func TestAgentProbeUsesOwnedSocketAndRequiresLoadedKey(t *testing.T) {
 	}
 	socket := filepath.Join(directory, "agent.sock")
 	agent := exec.Command("ssh-agent", "-D", "-a", socket)
+	var output bytes.Buffer
+	agent.Stdout, agent.Stderr = &output, &output
 	if err := agent.Start(); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = agent.Process.Kill(); _ = agent.Wait() })
-	deadline := time.Now().Add(3 * time.Second)
+	done := make(chan struct{})
+	var agentError error
+	go func() { agentError = agent.Wait(); close(done) }()
+	t.Cleanup(func() { _ = agent.Process.Kill(); <-done })
+	deadline := time.Now().Add(15 * time.Second)
 	for {
 		if _, err := os.Stat(socket); err == nil {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("test agent did not create its socket")
+			_ = agent.Process.Kill()
+			<-done
+			t.Fatalf("test agent did not create its socket: %v\n%s", agentError, output.String())
 		}
-		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-done:
+			t.Fatalf(
+				"test agent exited before creating its socket: %v\n%s",
+				agentError,
+				output.String(),
+			)
+		case <-time.After(10 * time.Millisecond):
+		}
 	}
 	t.Setenv("SSH_AUTH_SOCK", "/absent/ambient-agent.sock")
 	if err := ProbeAgentSocket(t.Context(), directory, owner); !errors.Is(
