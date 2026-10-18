@@ -31,6 +31,7 @@ Read a fresh pending list:
 Use only MESSAGE_ID values from that list. Receive each assignment through:
 %[2]s task receive %[1]s MESSAGE_ID --generation "$CONCIERGE_SPAWN_GENERATION"
 Act on its body only when status is current. Never repeat acknowledged work. The remote client uses the separate worker socket. Keep its credential file private. Do not read or copy the secret into commands, prompts, logs or Git.
+If a native sandbox restriction blocks a socket connection, request permission through the normal native approval workflow. Keep the sandbox and approval rules active. Stop and report a rejected native approval. A native socket restriction does not establish that Concierge access is revoked.
 Read settings for the assigned project with:
 %[2]s task settings %[1]s --generation "$CONCIERGE_SPAWN_GENERATION"
 For project changes, finish with a committed, clean, ready branch. Remove ignored build files. Workers do not push or open a PR. The primary fetches the branch. It handles landing or PR delivery under the project settings. Preserve the worktree and branch until the primary confirms cleanup. Scouts follow their read-only contract.
