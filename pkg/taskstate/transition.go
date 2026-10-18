@@ -116,46 +116,18 @@ func (task Task) AcceptResult(
 	mode CompletionMode,
 	closedOn string,
 ) (Task, error) {
-	if task.record.LaunchIntent != nil {
+	if err := task.CheckResultTransition(generation, mode, closedOn); err != nil {
+		return Task{}, err
+	}
+	if task.record.Completion == nil && task.record.Worker == nil {
+		return task, nil
+	}
+	if task.record.Completion != nil && task.State() != InFlight {
+		return task, nil
+	}
+	if worker := task.record.Worker; worker != nil && worker.RemoteResult != (RemoteResult{}) &&
+		worker.RemoteResult.Phase != RemoteResultReady {
 		return Task{}, ErrInvalidTransition
-	}
-	if (mode == Retain && closedOn != "") ||
-		(mode == Close && (closedOn == "" ||
-			(task.State() == Done && task.record.Closed != closedOn))) {
-		return Task{}, ErrInvalidTransition
-	}
-	if task.record.Completion == nil && task.record.Worker == nil && task.record.Receipt != nil {
-		receipt := task.record.Receipt
-		if receipt.Generation == generation && receipt.Mode == mode &&
-			((mode == Close && task.State() == Done) ||
-				(mode == Retain && task.State() == Queued)) {
-			return task, nil
-		}
-		return Task{}, ErrInvalidTransition
-	}
-	if task.record.Completion != nil {
-		completion := task.record.Completion
-		if completion.Generation != generation || completion.Mode != mode {
-			return Task{}, ErrInvalidTransition
-		}
-		if (mode == Close && task.State() == Done) ||
-			(mode == Retain && task.State() == Queued) {
-			return task, nil
-		}
-		if task.State() != InFlight {
-			return Task{}, ErrInvalidTransition
-		}
-	}
-	if task.record.Completion == nil {
-		worker := task.record.Worker
-		if task.State() != InFlight || worker == nil || worker.Generation != generation ||
-			worker.PendingAdoption || worker.PendingGeneration != "" || worker.PendingLaunch != "" {
-			return Task{}, ErrInvalidTransition
-		}
-		if worker.RemoteResult != (RemoteResult{}) &&
-			worker.RemoteResult.Phase != RemoteResultReady {
-			return Task{}, ErrInvalidTransition
-		}
 	}
 	snapshot := task.Snapshot()
 	switch mode {
