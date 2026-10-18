@@ -87,7 +87,19 @@ func (run *savedMachineAcceptance) restartPrimary(id string) {
 		run.t.Fatal("restart test requires a confirmed owned tunnel")
 	}
 	run.note("Restarting only the temporary primary host")
-	run.note("Primary restart: %s", run.cli("host", "restart", "--timeout", "30s"))
+	var output string
+	run.wait(time.Minute, "temporary primary restart", func() (bool, error) {
+		var err error
+		output, err = run.call(run.ctx, nil, "host", "restart", "--timeout", "30s")
+		if err == nil {
+			return true, nil
+		}
+		if !acceptanceRestartBusy(output, err) {
+			run.t.Fatalf("temporary primary restart has an uncertain outcome: %v\n%s", err, output)
+		}
+		return false, err
+	})
+	run.note("Primary restart: %s", output)
 	after := run.readTask(id).Snapshot().Worker
 	recovered := run.tunnel(id)
 	if after == nil || after.Generation != before.Generation || after.Lease != before.Lease ||
