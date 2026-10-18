@@ -25,6 +25,10 @@ func (leases hostRemoteLeases) Return(
 	if err != nil {
 		return taskstate.WorktreeLease{}, err
 	}
+	proof, err := leases.resultReturnProof(ctx, task, generation, lease, profile)
+	if err != nil {
+		return taskstate.WorktreeLease{}, err
+	}
 	location := lease.Remote
 	location.Backend = ""
 	request := remoteworker.WorktreeReturnRequest{
@@ -33,13 +37,7 @@ func (leases hostRemoteLeases) Return(
 			Branch: lease.Branch, BaseCommit: lease.BaseCommit,
 		},
 		Lease: lease,
-		Proof: remoteworker.WorktreeReturnProof{
-			Outcome: remoteworker.WorktreeUnchanged,
-			Commit:  lease.BaseCommit,
-		},
-	}
-	if _, abandoned := task.LaunchAbandonment(generation); abandoned {
-		request.Proof.Outcome = remoteworker.WorktreeAbandoned
+		Proof: proof,
 	}
 	return leases.transport().Return(ctx, profile, request)
 }

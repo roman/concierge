@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/roman/concierge/pkg/gitremote"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
@@ -385,7 +386,7 @@ func TestLandingRepository(t *testing.T) {
 		{"ssh://git@forge.example/owner/repo", "forge.example/owner/repo"},
 		{"/tmp/repository", ""}, {"https://github.com/repo", ""},
 	} {
-		got, err := landingRepository(test.remote)
+		got, err := gitremote.Repository(test.remote)
 		if got != test.want || (err != nil) != (test.want == "") {
 			t.Fatalf("%s: %s %v", test.remote, got, err)
 		}

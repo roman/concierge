@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/roman/concierge/pkg/gitremote"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
@@ -24,7 +25,7 @@ func (target landing) prepareRemotePullRequest(
 	if remote != target.remote {
 		return errors.New("origin changed during remote PR preparation")
 	}
-	repository, err := landingRepository(remote)
+	repository, err := gitremote.Repository(remote)
 	if err != nil {
 		return err
 	}

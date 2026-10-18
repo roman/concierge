@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
-	"strings"
+
+	"github.com/roman/concierge/pkg/gitremote"
 )
 
 type landingPullRequest struct {
@@ -18,7 +18,7 @@ type landingPullRequest struct {
 func (target landing) mergePullRequest(ctx context.Context) (landingResult, error) {
 	result := landingResult{checkout: "skipped: PR delivery", remoteBranch: "preserved"}
 	var err error
-	target.repository, err = landingRepository(target.remote)
+	target.repository, err = gitremote.Repository(target.remote)
 	if err != nil {
 		return result, err
 	}
@@ -103,20 +103,4 @@ func (target landing) gh(ctx context.Context, args ...string) (string, error) {
 		target.worktree,
 		"gh",
 		append(args, "--repo", target.repository)...)
-}
-
-func landingRepository(remote string) (string, error) {
-	if strings.HasPrefix(remote, "git@") && !strings.Contains(remote, "://") {
-		remote = "ssh://" + strings.Replace(remote, ":", "/", 1)
-	}
-	parsed, err := url.Parse(remote)
-	if err != nil {
-		return "", err
-	}
-	path := strings.TrimSuffix(strings.Trim(parsed.Path, "/"), ".git")
-	if (parsed.Scheme != "https" && parsed.Scheme != "ssh" && parsed.Scheme != "http") ||
-		parsed.Host == "" || len(strings.Split(path, "/")) != 2 || strings.ContainsAny(path, " \t\n?#") {
-		return "", errors.New("PR delivery requires an origin URL with a host and owner/repository")
-	}
-	return parsed.Host + "/" + path, nil
 }
