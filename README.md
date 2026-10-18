@@ -83,6 +83,22 @@ primary command `concierge task reply reconcile --file RECORD` at the original
 root. Keep the original generation, assignment, reply key, recipient, and body.
 The guide explains recovery and cleanup checks.
 
+Run the optional acceptance workflow against a saved Apple Silicon macOS
+machine from a native primary session:
+
+```sh
+bash scripts/acceptance-remote.sh baker /tmp/concierge-remote-report.md
+```
+
+Replace `baker` with the saved machine to test. Ordinary integration tests do
+not connect to a remote machine. The workflow requires committed, clean source,
+a loaded primary SSH agent, and an existing Codex login on the remote. It uses
+temporary state roots and an owned remote directory. It starts real scout and
+ship workers with native permissions, restarts its temporary primary, drops and
+recovers its tunnel, and lands into a temporary local Git origin. It does not
+push to the source repository. Existing Herdr and Codex workflow directories
+receive their normal runtime records. The report path must not exist.
+
 ## Develop
 
 Copy `.envrc.template` to `.envrc` for optional direnv setup, then run
