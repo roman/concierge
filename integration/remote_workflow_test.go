@@ -170,6 +170,7 @@ func (run *savedMachineAcceptance) waitReply(id string) string {
 		run.t.Fatal(err)
 	}
 	var replyID string
+	var replyBody string
 	blockedPane := ""
 	run.wait(12*time.Minute, id+" bound reply", func() (bool, error) {
 		pending, err := messages.List(recipient)
@@ -184,6 +185,7 @@ func (run *savedMachineAcceptance) waitReply(id string) string {
 			}
 			count++
 			replyID = message.ID.String()
+			replyBody = reply.Body
 		}
 		if count > 1 {
 			run.t.Fatal("duplicate bound reply published")
@@ -205,6 +207,13 @@ func (run *savedMachineAcceptance) waitReply(id string) string {
 		blockedPane = ""
 		return false, err
 	})
+	if run.readTask(id).Definition().Kind == "scout" {
+		version := run.git(run.project, "show", run.commit+":VERSION")
+		if version == "" || !strings.Contains(replyBody, version) {
+			run.t.Fatal("scout reply did not report the assigned VERSION value")
+		}
+		run.note("%s: reply reports the committed VERSION value %s", id, version)
+	}
 	run.note("%s: exactly one bound reply received", id)
 	return replyID
 }
@@ -227,6 +236,13 @@ func (run *savedMachineAcceptance) acceptAndClean(id string) {
 				"ship result was not immutably materialized into the temporary primary pool",
 			)
 		}
+		if changed := run.git(result.Lease.Path, "diff", "--name-only", run.commit+"..."+result.Commit); changed != "concierge-acceptance-proof.txt" {
+			run.t.Fatal("ship commit did not change exactly the assigned proof file")
+		}
+		if proof := run.git(result.Lease.Path, "show", result.Commit+":concierge-acceptance-proof.txt"); proof != "Remote acceptance completed" {
+			run.t.Fatal("ship commit did not contain the assigned proof text")
+		}
+		run.note("%s: immutable commit contains only the assigned proof file and required text", id)
 		if destination := run.git(run.project, "remote", "get-url", "--push", "origin"); destination != run.origin {
 			run.t.Fatal("landing destination changed")
 		}
