@@ -39,6 +39,14 @@ func (worker *SupervisedWorker) observeRemote(
 		!errors.Is(herdrError, supervise.ErrMissing) {
 		return herdrError
 	}
+	if errors.Is(herdrError, supervise.ErrMissing) && worker.remoteRuntime != nil &&
+		bound.PendingLaunch != "" {
+		if err := worker.restartRemote(ctx, task); err != nil {
+			return err
+		}
+		herdrError = nil
+	}
+	bound = *task.Current().Snapshot().Worker
 	if worker.tunnelProbe == nil {
 		return herdrError
 	}
@@ -47,6 +55,16 @@ func (worker *SupervisedWorker) observeRemote(
 			return supervise.ErrUnreachable
 		}
 		return errors.Join(herdrError, supervise.ErrUnreachable)
+	}
+	if herdrError == nil && worker.remoteRuntime != nil &&
+		bound.TransportGeneration != bound.Generation {
+		site, err := worker.prepareRemoteRuntime(ctx, task, bound.Generation)
+		if err == nil {
+			err = worker.activateRemoteRuntime(ctx, task, site)
+		}
+		if err != nil {
+			return worker.remoteRestartFailure(ctx, task, taskstate.TunnelChannel, err)
+		}
 	}
 	probe, cancel := context.WithTimeout(ctx, remoteProbeTimeout)
 	defer cancel()

@@ -17,13 +17,14 @@ import (
 
 // SupervisedWorker revalidates a task's endpoint under its task lock.
 type SupervisedWorker struct {
-	now         func() time.Time
-	service     *Service
-	taskID      string
-	messages    *inbox.Store
-	recipient   inbox.Recipient
-	client      herdr.Client
-	tunnelProbe TunnelProbe
+	now           func() time.Time
+	service       *Service
+	taskID        string
+	messages      *inbox.Store
+	recipient     inbox.Recipient
+	client        herdr.Client
+	tunnelProbe   TunnelProbe
+	remoteRuntime RemoteWorkerRuntime
 }
 
 type taskBootstrap struct {
@@ -106,6 +107,12 @@ func (worker *SupervisedWorker) observeEndpoint(
 	}
 	switch worker.client.Health(ctx, target).Endpoint {
 	case herdr.Alive:
+		if bound.Machine != "" && worker.remoteRuntime != nil &&
+			bound.TransportGeneration != bound.Generation {
+			if err := validateRemoteRestartAgent(bound, agent); err != nil {
+				return err
+			}
+		}
 		if bound.PendingLaunch != "" {
 			if bound.PendingLaunch == bound.Generation {
 				if err := worker.finishRestartRecovery(bound); err != nil {
@@ -151,6 +158,11 @@ func (worker *SupervisedWorker) boundClient(
 	ctx context.Context,
 	bound taskstate.Worker,
 ) (herdr.Client, error) {
+	if bound.Machine != "" && worker.remoteRuntime != nil {
+		if err := worker.remoteRuntime.CheckEndpoint(ctx, bound); err != nil {
+			return herdr.Client{}, err
+		}
+	}
 	client, err := worker.client.ForEndpoint(bound.Machine, bound.Session)
 	if err != nil {
 		return herdr.Client{}, err
