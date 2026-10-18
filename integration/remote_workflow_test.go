@@ -61,6 +61,8 @@ Retain and retry the identical reply after a transport error. Remain idle after 
 		run.commit,
 		"--agent-arg=--no-daemon",
 		"--agent-arg=--sandbox=workspace-write",
+		"--agent-arg=-c",
+		"--agent-arg=approvals_reviewer=auto_review",
 		"--body-file",
 		assignment,
 	)

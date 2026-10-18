@@ -87,6 +87,12 @@ creates a remote worktree with Treehouse when available, or Git otherwise.
 It binds the saved machine identity and starts the agent through Herdr.
 The remote agent keeps its native permissions and login configuration.
 
+Codex's approval reviewer can differ between the primary and remote hosts.
+To request automatic review for a particular launch, add
+`--agent-arg=-c --agent-arg=approvals_reviewer=auto_review`. This keeps the
+sandbox and approval policy active without changing user configuration.
+Requests that still require operator input remain native dialogs on the remote.
+
 The host creates a random per-generation secret. It copies that secret through
 SSH stdin into a private remote task directory. A reverse SSH tunnel connects
 the remote worker socket to the primary's restricted worker socket. Task

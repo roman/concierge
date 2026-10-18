@@ -99,10 +99,13 @@ recovers its tunnel, and lands into a temporary local Git origin. It does not
 push to the source repository. Existing Herdr and Codex workflow directories
 receive their normal runtime records. The report path must not exist.
 Acceptance workers explicitly select Codex's `workspace-write` sandbox and keep
-the existing native approval rules. The task directory is an additional writable
-root for the result and transport files. Resolve native trust or approval dialogs
-in the remote pane named in the run output. The run waits up to twelve minutes
-for startup or a worker reply. The operator handles each native decision.
+the existing native approval policy. They select `approvals_reviewer=auto_review`
+through launch arguments so eligible requests receive automatic review, as in
+local development. This setting does not disable the sandbox or approvals and
+does not change user configuration. The task directory is an additional writable
+root for the result and transport files. Resolve remaining native trust or
+approval dialogs in the remote pane named in the run output. The run waits up to
+twelve minutes for startup or a worker reply.
 
 ## Develop
 
