@@ -46,7 +46,7 @@ Retain and retry the identical reply after a transport error. Remain idle after 
 	)
 	run.tasks = append(run.tasks, id)
 	run.note("Launching native %s worker", kind)
-	output := run.cli(
+	output := run.launchWithNativeReview(id,
 		"launch",
 		id,
 		"--machine",
@@ -156,6 +156,7 @@ func (run *savedMachineAcceptance) waitReply(id string) string {
 		run.t.Fatal(err)
 	}
 	var replyID string
+	blockedPane := ""
 	run.wait(12*time.Minute, id+" bound reply", func() (bool, error) {
 		pending, err := messages.List(recipient)
 		if err != nil {
@@ -179,21 +180,15 @@ func (run *savedMachineAcceptance) waitReply(id string) string {
 		client, worker := run.boundAgent(id)
 		agent, err := client.Get(run.ctx, worker.Pane)
 		if err == nil && agent.Status == herdr.Blocked {
-			stdout, _, _ := client.Runner.Run(
-				run.ctx,
-				"agent",
-				"read",
-				worker.Pane,
-				"--source",
-				"recent-unwrapped",
-				"--lines",
-				"60",
-			)
-			run.t.Fatalf(
-				"native worker needs operator input; permissions remain active:\n%s",
-				stdout,
-			)
+			if blockedPane != worker.Pane {
+				screen, _ := client.VisibleScreen(run.ctx, worker.Pane)
+				run.note("%s needs operator input: machine %s, session %s, pane %s\n%s",
+					id, worker.Machine, worker.Session, worker.Pane, screen)
+				blockedPane = worker.Pane
+			}
+			return false, nil
 		}
+		blockedPane = ""
 		return false, err
 	})
 	run.note("%s: exactly one bound reply received", id)
