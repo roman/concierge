@@ -142,7 +142,7 @@ func (runner *restartingRemoteRunner) RunMachine(
 }
 
 func TestRemoteRestartRecoversWithoutAnotherGenerationAgentOrLease(t *testing.T) {
-	for _, mode := range []string{"complete", "lost start", "lost activation", "unconfirmed absent", "foreign session", "missing probe", "changed endpoint"} {
+	for _, mode := range []string{"complete", "lost start", "lost activation", "activation lost agent exits", "unconfirmed absent", "foreign session", "missing probe", "changed endpoint", "reserved partition"} {
 		t.Run(mode, func(t *testing.T) {
 			service, intent, config, worktrees := remoteInitialLeaseFixture(t)
 			base := &initialLaunchRunner{service: service, intent: *intent}
@@ -176,7 +176,9 @@ func TestRemoteRestartRecoversWithoutAnotherGenerationAgentOrLease(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			runtime := &restartRuntimeFixture{loseActivation: mode == "lost activation"}
+			runtime := &restartRuntimeFixture{
+				loseActivation: mode == "lost activation" || mode == "activation lost agent exits",
+			}
 			if mode == "changed endpoint" {
 				runtime.endpointError = errors.New("saved endpoint changed")
 			}
@@ -193,12 +195,19 @@ func TestRemoteRestartRecoversWithoutAnotherGenerationAgentOrLease(t *testing.T)
 			runner.leaveAbsent = mode == "unconfirmed absent"
 			runner.foreignSession = mode == "foreign session"
 			acquisitions := len(worktrees.holders)
+			if mode == "reserved partition" {
+				if _, err := service.store.Update(ctx, "task-1", func(task taskstate.Task) (taskstate.Task, error) { return task.ReserveLaunch("reserved-next") }); err != nil {
+					t.Fatal(err)
+				}
+				probe.failure = errors.New("SSH tunnel unavailable")
+			}
 			err = worker.Restart(ctx)
-			if mode == "missing probe" || mode == "changed endpoint" {
+			if mode == "missing probe" || mode == "changed endpoint" ||
+				mode == "reserved partition" {
 				if err == nil || base.starts != 1 ||
 					len(runtime.retired) != 0 ||
 					runtime.issued != 0 {
-					t.Fatalf("restart without a tunnel probe reached native effects: %v", err)
+					t.Fatalf("unsupported or unreachable restart reached native effects: %v", err)
 				}
 				current, err := service.store.Read(ctx, "task-1")
 				if err != nil || current.Snapshot().Worker.Generation != original.Generation ||
@@ -227,6 +236,9 @@ func TestRemoteRestartRecoversWithoutAnotherGenerationAgentOrLease(t *testing.T)
 					now = connections.Tunnel.NextRetry
 				}
 			}
+			if mode == "activation lost agent exits" {
+				base.started = false
+			}
 			observation := worker.Observe(ctx)
 			if mode == "unconfirmed absent" || mode == "foreign session" {
 				current, err := service.store.Read(ctx, "task-1")
@@ -249,7 +261,12 @@ func TestRemoteRestartRecoversWithoutAnotherGenerationAgentOrLease(t *testing.T)
 				}
 				return
 			}
-			if observation != nil {
+			if mode == "activation lost agent exits" {
+				if !errors.Is(observation, supervise.ErrMissing) ||
+					errors.Is(observation, supervise.ErrUnreachable) {
+					t.Fatalf("confirmed missing agent blocked transport recovery: %v", observation)
+				}
+			} else if observation != nil {
 				t.Fatal(observation)
 			}
 			current, err := service.store.Read(ctx, "task-1")

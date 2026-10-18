@@ -56,7 +56,8 @@ func (worker *SupervisedWorker) observeRemote(
 		}
 		return errors.Join(herdrError, supervise.ErrUnreachable)
 	}
-	if herdrError == nil && worker.remoteRuntime != nil &&
+	confirmedEndpoint := herdrError == nil || errors.Is(herdrError, supervise.ErrMissing)
+	if confirmedEndpoint && worker.remoteRuntime != nil &&
 		bound.TransportGeneration != bound.Generation {
 		site, err := worker.prepareRemoteRuntime(ctx, task, bound.Generation)
 		if err == nil {

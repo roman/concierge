@@ -45,7 +45,7 @@ func (worker *SupervisedWorker) restartRemote(
 	if err := worker.recordConnection(task, taskstate.HerdrChannel, nil); err != nil {
 		return err
 	}
-	if bound.PendingLaunch == "" {
+	if remoteRestartNeedsTunnel(*bound) {
 		if bound.Connections != nil && bound.Connections.Tunnel.Waiting(worker.now()) {
 			return supervise.ErrUnreachable
 		}
@@ -140,6 +140,16 @@ func (worker *SupervisedWorker) restartRemote(
 		return worker.remoteRestartFailure(ctx, task, taskstate.TunnelChannel, err)
 	}
 	return worker.recordConnection(task, taskstate.TunnelChannel, nil)
+}
+
+func remoteRestartNeedsTunnel(bound taskstate.Worker) bool {
+	if bound.PendingLaunch == "" {
+		return true
+	}
+	if bound.PendingLaunch == bound.Generation {
+		return false
+	}
+	return bound.Access == nil || !bound.Access.Revoked
 }
 
 func (worker *SupervisedWorker) confirmRemoteRestart(
