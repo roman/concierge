@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/taskview"
@@ -27,6 +28,8 @@ type Service struct {
 	pool             worktree.PoolClient
 	git              worktree.Client
 	remoteLeases     RemoteLeases
+	remoteResults    RemoteResultExporter
+	remoteResultMu   *sync.Mutex
 }
 
 // New prepares backlog operations for the selected task root.
@@ -53,6 +56,7 @@ func newService(root string, recipient inbox.Recipient, commands CommandPaths) (
 		store:            store,
 		primaryRecipient: recipient,
 		workerCommands:   commands,
+		remoteResultMu:   new(sync.Mutex),
 	}, nil
 }
 

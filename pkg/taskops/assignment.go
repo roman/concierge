@@ -55,6 +55,9 @@ func (worker *SupervisedWorker) sendAssignment(
 		if err != nil {
 			return err
 		}
+		if bound.RemoteResult != (taskstate.RemoteResult{}) {
+			return taskstate.ErrInvalidTransition
+		}
 		envelope, err := json.Marshal(taskprotocol.Assignment{
 			Kind: "task-assignment", State: filepath.Join(service.root, "tasks"),
 			Task: taskID, SpawnGeneration: bound.Generation, Body: body,
