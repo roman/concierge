@@ -77,27 +77,28 @@ type RestartPlan struct {
 
 // Worker preserves the exact launch and endpoint identity for recovery.
 type Worker struct {
-	Access              *workeraccess.Grant `json:"access,omitempty"`
-	TransportGeneration string              `json:"transport_generation,omitempty"`
-	Connections         *Connections        `json:"connections,omitempty"`
-	Machine             string              `json:"machine,omitempty"`
-	Lease               WorktreeLease       `json:"lease,omitzero"`
-	OwnedWorkspaceLabel string              `json:"owned_workspace_label,omitempty"`
-	PromptProgress      *PromptProgress     `json:"prompt_progress,omitempty"`
-	Restarts            []RestartPlan       `json:"restarts,omitempty"`
-	Name                string              `json:"name"`
-	Harness             string              `json:"harness"`
-	Session             string              `json:"session"`
-	Workspace           string              `json:"workspace,omitempty"`
-	Tab                 string              `json:"tab,omitempty"`
-	Pane                string              `json:"pane"`
-	Project             string              `json:"project"`
-	Worktree            string              `json:"worktree"`
-	Generation          string              `json:"generation"`
-	PendingGeneration   string              `json:"pending_generation,omitempty"`
-	PendingLaunch       string              `json:"pending_launch,omitempty"`
-	PendingAdoption     bool                `json:"pending_adoption,omitempty"`
-	AgentArgs           []string            `json:"agent_args"`
+	Access                  *workeraccess.Grant `json:"access,omitempty"`
+	TransportGeneration     string              `json:"transport_generation,omitempty"`
+	LaunchAttemptGeneration string              `json:"launch_attempt_generation,omitempty"`
+	Connections             *Connections        `json:"connections,omitempty"`
+	Machine                 string              `json:"machine,omitempty"`
+	Lease                   WorktreeLease       `json:"lease,omitzero"`
+	OwnedWorkspaceLabel     string              `json:"owned_workspace_label,omitempty"`
+	PromptProgress          *PromptProgress     `json:"prompt_progress,omitempty"`
+	Restarts                []RestartPlan       `json:"restarts,omitempty"`
+	Name                    string              `json:"name"`
+	Harness                 string              `json:"harness"`
+	Session                 string              `json:"session"`
+	Workspace               string              `json:"workspace,omitempty"`
+	Tab                     string              `json:"tab,omitempty"`
+	Pane                    string              `json:"pane"`
+	Project                 string              `json:"project"`
+	Worktree                string              `json:"worktree"`
+	Generation              string              `json:"generation"`
+	PendingGeneration       string              `json:"pending_generation,omitempty"`
+	PendingLaunch           string              `json:"pending_launch,omitempty"`
+	PendingAdoption         bool                `json:"pending_adoption,omitempty"`
+	AgentArgs               []string            `json:"agent_args"`
 }
 
 // CompletionMode selects the queue state after a worker result.
@@ -474,6 +475,19 @@ func validDefinition(input Definition) bool {
 }
 
 func validWorker(worker Worker) bool {
+	if worker.LaunchAttemptGeneration != "" {
+		if worker.Machine == "" || worker.Lease.Remote == (RemoteLease{}) {
+			return false
+		}
+		if worker.LaunchAttemptGeneration != worker.Generation ||
+			worker.PendingLaunch != worker.Generation {
+			return false
+		}
+		if len(worker.Restarts) == 0 ||
+			worker.Restarts[len(worker.Restarts)-1].To != worker.Generation {
+			return false
+		}
+	}
 	if worker.TransportGeneration != "" &&
 		(worker.Machine == "" || worker.Access == nil || worker.TransportGeneration != worker.Generation) {
 		return false

@@ -48,6 +48,7 @@ func (task Task) AdvanceGeneration(next string) (Task, error) {
 		snapshot.Worker.Connections = nil
 		snapshot.Worker.Access = nil
 		snapshot.Worker.TransportGeneration = ""
+		snapshot.Worker.LaunchAttemptGeneration = ""
 		snapshot.Worker.Generation = next
 		snapshot.Worker.PendingGeneration = ""
 		if snapshot.Worker.PendingLaunch == "" {
@@ -66,6 +67,7 @@ func (task Task) AdvanceGeneration(next string) (Task, error) {
 	snapshot.Worker.Connections = nil
 	snapshot.Worker.Access = nil
 	snapshot.Worker.TransportGeneration = ""
+	snapshot.Worker.LaunchAttemptGeneration = ""
 	snapshot.Worker.Generation = next
 	return newTransition(snapshot)
 }
@@ -85,6 +87,7 @@ func (task Task) CompleteLaunch() (Task, error) {
 	}
 	snapshot := task.Snapshot()
 	snapshot.Worker.PendingLaunch = ""
+	snapshot.Worker.LaunchAttemptGeneration = ""
 	return newTransition(snapshot)
 }
 
