@@ -1,4 +1,4 @@
-// Package sshcommand builds bounded system SSH invocations without forwarding credentials.
+// Package sshcommand builds bounded system SSH invocations with explicit authentication policy.
 package sshcommand
 
 import (

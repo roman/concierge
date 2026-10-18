@@ -10,13 +10,15 @@ import (
 	"unicode"
 
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/sshcommand"
 )
 
 type Configuration struct {
-	Target       string       `json:"target"`
-	Base         string       `json:"base"`
-	Agent        string       `json:"agent"`
-	Repositories []Repository `json:"repositories"`
+	Target         string                    `json:"target"`
+	Base           string                    `json:"base"`
+	Agent          string                    `json:"agent"`
+	Authentication sshcommand.Authentication `json:"authentication,omitempty"`
+	Repositories   []Repository              `json:"repositories"`
 }
 
 // DecodeConfiguration binds operator-owned preparation settings to the saved ID
@@ -46,6 +48,9 @@ func DecodeConfiguration(data []byte, machine herdr.SavedMachine) (Configuration
 }
 
 func (configuration Configuration) Validate() error {
+	if err := configuration.Authentication.Validate(); err != nil {
+		return err
+	}
 	if configuration.Base == "/" || !path.IsAbs(configuration.Base) ||
 		path.Clean(configuration.Base) != configuration.Base ||
 		strings.IndexFunc(configuration.Base, unicode.IsControl) >= 0 {

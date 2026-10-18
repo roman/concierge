@@ -93,7 +93,7 @@ func (server *Server) prepareMachine(
 	if runner == nil {
 		runner = sshcommand.SystemRunner{}
 	}
-	report, err := (machineprep.Checker{Runner: runner}).Check(
+	report, err := (machineprep.Checker{Runner: runner, Authentication: configuration.Authentication}).Check(
 		ctx,
 		machine,
 		configuration.Agent,

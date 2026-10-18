@@ -116,7 +116,7 @@ func inspectMachine(
 			"configure "+configurationPath+" with the saved machine ID, target, base, agent, and repositories; run concierge machine check --help",
 		)
 	}
-	report, err := (machineprep.Checker{Runner: runner}).Check(
+	report, err := (machineprep.Checker{Runner: runner, Authentication: configuration.Authentication}).Check(
 		ctx,
 		machine,
 		configuration.Agent,

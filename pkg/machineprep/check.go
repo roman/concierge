@@ -42,7 +42,10 @@ func (report Report) Ready() bool {
 	return true
 }
 
-type Checker struct{ Runner sshcommand.Runner }
+type Checker struct {
+	Runner         sshcommand.Runner
+	Authentication sshcommand.Authentication
+}
 
 func (checker Checker) Check(
 	ctx context.Context,
@@ -60,7 +63,20 @@ func (checker Checker) Check(
 	if err := validateRepositories(repositories); err != nil {
 		return Report{}, err
 	}
+	if err := checker.Authentication.Validate(); err != nil {
+		return Report{}, err
+	}
 	report := Report{MachineID: machine.ID}
+	if checker.Authentication == sshcommand.ForwardedAgent {
+		check := Check{Name: "primary-agent", Status: "ready"}
+		if err := sshcommand.CheckPrimaryAgent(ctx); err != nil {
+			check.Status = "missing"
+			check.Step = "On the primary, start or connect to an SSH agent, load the repository key with ssh-add, and ensure the Concierge process inherits SSH_AUTH_SOCK."
+			report.Checks = append(report.Checks, check)
+			return report, nil
+		}
+		report.Checks = append(report.Checks, check)
+	}
 	probe := func(name, step string, command ...string) (string, bool) {
 		output, ok := checker.probe(ctx, machine.Target, command...)
 		check := Check{Name: name, Status: "ready", Detail: output}
@@ -118,11 +134,15 @@ func (checker Checker) Check(
 		"--version",
 	)
 	for _, repository := range repositories {
+		step := "On the remote, provision read-only access to " + repository.Name + "; run git ls-remote -- " + sshcommand.Quote(
+			repository.URL,
+		) + " and verify its host key."
+		if checker.Authentication == sshcommand.ForwardedAgent {
+			step = "On the primary, load a key authorized for " + repository.Name + " with ssh-add. Verify the repository host key on the remote, then retry machine check with agent-forwarding."
+		}
 		probe(
 			"repository:"+repository.Name,
-			"On the remote, provision read-only access to "+repository.Name+"; run git ls-remote -- "+sshcommand.Quote(
-				repository.URL,
-			)+" and verify its host key.",
+			step,
 			"env",
 			"GIT_TERMINAL_PROMPT=0",
 			"GIT_SSH_COMMAND="+repositorySSHCommand,
@@ -154,7 +174,10 @@ func (checker Checker) Check(
 }
 
 func (checker Checker) probe(ctx context.Context, target string, command ...string) (string, bool) {
-	arguments, err := sshcommand.TrustedBatchArguments(target, command...)
+	arguments, err := sshcommand.TrustedAuthenticationArguments(
+		target,
+		checker.Authentication,
+		command...)
 	if err != nil {
 		return "", false
 	}

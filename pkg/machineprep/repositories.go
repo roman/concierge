@@ -32,7 +32,10 @@ func (preparer Preparer) PrepareRepositories(
 	for _, repository := range configuration.Repositories {
 		command = append(command, repository.Name, repository.URL)
 	}
-	arguments, err := sshcommand.TrustedBatchArguments(machine.Target, command...)
+	arguments, err := sshcommand.TrustedAuthenticationArguments(
+		machine.Target,
+		configuration.Authentication,
+		command...)
 	if err != nil {
 		return err
 	}

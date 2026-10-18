@@ -48,8 +48,9 @@ func (preparer Preparer) BuildClient(
 		RawQuery: url.Values{"rev": {commit}}.Encode(),
 		Fragment: "concierge",
 	}
-	arguments, err := sshcommand.TrustedBatchArguments(
+	arguments, err := sshcommand.TrustedAuthenticationArguments(
 		machine.Target,
+		configuration.Authentication,
 		"sh",
 		"-c",
 		buildClientScript,
