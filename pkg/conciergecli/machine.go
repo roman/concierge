@@ -24,6 +24,10 @@ Example (replace the ID, paths, and repository URL):
 
 The agent must be codex or claude. Include every dependency and project repository.
 The concierge entry supplies the client source. Configuration changes create no credentials.
+Optional authentication is remote (the default) or agent-forwarding.
+Select agent-forwarding only for a trusted development machine. Load the primary
+SSH agent with ssh-add and make SSH_AUTH_SOCK available to the Concierge process.
+Private keys stay on the primary. Remote processes can use the forwarded agent.
 
 Examples:
   concierge machine check baker

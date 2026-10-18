@@ -31,8 +31,9 @@ func (transport WorktreeTransport) Return(
 		profile.ID != location.Machine || profile.Target != location.Target {
 		return taskstate.WorktreeLease{}, ErrWorktreeOwnership
 	}
-	arguments, err := sshcommand.TrustedBatchArguments(
+	arguments, err := sshcommand.TrustedAuthenticationArguments(
 		profile.Target,
+		location.Authentication,
 		location.ClientPath(),
 		"worker-worktree",
 		"return",

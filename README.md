@@ -52,13 +52,16 @@ Existing state requires the [migration procedure](docs/state.md).
 
 Register an SSH machine with Herdr once. Concierge supports Apple Silicon macOS
 remotes. Install Nix with flakes, Herdr, and the selected agent on the remote.
-Provision read-only repository keys and complete the agent login there by hand.
+Choose remote repository keys or SSH agent forwarding to a trusted machine.
+Complete the agent login on the remote by hand.
 Verify the SSH host keys on both machines before running unattended commands.
 
 Declare the saved machine ID, its SSH target, a private remote base directory,
 the agent, and repository URLs in `config/machines.json` under the state root.
 Include the `concierge` repository and every project or dependency repository.
 See the [remote worker guide](docs/remote-workers.md) for the configuration.
+Set `authentication` to `agent-forwarding` to use keys loaded in the primary's
+SSH agent. Omit it or select `remote` to use the remote's own credentials.
 
 ```sh
 concierge machine check baker

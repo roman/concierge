@@ -5,7 +5,42 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/roman/concierge/pkg/sshcommand"
 )
+
+func TestRemoteNativeLaunchExposesOnlySelectedAgentSocket(t *testing.T) {
+	for _, mode := range []sshcommand.Authentication{"", sshcommand.RemoteCredentials, sshcommand.ForwardedAgent} {
+		environment := remoteLaunchEnvironment{
+			Task:           "task",
+			Generation:     "generation",
+			Directory:      "/remote/task",
+			Authentication: mode,
+		}
+		variables, err := environment.variables()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mode != sshcommand.ForwardedAgent {
+			if _, found := variables["SSH_AUTH_SOCK"]; found {
+				t.Fatal("remote credentials selected a forwarded socket")
+			}
+			continue
+		}
+		if variables["SSH_AUTH_SOCK"] != "/remote/task/agent.sock" {
+			t.Fatalf("wrong agent socket: %v", variables)
+		}
+		for _, harness := range []string{"codex", "claude"} {
+			arguments, err := remoteNativeLaunchArguments(harness, nil, "protocol", environment)
+			if err != nil || !strings.Contains(strings.Join(arguments, " "), "SSH_AUTH_SOCK") {
+				t.Fatalf("missing %s agent environment: %v %v", harness, arguments, err)
+			}
+		}
+		if _, err := remoteNativeLaunchArguments("codex", []string{"-c", "shell_environment_policy.set.SSH_AUTH_SOCK=\"/foreign\""}, "protocol", environment); err == nil {
+			t.Fatal("caller replaced the selected agent socket")
+		}
+	}
+}
 
 func TestRemoteNativeLaunchArgumentsKeepTransportInShellEnvironment(t *testing.T) {
 	for _, harness := range []string{"codex", "claude"} {

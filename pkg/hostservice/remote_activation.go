@@ -180,9 +180,10 @@ func (server *Server) activateRemoteWorkerLocked(
 			Generation: generation,
 			Verifier:   grant.Verifier,
 		},
-		MachineID: profile.ID,
-		Target:    profile.Target,
-		Tools:     tools,
+		MachineID:      profile.ID,
+		Target:         profile.Target,
+		Tools:          tools,
+		Authentication: request.Worktree.Location.Authentication,
 	}
 	if err := server.tunnels.Ensure(ctx, spec); err != nil {
 		return err

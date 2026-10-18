@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/roman/concierge/pkg/sshcommand"
 )
 
 func remoteLeaseFixture() WorktreeLease {
@@ -30,6 +32,7 @@ func remoteLeaseFixture() WorktreeLease {
 
 func TestRemoteLeaseSurvivesWorkerRetirementAndReturn(t *testing.T) {
 	lease := remoteLeaseFixture()
+	lease.Remote.Authentication = sshcommand.ForwardedAgent
 	task, err := NewMigrated(
 		Snapshot{
 			Definition: Definition{ID: "task-1", Title: "Remote task", Repo: "repo", Kind: "task"},
@@ -94,6 +97,7 @@ func TestRemoteLeaseSurvivesWorkerRetirementAndReturn(t *testing.T) {
 
 func TestRemoteLeaseRejectsForeignPathsAndMissingBackend(t *testing.T) {
 	for _, change := range []func(*WorktreeLease){
+		func(lease *WorktreeLease) { lease.Remote.Authentication = "unknown" },
 		func(lease *WorktreeLease) { lease.Remote.Backend = "" },
 		func(lease *WorktreeLease) { lease.Remote.Backend = "unknown" },
 		func(lease *WorktreeLease) { lease.Remote.PrimaryProject = "relative" },

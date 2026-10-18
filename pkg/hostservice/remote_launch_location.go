@@ -68,6 +68,7 @@ func (server *Server) resolveRemoteLaunchLocation(
 		Machine: profile.ID, Target: profile.Target,
 		PrimaryRoot: server.config.Root, PrimaryProject: project,
 		Base: configuration.Base, Repository: repository,
+		Authentication: configuration.Authentication,
 	}
 	if current != nil {
 		location.ClientCommit = current.Remote.ClientCommit

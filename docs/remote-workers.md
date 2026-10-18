@@ -16,10 +16,26 @@ available to non-interactive SSH commands. Install the chosen agent. Run either
 `codex login` and `codex login status`, or `claude auth login` and
 `claude auth status` on that machine.
 
-Provision a read-only deploy key for each private repository on the remote.
+Choose the repository authentication mode for each saved machine.
+The default `remote` mode uses credentials provisioned on the remote.
+Provision a read-only deploy key for each private repository in that mode.
 Verify the repository server's host key there. Test each URL with
 `git ls-remote -- URL`. Concierge checks this access without interactive prompts.
-It does not create, copy, or forward repository credentials or agent logins.
+It does not create or copy repository credentials or agent logins.
+
+For a trusted development machine, select `agent-forwarding` instead. Load and
+unlock the repository key in the primary's SSH agent with `ssh-add`. The primary
+Concierge process must inherit a working `SSH_AUTH_SOCK`. Checks and preparation
+forward the agent for their SSH connections. Workers use a fixed agent socket
+inside their private generation directory. The host owns that socket forward
+alongside the worker protocol tunnel and recovers it after a disconnect.
+
+Private keys and passphrases stay on the primary. Processes with access to the
+remote socket can request authentication with the agent's keys. Select this mode
+only for a machine and worker processes you trust with those capabilities.
+Repository host-key checks still apply on the remote. A missing or empty primary
+agent stops preparation. Lost agent access preserves the worker and its lease.
+Restore the primary agent and its loaded key, then allow the host to retry.
 
 Use a format-three state root and an active primary claim. Follow the existing
 [state migration procedure](state.md) for an older root. Create
@@ -31,6 +47,7 @@ Use a format-three state root and an active primary claim. Follow the existing
     "target": "baker",
     "base": "/Users/roman/concierge",
     "agent": "codex",
+    "authentication": "agent-forwarding",
     "repositories": [
       {"name": "concierge", "url": "git@github.com:roman/concierge.git"},
       {"name": "my-project", "url": "git@github.com:owner/my-project.git"}
@@ -43,6 +60,10 @@ Replace the ID, target, base, and URLs with the saved profile and declared
 repositories. The base must be an absolute remote path. Choose an empty directory
 for first preparation. Concierge records its machine owner and refuses a foreign
 directory or changed repository origin. Include every dependency repository.
+Omit `authentication` or set it to `remote` to use remote repository credentials.
+Forwarding is never enabled implicitly for another saved machine. A launch
+captures its authentication mode with its destination and immutable client.
+An interrupted launch refuses a retry that changes those captured settings.
 
 ```sh
 concierge machine check baker

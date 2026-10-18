@@ -17,6 +17,7 @@ import (
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/machineprep"
 	"github.com/roman/concierge/pkg/remoteworker"
+	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/workeraccess"
 	"github.com/roman/concierge/pkg/worktree"
@@ -161,7 +162,7 @@ func (runner *launchBridgeSSH) Run(
 }
 
 func TestHostRemoteLaunchConnectsNativeWorktreeActivationAndDispatch(t *testing.T) {
-	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost", "restart", "restart start lost", "restart activation lost", "result export", "result confirmation lost", "ship", "ship return confirmation lost"} {
+	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost", "restart", "restart start lost", "restart activation lost", "result export", "result confirmation lost", "ship", "ship return confirmation lost", "ship agent forwarding", "ship agent forwarding return confirmation lost"} {
 		t.Run(mode, func(t *testing.T) { testHostRemoteLaunchBridge(t, mode) })
 	}
 }
@@ -193,8 +194,13 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	if err := os.WriteFile(filepath.Join(base, "machine-owner"), []byte("saved-id\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	authentication := sshcommand.Authentication("")
+	if strings.Contains(mode, "agent forwarding") {
+		authentication = sshcommand.ForwardedAgent
+	}
 	configuration := map[string]machineprep.Configuration{"saved-id": {
 		Target: "baker", Base: base, Agent: "codex",
+		Authentication: authentication,
 		Repositories: []machineprep.Repository{
 			{Name: "concierge", URL: "ssh://git.test/concierge.git"},
 			{Name: "exmachina", URL: "ssh://git.test/project.git"},
@@ -273,6 +279,9 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		t.Fatal(err)
 	}
 	worker := response.Transition.Worker
+	if worker.Lease.Remote.Authentication != authentication {
+		t.Fatal("native ship lease lost the selected authentication mode")
+	}
 	if worker.Access == nil || worker.Access.Revoked ||
 		worker.Lease.Remote.Machine != input.Machine ||
 		runner.secretCopies != expectedCopies ||

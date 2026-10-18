@@ -32,8 +32,9 @@ func (transport WorktreeTransport) PrepareLaunchSite(
 		profile.Target != location.Target {
 		return LaunchSite{}, ErrLaunchDirectoryOwnership
 	}
-	arguments, err := sshcommand.TrustedBatchArguments(
+	arguments, err := sshcommand.TrustedAuthenticationArguments(
 		profile.Target,
+		location.Authentication,
 		location.ClientPath(),
 		"worker-worktree",
 		"prepare-launch",

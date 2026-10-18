@@ -4,16 +4,21 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 type remoteLaunchEnvironment struct {
-	Task       string
-	Generation string
-	Directory  string
+	Task           string
+	Generation     string
+	Directory      string
+	Authentication sshcommand.Authentication
 }
 
 func (environment remoteLaunchEnvironment) variables() (map[string]string, error) {
+	if err := environment.Authentication.Validate(); err != nil {
+		return nil, err
+	}
 	if _, err := taskmeta.ParseTaskID(environment.Task); err != nil {
 		return nil, err
 	}
@@ -24,12 +29,16 @@ func (environment remoteLaunchEnvironment) variables() (map[string]string, error
 		environment.Directory == "/" {
 		return nil, fmt.Errorf("remote launch requires an absolute private task directory")
 	}
-	return map[string]string{
+	variables := map[string]string{
 		"CONCIERGE_SPAWN_GENERATION":   environment.Generation,
 		"CONCIERGE_WORKER_TASK":        environment.Task,
 		"CONCIERGE_WORKER_SOCKET":      path.Join(environment.Directory, "worker.sock"),
 		"CONCIERGE_WORKER_SECRET_FILE": path.Join(environment.Directory, "secret"),
-	}, nil
+	}
+	if environment.Authentication == sshcommand.ForwardedAgent {
+		variables["SSH_AUTH_SOCK"] = path.Join(environment.Directory, "agent.sock")
+	}
+	return variables, nil
 }
 
 func remoteNativeLaunchArguments(

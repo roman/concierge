@@ -76,9 +76,10 @@ func (worker *SupervisedWorker) restartRemote(
 		bound.AgentArgs,
 		protocol,
 		remoteLaunchEnvironment{
-			Task:       worker.taskID,
-			Generation: generation,
-			Directory:  tools.TaskDirectory,
+			Task:           worker.taskID,
+			Generation:     generation,
+			Directory:      tools.TaskDirectory,
+			Authentication: bound.Lease.Remote.Authentication,
 		},
 	)
 	if err != nil {

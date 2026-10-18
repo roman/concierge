@@ -41,8 +41,9 @@ func (transport WorktreeTransport) ImportBase(
 		profile.Target != request.Location.Target {
 		return ErrWorktreeOwnership
 	}
-	arguments, err := sshcommand.TrustedBatchArguments(
+	arguments, err := sshcommand.TrustedAuthenticationArguments(
 		profile.Target,
+		request.Location.Authentication,
 		request.Location.ClientPath(),
 		"worker-worktree",
 		"import",

@@ -34,9 +34,10 @@ func (service *Service) initialLaunchArguments(
 		intent.AgentArgs,
 		protocol,
 		remoteLaunchEnvironment{
-			Task:       taskID,
-			Generation: intent.Generation,
-			Directory:  tools.TaskDirectory,
+			Task:           taskID,
+			Generation:     intent.Generation,
+			Directory:      tools.TaskDirectory,
+			Authentication: intent.Remote.Authentication,
 		},
 	)
 }
@@ -58,7 +59,7 @@ func (service *Service) initialPaneEnvironment(
 	if err != nil {
 		return nil, err
 	}
-	variables, err := (remoteLaunchEnvironment{Task: taskID, Generation: intent.Generation, Directory: tools.TaskDirectory}).variables()
+	variables, err := (remoteLaunchEnvironment{Task: taskID, Generation: intent.Generation, Directory: tools.TaskDirectory, Authentication: intent.Remote.Authentication}).variables()
 	if err != nil {
 		return nil, err
 	}

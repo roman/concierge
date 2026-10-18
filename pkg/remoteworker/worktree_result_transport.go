@@ -26,8 +26,13 @@ func (transport WorktreeTransport) ExportResult(
 		profile.ID != request.Worktree.Location.Machine || profile.Target != request.Worktree.Location.Target {
 		return WorktreeResult{}, ErrWorktreeOwnership
 	}
-	arguments, err := sshcommand.TrustedBatchArguments(profile.Target,
-		request.Worktree.Location.ClientPath(), "worker-worktree", "export-result")
+	arguments, err := sshcommand.TrustedAuthenticationArguments(
+		profile.Target,
+		request.Worktree.Location.Authentication,
+		request.Worktree.Location.ClientPath(),
+		"worker-worktree",
+		"export-result",
+	)
 	if err != nil {
 		return WorktreeResult{}, err
 	}

@@ -21,14 +21,15 @@ const (
 // RemoteLease keeps cleanup routing after the worker record disappears.
 // Its primary paths are metadata and must never be opened on the remote.
 type RemoteLease struct {
-	Machine        string             `json:"machine"`
-	Target         string             `json:"target"`
-	PrimaryRoot    string             `json:"primary_root"`
-	PrimaryProject string             `json:"primary_project"`
-	Base           string             `json:"base"`
-	Repository     string             `json:"repository"`
-	ClientCommit   string             `json:"client_commit"`
-	Backend        RemoteLeaseBackend `json:"backend"`
+	Machine        string                    `json:"machine"`
+	Target         string                    `json:"target"`
+	PrimaryRoot    string                    `json:"primary_root"`
+	PrimaryProject string                    `json:"primary_project"`
+	Base           string                    `json:"base"`
+	Repository     string                    `json:"repository"`
+	ClientCommit   string                    `json:"client_commit"`
+	Backend        RemoteLeaseBackend        `json:"backend"`
+	Authentication sshcommand.Authentication `json:"authentication,omitempty"`
 }
 
 func (remote RemoteLease) ProjectPath() string {
@@ -44,6 +45,9 @@ func (remote RemoteLease) ClientPath() string {
 func (remote RemoteLease) Validate() error {
 	if remote == (RemoteLease{}) {
 		return nil
+	}
+	if err := remote.Authentication.Validate(); err != nil {
+		return err
 	}
 	if _, err := herdr.ParseMachineTarget(remote.Machine, "pane"); err != nil {
 		return ErrInvalidTask

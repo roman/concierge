@@ -12,6 +12,7 @@ import (
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/remoteworker"
+	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/workeraccess"
 )
@@ -76,6 +77,14 @@ type remoteActivationFixture struct {
 
 func newRemoteActivationFixture(t *testing.T) *remoteActivationFixture {
 	t.Helper()
+	return newRemoteActivationFixtureWithAuthentication(t, "")
+}
+
+func newRemoteActivationFixtureWithAuthentication(
+	t *testing.T,
+	authentication sshcommand.Authentication,
+) *remoteActivationFixture {
+	t.Helper()
 	server := workerHost(t, 3)
 	definition := *intakeRequest().Intake
 	location := taskstate.RemoteLease{
@@ -86,6 +95,7 @@ func newRemoteActivationFixture(t *testing.T) *remoteActivationFixture {
 		Base:           "/r",
 		Repository:     definition.Repo,
 		ClientCommit:   strings.Repeat("b", 40),
+		Authentication: authentication,
 	}
 	request := remoteworker.WorktreeRequest{
 		Task:       "task-1",
@@ -179,6 +189,36 @@ func newRemoteActivationFixture(t *testing.T) *remoteActivationFixture {
 	fixture.ssh = &activationSSH{server: server}
 	fixture.connect(t)
 	return fixture
+}
+
+func TestRemoteActivationPersistsSelectedAgentPolicyAcrossRestart(t *testing.T) {
+	fixture := newRemoteActivationFixtureWithAuthentication(t, sshcommand.ForwardedAgent)
+	if err := fixture.activate(t); err != nil {
+		t.Fatal(err)
+	}
+	store, err := remoteworker.NewTunnelStore(fixture.server.config.Root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WithTask(t.Context(), "task-1", func(lease *remoteworker.TunnelLease) error {
+		record, err := lease.Read()
+		if err != nil {
+			return err
+		}
+		if record == nil || record.Spec.Authentication != sshcommand.ForwardedAgent {
+			t.Fatal("tunnel lost selected authentication policy")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	fixture.connect(t)
+	if err := fixture.activate(t); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.processes.starts.Load() != 1 {
+		t.Fatal("restart created another agent tunnel")
+	}
 }
 
 func (fixture *remoteActivationFixture) connect(t *testing.T) {

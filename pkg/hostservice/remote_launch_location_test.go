@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
@@ -36,7 +37,7 @@ func TestRemoteLaunchLocationPinsPreparedClientAndDeclaredRepository(t *testing.
 	server.preparationMachines = launchLocationCatalog{profile}
 	runner := &launchLocationSSH{}
 	server.preparationSSH = runner
-	configuration := `{"saved-id":{"target":"baker","base":"/remote/base","agent":"codex","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"},{"name":"project","url":"ssh://git.test/project.git"}]}}`
+	configuration := `{"saved-id":{"target":"baker","base":"/remote/base","agent":"codex","authentication":"agent-forwarding","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"},{"name":"project","url":"ssh://git.test/project.git"}]}}`
 	if err := os.MkdirAll(filepath.Join(server.config.Root, "config"), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -62,6 +63,7 @@ func TestRemoteLaunchLocationPinsPreparedClientAndDeclaredRepository(t *testing.
 		nil,
 	)
 	if err != nil || selected != profile || location.Machine != profile.ID ||
+		location.Authentication != sshcommand.ForwardedAgent ||
 		location.Target != profile.Target ||
 		location.PrimaryRoot != server.config.Root ||
 		location.PrimaryProject != project ||
@@ -90,12 +92,14 @@ func TestRemoteLaunchLocationPinsPreparedClientAndDeclaredRepository(t *testing.
 	if err != nil || recovered != intent.Remote || runner.reads != 1 {
 		t.Fatalf("recovery changed client: %+v reads=%d err=%v", recovered, runner.reads, err)
 	}
-	for _, kind := range []string{"undeclared repository", "wrong origin", "changed target", "changed session", "changed base", "different primary", "local intent", "label"} {
+	for _, kind := range []string{"undeclared repository", "wrong origin", "changed target", "changed session", "changed base", "different primary", "local intent", "label", "changed authentication"} {
 		t.Run(kind, func(t *testing.T) {
 			candidate := *intent
 			repository := "project"
 			selector := "saved-id"
 			switch kind {
+			case "changed authentication":
+				candidate.Remote.Authentication = sshcommand.RemoteCredentials
 			case "undeclared repository":
 				repository = "missing"
 			case "wrong origin":
