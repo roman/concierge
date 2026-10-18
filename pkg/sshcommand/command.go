@@ -64,6 +64,12 @@ type Runner interface {
 	Run(context.Context, []string, io.Reader) ([]byte, []byte, error)
 }
 
+// StreamingRunner transfers binary responses to a caller-owned file without
+// applying the small control-response limit to repository bundles.
+type StreamingRunner interface {
+	RunTo(context.Context, []string, io.Reader, io.Writer) ([]byte, error)
+}
+
 type SystemRunner struct{ Executable string }
 
 func (runner SystemRunner) Run(
@@ -71,6 +77,23 @@ func (runner SystemRunner) Run(
 	arguments []string,
 	input io.Reader,
 ) ([]byte, []byte, error) {
+	var stdout limitedBuffer
+	diagnostics, err := runner.RunTo(ctx, arguments, input, &stdout)
+	if stdout.overflow || errors.Is(err, ErrOutputLimit) {
+		return nil, nil, ErrOutputLimit
+	}
+	return stdout.Bytes(), diagnostics, err
+}
+
+func (runner SystemRunner) RunTo(
+	ctx context.Context,
+	arguments []string,
+	input io.Reader,
+	output io.Writer,
+) ([]byte, error) {
+	if output == nil {
+		return nil, errors.New("SSH transfer requires an output destination")
+	}
 	executable := runner.Executable
 	if executable == "" {
 		executable = "ssh"
@@ -79,13 +102,13 @@ func (runner SystemRunner) Run(
 	command.Env = ConnectionEnvironment(os.Environ())
 	command.Stdin = input
 	command.WaitDelay = time.Second
-	var stdout, stderr limitedBuffer
-	command.Stdout, command.Stderr = &stdout, &stderr
+	var stderr limitedBuffer
+	command.Stdout, command.Stderr = output, &stderr
 	err := command.Run()
-	if stdout.overflow || stderr.overflow {
-		return nil, nil, ErrOutputLimit
+	if stderr.overflow {
+		return nil, ErrOutputLimit
 	}
-	return stdout.Bytes(), stderr.Bytes(), err
+	return stderr.Bytes(), err
 }
 
 func ConnectionEnvironment(environment []string) []string {
@@ -111,15 +134,17 @@ func ConnectionEnvironment(environment []string) []string {
 }
 
 type limitedBuffer struct {
-	bytes.Buffer
+	data     bytes.Buffer
 	overflow bool
 }
 
+func (buffer *limitedBuffer) Bytes() []byte { return buffer.data.Bytes() }
+
 func (buffer *limitedBuffer) Write(data []byte) (int, error) {
-	remaining := max(0, (256<<10)-buffer.Len())
+	remaining := max(0, (256<<10)-buffer.data.Len())
 	if len(data) > remaining {
 		buffer.overflow = true
 	}
-	_, _ = buffer.Buffer.Write(data[:min(len(data), remaining)])
+	_, _ = buffer.data.Write(data[:min(len(data), remaining)])
 	return len(data), nil
 }
