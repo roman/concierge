@@ -60,6 +60,12 @@ func TestImportResultPinsUnpublishedCommitWithoutMovingPrimary(t *testing.T) {
 	if head := gitForTest(t, spec.Project, "rev-parse", reference); head != commit {
 		t.Fatal("result import selected another commit")
 	}
+	if err := client.VerifyResult(context.Background(), spec.Project, commit, reference); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.VerifyResult(context.Background(), spec.Project, spec.BaseCommit, reference); err == nil {
+		t.Fatal("confirmed a reference for another selected result")
+	}
 	spec.BaseCommit = commit
 	if err := client.Prepare(ctx, spec); err != nil {
 		t.Fatal(err)
