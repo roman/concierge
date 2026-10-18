@@ -17,6 +17,7 @@ import (
 type workerWorktreeCommands struct {
 	Acquire       struct{} `cmd:"" help:"Acquire or recover an owned remote lease from a bounded JSON request on stdin."`
 	Inspect       struct{} `cmd:"" help:"Inspect a completed native acquisition without acquiring or preparing another worktree."`
+	ExportResult  struct{} `cmd:"" help:"Export an owned clean result as one JSON header line and an immutable Git bundle."`
 	Import        struct{} `cmd:"" help:"Import a selected base from one bounded JSON header line and a Git bundle on stdin."`
 	PrepareLaunch struct{} `cmd:"" help:"Prepare a private generation directory and inspect the owned worktree environment from bounded JSON stdin."`
 	Return        struct{} `cmd:"" help:"Return a clean, quiet remote lease with the primary's immutable commit proof from bounded JSON stdin."`
@@ -31,6 +32,7 @@ func (command *workerWorktreeCommands) run(
 	var request remoteworker.WorktreeRequest
 	var launchRequest remoteworker.LaunchSiteRequest
 	var returnRequest remoteworker.WorktreeReturnRequest
+	var resultRequest remoteworker.WorktreeResultRequest
 	var bundle io.Reader
 	var err error
 	switch selected {
@@ -40,6 +42,8 @@ func (command *workerWorktreeCommands) run(
 		launchRequest, err = remoteworker.DecodeLaunchSiteRequest(input)
 	case "worker-worktree return":
 		returnRequest, err = remoteworker.DecodeWorktreeReturnRequest(input)
+	case "worker-worktree export-result":
+		resultRequest, err = remoteworker.DecodeWorktreeResultRequest(input)
 	default:
 		request, err = remoteworker.DecodeWorktreeRequest(input)
 	}
@@ -77,6 +81,26 @@ func (command *workerWorktreeCommands) run(
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	manager := remoteworker.Worktrees{Git: worktree.Client{Executable: git}, Treehouse: pool}
+	if selected == "worker-worktree export-result" {
+		bundle, err := manager.ExportResult(ctx, resultRequest)
+		if err != nil {
+			return fail(
+				output,
+				1,
+				err,
+				"retain the lease and selected commit; commit all work and retry from the primary",
+			)
+		}
+		defer bundle.Close()
+		result := remoteworker.WorktreeResult{Lease: resultRequest.Lease, Commit: bundle.Commit()}
+		if json.NewEncoder(output).Encode(result) != nil {
+			return 1
+		}
+		if _, err := io.Copy(output, bundle); err != nil {
+			return 1
+		}
+		return 0
+	}
 	if selected == "worker-worktree return" {
 		lease, err := manager.Return(ctx, returnRequest)
 		if err != nil {

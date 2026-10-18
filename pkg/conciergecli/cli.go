@@ -110,6 +110,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "worker-context install":
 		return command.WorkerContext.run(stdout)
 	case "worker-worktree acquire",
+		"worker-worktree export-result",
 		"worker-worktree inspect",
 		"worker-worktree import",
 		"worker-worktree prepare-launch",
