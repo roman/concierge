@@ -9,8 +9,10 @@ import (
 )
 
 type workerSocketCommands struct {
-	Prepare workerSocketInput `cmd:"" help:"Remove an owned stale socket only after excluding an active listener."`
-	Probe   workerSocketInput `cmd:"" help:"Check an owned forward with a bounded worker protocol round trip."`
+	Prepare      workerSocketInput `cmd:"" help:"Remove an owned stale socket only after excluding an active listener."`
+	Probe        workerSocketInput `cmd:"" help:"Check an owned forward with a bounded worker protocol round trip."`
+	AgentPrepare workerSocketInput `cmd:"" help:"Prepare the task-owned SSH agent socket after excluding an active listener."`
+	AgentProbe   workerSocketInput `cmd:"" help:"Check the task-owned agent forward without logging key identities."`
 }
 
 type workerSocketInput struct {
@@ -29,6 +31,12 @@ func (command *workerSocketCommands) run(
 	operation, status := remoteworker.PrepareSocket, "prepared"
 	if selected == "worker-socket probe" {
 		input, operation, status = command.Probe, remoteworker.ProbeSocket, "reachable"
+	}
+	if selected == "worker-socket agent-prepare" {
+		input, operation = command.AgentPrepare, remoteworker.PrepareAgentSocket
+	}
+	if selected == "worker-socket agent-probe" {
+		input, operation, status = command.AgentProbe, remoteworker.ProbeAgentSocket, "reachable"
 	}
 	owner := remoteworker.SocketOwner{
 		Task: input.Task, Generation: input.Generation, Verifier: input.Verifier,

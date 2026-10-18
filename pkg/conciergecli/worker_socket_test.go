@@ -33,6 +33,13 @@ func TestWorkerSocketProbeReportsMissingForward(t *testing.T) {
 	if code != 1 || !strings.Contains(output.String(), remoteworker.ErrTunnelUnreachable.Error()) {
 		t.Fatalf("missing forward was not unreachable: code=%d %s", code, &output)
 	}
+	output.Reset()
+	code = Run(t.Context(), []string{"worker-socket", "agent-probe", "--directory", directory,
+		"--task", "task-1", "--generation", "gen-1", "--verifier", grant.Verifier},
+		strings.NewReader(""), &output, &output)
+	if code != 1 || !strings.Contains(output.String(), remoteworker.ErrTunnelUnreachable.Error()) {
+		t.Fatalf("missing agent forward was not unreachable: code=%d %s", code, &output)
+	}
 }
 
 func TestWorkerSocketHelperRequiresMatchingOwnership(t *testing.T) {
@@ -54,6 +61,12 @@ func TestWorkerSocketHelperRequiresMatchingOwnership(t *testing.T) {
 	if _, err := os.Lstat(filepath.Join(directory, "socket-owner.json")); err != nil {
 		t.Fatal(err)
 	}
+	arguments[1] = "agent-prepare"
+	output.Reset()
+	if code := Run(t.Context(), arguments, strings.NewReader(""), &output, &output); code != 0 ||
+		output.String() != "status: prepared\n" {
+		t.Fatalf("agent socket preparation: code=%d %s", code, &output)
+	}
 	arguments[len(arguments)-1] = strings.Repeat("0", 64)
 	output.Reset()
 	if code := Run(context.Background(), arguments, strings.NewReader(""), &output, &output); code == 0 {
@@ -64,7 +77,7 @@ func TestWorkerSocketHelperRequiresMatchingOwnership(t *testing.T) {
 func TestRemoteWorkerCannotPrepareSocket(t *testing.T) {
 	t.Setenv("CONCIERGE_WORKER_TASK", "task-1")
 	directory := filepath.Join(t.TempDir(), "absent")
-	for _, operation := range []string{"prepare", "probe"} {
+	for _, operation := range []string{"prepare", "probe", "agent-prepare", "agent-probe"} {
 		var output bytes.Buffer
 		code := Run(
 			context.Background(),

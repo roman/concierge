@@ -62,8 +62,10 @@ func ClaimSocketDirectory(directory string, owner SocketOwner) error {
 	if !errors.Is(err, os.ErrNotExist) {
 		return ErrSocketOwnership
 	}
-	if _, err := root.Lstat("worker.sock"); !errors.Is(err, os.ErrNotExist) {
-		return ErrSocketOwnership
+	for _, name := range []string{"worker.sock", "agent.sock"} {
+		if _, err := root.Lstat(name); !errors.Is(err, os.ErrNotExist) {
+			return ErrSocketOwnership
+		}
 	}
 	secret, err := workeraccess.ReadDirectorySecret(root)
 	if err != nil {

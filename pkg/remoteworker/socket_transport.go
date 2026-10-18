@@ -78,27 +78,28 @@ func (transport SocketTransport) perform(
 type SSHTunnelRemote struct{ Runner sshcommand.Runner }
 
 func (remote SSHTunnelRemote) Prepare(ctx context.Context, spec TunnelSpec) error {
-	return (SocketTransport{Runner: remote.Runner}).Prepare(
-		ctx,
-		herdr.SavedMachine{
-			ID:      spec.MachineID,
-			Target:  spec.Target,
-			Enabled: true,
-		},
-		spec.Tools,
-		spec.Owner,
-	)
+	return remote.perform(ctx, spec, "prepare", "prepared")
 }
 
 func (remote SSHTunnelRemote) Probe(ctx context.Context, spec TunnelSpec) error {
-	return (SocketTransport{Runner: remote.Runner}).Probe(
-		ctx,
-		herdr.SavedMachine{
-			ID:      spec.MachineID,
-			Target:  spec.Target,
-			Enabled: true,
-		},
-		spec.Tools,
-		spec.Owner,
-	)
+	return remote.perform(ctx, spec, "probe", "reachable")
+}
+
+func (remote SSHTunnelRemote) perform(
+	ctx context.Context,
+	spec TunnelSpec,
+	operation, status string,
+) error {
+	if err := spec.Validate(); err != nil {
+		return err
+	}
+	profile := herdr.SavedMachine{ID: spec.MachineID, Target: spec.Target, Enabled: true}
+	transport := SocketTransport{Runner: remote.Runner}
+	if err := transport.perform(ctx, profile, spec.Tools, spec.Owner, operation, status); err != nil {
+		return err
+	}
+	if spec.Authentication == sshcommand.ForwardedAgent {
+		return transport.perform(ctx, profile, spec.Tools, spec.Owner, "agent-"+operation, status)
+	}
+	return nil
 }

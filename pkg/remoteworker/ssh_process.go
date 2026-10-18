@@ -24,6 +24,11 @@ func (driver SSHProcesses) Start(
 	spec TunnelSpec,
 	localSocket string,
 ) (primary.ProcessToken, error) {
+	if spec.Authentication == sshcommand.ForwardedAgent {
+		if err := sshcommand.CheckPrimaryAgent(ctx); err != nil {
+			return primary.ProcessToken{}, errors.Join(ErrTunnelNotStarted, err)
+		}
+	}
 	arguments, err := TunnelArguments(spec, localSocket)
 	if err != nil {
 		return primary.ProcessToken{}, errors.Join(ErrTunnelNotStarted, err)

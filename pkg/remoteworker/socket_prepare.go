@@ -32,6 +32,29 @@ func prepareSocket(
 	owner SocketOwner,
 	probe func(context.Context, string) (net.Conn, error),
 ) error {
+	return prepareNamedSocket(ctx, directory, owner, "worker.sock", probe)
+}
+
+func PrepareAgentSocket(ctx context.Context, directory string, owner SocketOwner) error {
+	dialer := net.Dialer{Timeout: 2 * time.Second}
+	return prepareNamedSocket(
+		ctx,
+		directory,
+		owner,
+		"agent.sock",
+		func(ctx context.Context, path string) (net.Conn, error) {
+			return dialer.DialContext(ctx, "unix", path)
+		},
+	)
+}
+
+func prepareNamedSocket(
+	ctx context.Context,
+	directory string,
+	owner SocketOwner,
+	name string,
+	probe func(context.Context, string) (net.Conn, error),
+) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -46,7 +69,7 @@ func prepareSocket(
 	if !socketDirectoryMatches(root, directory, owner) {
 		return ErrSocketOwnership
 	}
-	before, err := root.Lstat("worker.sock")
+	before, err := root.Lstat(name)
 	if errors.Is(err, os.ErrNotExist) {
 		return syncSocketDirectory(root)
 	}
@@ -57,7 +80,7 @@ func prepareSocket(
 	if before.Mode()&os.ModeSocket == 0 || !owned || stat.Uid != uint32(os.Geteuid()) {
 		return ErrSocketOwnership
 	}
-	connection, err := probe(ctx, filepath.Join(directory, "worker.sock"))
+	connection, err := probe(ctx, filepath.Join(directory, name))
 	if err == nil {
 		if connection != nil {
 			connection.Close()
@@ -75,11 +98,11 @@ func prepareSocket(
 	if !socketDirectoryMatches(root, directory, owner) {
 		return ErrSocketOwnership
 	}
-	after, err := root.Lstat("worker.sock")
+	after, err := root.Lstat(name)
 	if err != nil || !os.SameFile(before, after) {
 		return ErrSocketOwnership
 	}
-	if err := root.Remove("worker.sock"); err != nil {
+	if err := root.Remove(name); err != nil {
 		return ErrSocketOwnership
 	}
 	return syncSocketDirectory(root)

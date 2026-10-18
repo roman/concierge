@@ -23,15 +23,18 @@ const (
 )
 
 type TunnelSpec struct {
-	Owner     SocketOwner `json:"owner"`
-	MachineID string      `json:"machine_id"`
-	Target    string      `json:"target"`
-	Tools     Tools       `json:"tools"`
+	Owner          SocketOwner               `json:"owner"`
+	MachineID      string                    `json:"machine_id"`
+	Target         string                    `json:"target"`
+	Authentication sshcommand.Authentication `json:"authentication,omitempty"`
+	Tools          Tools                     `json:"tools"`
 }
 
 func (spec TunnelSpec) Validate() error {
 	if spec.Owner.Validate() != nil || spec.MachineID == "" ||
-		!sshcommand.ValidTarget(spec.Target) || spec.Tools.Validate() != nil {
+		!sshcommand.ValidTarget(
+			spec.Target,
+		) || spec.Tools.Validate() != nil || spec.Authentication.Validate() != nil {
 		return ErrTunnelOwnership
 	}
 	return nil

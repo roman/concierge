@@ -52,13 +52,17 @@ func TrustedAuthenticationArguments(
 var ErrPrimaryAgent = errors.New("primary SSH agent is unavailable or has no usable keys")
 
 func CheckPrimaryAgent(ctx context.Context) error {
-	if os.Getenv("SSH_AUTH_SOCK") == "" {
+	return CheckAgentSocket(ctx, os.Getenv("SSH_AUTH_SOCK"))
+}
+
+func CheckAgentSocket(ctx context.Context, socket string) error {
+	if socket == "" {
 		return ErrPrimaryAgent
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, "ssh-add", "-l")
-	command.Env = ConnectionEnvironment(os.Environ())
+	command.Env = append(ConnectionEnvironment(os.Environ()), "SSH_AUTH_SOCK="+socket)
 	command.WaitDelay = time.Second
 	// Fingerprints and comments are unnecessary for the readiness decision.
 	if err := command.Run(); err != nil {

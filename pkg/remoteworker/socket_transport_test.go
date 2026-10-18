@@ -8,7 +8,34 @@ import (
 	"time"
 
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/sshcommand"
 )
+
+func TestTrustedTunnelPreparesAndProbesAgentSocket(t *testing.T) {
+	_, spec := tunnelFixture(t)
+	spec.Authentication = sshcommand.ForwardedAgent
+	for _, operation := range []string{"prepare", "probe"} {
+		status := "prepared"
+		if operation == "probe" {
+			status = "reachable"
+		}
+		runner := &secretRunner{stdout: []byte("status: " + status + "\n")}
+		remote := SSHTunnelRemote{Runner: runner}
+		perform := remote.Prepare
+		if operation == "probe" {
+			perform = remote.Probe
+		}
+		if err := perform(t.Context(), spec); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(
+			strings.Join(runner.arguments, " "),
+			"'worker-socket' 'agent-"+operation+"'",
+		) {
+			t.Fatalf("trusted tunnel skipped agent %s: %v", operation, runner.arguments)
+		}
+	}
+}
 
 func TestSocketTransportUsesFixedHelperAndOwnership(t *testing.T) {
 	_, owner := socketOwnerFixture(t)

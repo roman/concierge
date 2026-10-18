@@ -2,10 +2,12 @@ package remoteworker
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
 
+	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/taskmeta"
 )
 
@@ -18,9 +20,28 @@ func TunnelArguments(spec TunnelSpec, localSocket string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(options, "-T", "-N", "-R",
+	options = append(
+		options,
+		"-T",
+		"-N",
+		"-R",
 		filepath.Join(spec.Tools.TaskDirectory, "worker.sock")+":"+localSocket,
-		"--", spec.Target), nil
+	)
+	if spec.Authentication == sshcommand.ForwardedAgent {
+		agentSocket := os.Getenv("SSH_AUTH_SOCK")
+		if _, err := taskmeta.ParseAbsolutePath(agentSocket); err != nil ||
+			strings.ContainsRune(agentSocket, ':') {
+			return nil, sshcommand.ErrPrimaryAgent
+		}
+		// A fixed task-owned socket lets the existing worker keep its environment
+		// when this SSH process reconnects or the primary host restarts.
+		options = append(
+			options,
+			"-R",
+			filepath.Join(spec.Tools.TaskDirectory, "agent.sock")+":"+agentSocket,
+		)
+	}
+	return append(options, "--", spec.Target), nil
 }
 
 func TunnelConfigArguments(spec TunnelSpec, localSocket string) ([]string, error) {

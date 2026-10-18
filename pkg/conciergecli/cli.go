@@ -105,7 +105,10 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	switch selected.Command() {
 	case "worker-secret install", "worker-secret remove":
 		return command.WorkerSecret.run(selected.Command(), stdin, stdout)
-	case "worker-socket prepare", "worker-socket probe":
+	case "worker-socket prepare",
+		"worker-socket probe",
+		"worker-socket agent-prepare",
+		"worker-socket agent-probe":
 		return command.WorkerSocket.run(ctx, selected.Command(), stdout)
 	case "worker-context install":
 		return command.WorkerContext.run(stdout)
