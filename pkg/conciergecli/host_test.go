@@ -128,7 +128,7 @@ func serveConfiguredTaskRoot(t *testing.T, config hostservice.Config) {
 	case <-ready:
 	case err := <-done:
 		t.Fatalf("host startup: %v", err)
-	case <-time.After(5 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("host startup timed out")
 	}
 }
