@@ -155,6 +155,14 @@ pkgs.runCommand "concierge-devshell"
     run_entry 2>older-warning
     grep -F 'manual restart' older-warning
     if grep -E 'state init|serve' "$TEST_CALLS"; then exit 1; fi
+    printf '3\n' > "$CONCIERGE_HOME/.task-state-version"
+    run_entry 2>remote-state-warning
+    if ! grep -F 'manual restart' remote-state-warning; then
+      printf 'format-three shell entry did not inspect the host\n' >&2
+      cat remote-state-warning >&2
+      exit 1
+    fi
+    printf '2\n' > "$CONCIERGE_HOME/.task-state-version"
     : > "$TEST_CALLS"
     # A hook entered from another directory or a worker cannot claim the root.
     "$DEVENV_ROOT/.agents/hooks/concierge-session-start" </dev/null

@@ -62,8 +62,9 @@ in
       export CONCIERGE_HOME="''${CONCIERGE_HOME:-$CONCIERGE_PROJECT_ROOT/.concierge}"
       export TINCAN_HOME="''${TINCAN_HOME:-$CONCIERGE_PROJECT_ROOT/.tincan}"
       if [ -z "''${CONCIERGE_WORKER:-}" ]; then
-        if [ ! -f "$CONCIERGE_HOME/.task-state-version" ] || [ "$(cat "$CONCIERGE_HOME/.task-state-version")" != 2 ]; then
-          printf 'Concierge version 2 state is required. Run concierge state init for fresh state; inspect existing state before migration.\n' >&2
+        concierge_state_version="$(cat "$CONCIERGE_HOME/.task-state-version" 2>/dev/null || true)"
+        if [ "$concierge_state_version" != 2 ] && [ "$concierge_state_version" != 3 ]; then
+          printf 'Concierge version 2 or 3 state is required. Run concierge state init for fresh state; inspect existing state before migration.\n' >&2
         else
           concierge_host_args=(--root "$CONCIERGE_HOME" --message-root "$TINCAN_HOME" host)
           if [ "''${HERDR_ENV:-}" = 1 ]; then

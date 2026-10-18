@@ -17,6 +17,21 @@ output="$(TEST_HOST_STATUS=0 TEST_RECOVERY_READY="$TMPDIR/recovered" ./.agents/h
 [[ "$output" == *'Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.'* ]]
 [[ "$output" == *'Concierge revisions: host revision-b, binary revision-b.'* ]]
 
+printf '3\n' > "$DEVENV_ROOT/.concierge/.task-state-version"
+output="$(TEST_HOST_STATUS=0 ./.agents/hooks/concierge-session-start <<< "$payload")"
+if [[ "$output" != *'Concierge root supervisor context'* ]]; then
+  printf 'format-three startup did not reach the primary host: %s\n' "$output" >&2
+  exit 1
+fi
+for unsupported in 1 4 invalid; do
+  printf '%s\n' "$unsupported" > "$DEVENV_ROOT/.concierge/.task-state-version"
+  : > "$TEST_CALLS"
+  output="$(TEST_HOST_STATUS=0 ./.agents/hooks/concierge-session-start <<< "$payload")"
+  [[ "$output" == *'concierge state init'* ]]
+  [[ ! -s "$TEST_CALLS" ]]
+done
+printf '2\n' > "$DEVENV_ROOT/.concierge/.task-state-version"
+
 output="$(TEST_HOST_STATUS=0 TEST_HOST_REVISION=revision-a TEST_UPGRADE_REQUIRED=yes ./.agents/hooks/concierge-session-start <<< "$payload")"
 [[ "$output" == *'Concierge revisions: host revision-a, binary revision-b.'* ]]
 [[ "$output" == *"concierge --root $DEVENV_ROOT/.concierge --message-root $DEVENV_ROOT/.tincan host restart"* ]]

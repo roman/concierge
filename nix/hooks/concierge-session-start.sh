@@ -1,7 +1,11 @@
-if [[ ! -f "$repository_root/.concierge/.task-state-version" ]] || [[ "$(cat "$repository_root/.concierge/.task-state-version")" != 2 ]]; then
-  printf 'Concierge version 2 state is required. Run concierge state init for fresh state; inspect existing state before migration.\n'
-  exit 0
-fi
+concierge_state_version="$(cat "$repository_root/.concierge/.task-state-version" 2>/dev/null || true)"
+case "$concierge_state_version" in
+  2|3) ;;
+  *)
+    printf 'Concierge version 2 or 3 state is required. Run concierge state init for fresh state; inspect existing state before migration.\n'
+    exit 0
+    ;;
+esac
 
 payload="$(cat)"
 if primary_result="$(printf '%s' "$payload" | "$concierge_command" --root "$repository_root/.concierge" primary claim 2>&1)"; then
