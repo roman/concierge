@@ -32,6 +32,14 @@ func (leases hostRemoteLeases) resultReturnProof(
 		return proof, nil
 	}
 	result, found := task.RetiredRemoteResult(generation)
+	if task.HasReceipt(generation, taskstate.Retain) {
+		// Retained receipts release leases only through an explicit primary request.
+		proof.Outcome = remoteworker.WorktreeAbandoned
+		if found {
+			proof.Commit = result.Commit
+		}
+		return proof, nil
+	}
 	if !found || result.Commit == lease.BaseCommit {
 		return proof, nil
 	}

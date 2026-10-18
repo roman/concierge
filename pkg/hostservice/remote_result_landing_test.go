@@ -15,7 +15,7 @@ import (
 )
 
 func TestNativeCleanupRequiresMatchingLandedResultIncludingSquash(t *testing.T) {
-	for _, mode := range []string{"fast-forward", "squash", "wrong PR head", "unlanded merge", "unavailable PR", "oversized PR"} {
+	for _, mode := range []string{"fast-forward", "squash", "wrong PR head", "unlanded merge", "unavailable PR", "oversized PR", "retained abandonment"} {
 		t.Run(mode, func(t *testing.T) {
 			fixture := newRemoteActivationFixture(t)
 			t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
@@ -54,7 +54,7 @@ func TestNativeCleanupRequiresMatchingLandedResultIncludingSquash(t *testing.T) 
 			if mode == "fast-forward" {
 				landed = selected
 			}
-			if mode != "unlanded merge" {
+			if mode != "unlanded merge" && mode != "retained abandonment" {
 				runGit("push", "origin", landed+":refs/heads/main")
 			}
 			current, err := fixture.server.store.Read(context.Background(), "task-1")
@@ -86,7 +86,17 @@ func TestNativeCleanupRequiresMatchingLandedResultIncludingSquash(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			current, err = current.AcceptResult("gen-1", taskstate.Close, "2026-10-17")
+			if mode == "retained abandonment" {
+				current, err = current.PlaceHold(
+					taskstate.Hold{Reason: "Keep the task for follow-up"},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				current, err = current.AcceptResult("gen-1", taskstate.Retain, "")
+			} else {
+				current, err = current.AcceptResult("gen-1", taskstate.Close, "2026-10-17")
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -147,6 +157,10 @@ func TestNativeCleanupRequiresMatchingLandedResultIncludingSquash(t *testing.T) 
 				if err != nil || proof.Outcome != remoteworker.WorktreeLanded ||
 					proof.Commit != selected {
 					t.Fatalf("native result proof changed the selected HEAD: %+v %v", proof, err)
+				}
+			} else if mode == "retained abandonment" {
+				if err != nil || proof.Outcome != remoteworker.WorktreeAbandoned || proof.Commit != selected {
+					t.Fatalf("explicit retained release lost the selected abandonment proof: %+v %v", proof, err)
 				}
 			} else if err == nil {
 				t.Fatal("cleanup accepted an unconfirmed or different result")
