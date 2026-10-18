@@ -53,6 +53,9 @@ func (command *landCommand) run(ctx context.Context, root string, output io.Writ
 		if snapshot.Definition.Hold != nil {
 			return errors.New("release the task hold before landing")
 		}
+		if snapshot.Worker.Machine != "" && snapshot.Worker.Lease.Remote.PrimaryRoot != root {
+			return errors.New("remote result belongs to another primary root")
+		}
 		settings, err := readProjectSettings(
 			filepath.Join(root, "config", "projects.json"),
 			snapshot.Definition.Repo,
@@ -140,13 +143,16 @@ func landingGitCommand(ctx context.Context, directory string, args ...string) (s
 }
 
 func prepareLanding(ctx context.Context, worker taskstate.Worker) (landing, error) {
-	lease := worker.Lease
-	if lease.Branch == "" || lease.Path != worker.Worktree || lease.Project != worker.Project ||
+	source, err := workerLandingSource(worker)
+	if err != nil {
+		return landing{}, err
+	}
+	lease := source.lease
+	if lease.Branch == "" || lease.Path != source.worktree || lease.Project != source.project ||
 		lease.State != taskstate.LeaseHeld {
 		return landing{}, errors.New("task has no held worktree lease with a recorded branch")
 	}
-	target := landing{project: worker.Project, worktree: worker.Worktree, branch: lease.Branch}
-	var err error
+	target := landing{project: source.project, worktree: source.worktree, branch: lease.Branch}
 	target.remote, err = matchingLandingEndpoints(ctx, target.project)
 	if err != nil {
 		return landing{}, err
@@ -209,6 +215,11 @@ func prepareLanding(ctx context.Context, worker taskstate.Worker) (landing, erro
 	target.head, err = landingGitCommand(ctx, target.worktree, "rev-parse", "HEAD")
 	if err != nil {
 		return landing{}, err
+	}
+	if source.commit != "" && target.head != source.commit {
+		return landing{}, errors.New(
+			"primary worktree HEAD differs from the selected remote result",
+		)
 	}
 	remote, err := landingGitCommand(ctx, target.project, "ls-remote", "--symref", "origin", "HEAD")
 	if err != nil {

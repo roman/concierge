@@ -28,6 +28,11 @@ type landingFixture struct {
 
 func newLandingFixture(t *testing.T) landingFixture {
 	t.Helper()
+	return landingFixtureAtRoot(t, shortTaskRoot(t))
+}
+
+func landingFixtureAtRoot(t *testing.T, root string) landingFixture {
+	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	t.Setenv("GIT_AUTHOR_NAME", "Test")
@@ -36,7 +41,7 @@ func newLandingFixture(t *testing.T) landingFixture {
 	t.Setenv("GIT_COMMITTER_EMAIL", "test@example.com")
 	directory := t.TempDir()
 	f := landingFixture{
-		root:     shortTaskRoot(t),
+		root:     root,
 		project:  filepath.Join(directory, "project"),
 		worktree: filepath.Join(directory, "worker"),
 		remote:   filepath.Join(directory, "remote"),
