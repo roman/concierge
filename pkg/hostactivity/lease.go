@@ -41,9 +41,18 @@ func acquire(root, name string, mode int) (*os.File, error) {
 	fd, err := unix.Openat(
 		int(directory.Fd()),
 		name,
-		unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW,
+		unix.O_CREAT|unix.O_EXCL|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW,
 		0600,
 	)
+	// Darwin can return ENOENT when concurrent callers use nonexclusive creation.
+	if errors.Is(err, unix.EEXIST) {
+		fd, err = unix.Openat(
+			int(directory.Fd()),
+			name,
+			unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW,
+			0,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
