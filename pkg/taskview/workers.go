@@ -82,6 +82,9 @@ func WriteWorker(output io.Writer, task taskstate.Task) error {
 			return err
 		}
 	}
+	if err := writeRemoteResult(output, worker.RemoteResult); err != nil {
+		return err
+	}
 	if _, err := fmt.Fprintf(output, "agent_args[%d]:\n", len(worker.AgentArgs)); err != nil {
 		return err
 	}
