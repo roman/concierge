@@ -178,3 +178,72 @@ func TestRunAlreadyCanceledSkipsProbe(t *testing.T) {
 		t.Fatal("cancellation bypassed invalid configuration")
 	}
 }
+
+type slowProbeWorker struct {
+	slowAt  int
+	checks  int
+	entered chan struct{}
+	release chan struct{}
+	next    chan time.Time
+}
+
+func (worker *slowProbeWorker) Observe(ctx context.Context) error {
+	worker.checks++
+	if worker.checks == worker.slowAt {
+		close(worker.entered)
+		select {
+		case <-worker.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	if worker.checks == worker.slowAt+1 {
+		worker.next <- time.Now()
+	}
+	return nil
+}
+
+func (*slowProbeWorker) Restart(context.Context) error {
+	return errors.New("a healthy slow probe must not restart the worker")
+}
+
+func TestRunWaitsFullIntervalAfterSlowProbe(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		slowAt int
+	}{{"initial", 1}, {"periodic", 2}} {
+		t.Run(test.name, func(t *testing.T) {
+			const interval = 100 * time.Millisecond
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			worker := &slowProbeWorker{slowAt: test.slowAt, entered: make(chan struct{}),
+				release: make(chan struct{}), next: make(chan time.Time, 1)}
+			result := make(chan error, 1)
+			go func() {
+				result <- Run(ctx, worker, Config{Interval: interval, RestartWindow: time.Second})
+			}()
+			t.Cleanup(func() {
+				cancel()
+				if err := <-result; err != nil {
+					t.Errorf("monitor shutdown: %v", err)
+				}
+			})
+			select {
+			case <-worker.entered:
+			case <-ctx.Done():
+				t.Fatal("slow probe did not start")
+			}
+			// A slow remote probe can hold a task lock longer than the interval.
+			time.Sleep(2 * interval)
+			completed := time.Now()
+			close(worker.release)
+			select {
+			case started := <-worker.next:
+				if gap := started.Sub(completed); gap < interval {
+					t.Fatalf("next probe started after %s; need a full %s interval", gap, interval)
+				}
+			case <-ctx.Done():
+				t.Fatal("next probe did not start")
+			}
+		})
+	}
+}

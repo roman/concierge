@@ -59,25 +59,27 @@ func Run(ctx context.Context, worker Worker, config Config) error {
 		return nil
 	}
 	monitor := cap.NewWorker("worker-health", func(workerCtx context.Context) error {
-		ticker := time.NewTicker(config.Interval)
-		defer ticker.Stop()
 		if err := Check(workerCtx, worker); err != nil {
 			if workerCtx.Err() != nil {
 				return nil
 			}
 			return err
 		}
+		// Slow remote probes must leave time for task operations between checks.
+		timer := time.NewTimer(config.Interval)
+		defer timer.Stop()
 		for {
 			select {
 			case <-workerCtx.Done():
 				return nil
-			case <-ticker.C:
+			case <-timer.C:
 				if err := Check(workerCtx, worker); err != nil {
 					if workerCtx.Err() != nil {
 						return nil
 					}
 					return err
 				}
+				timer.Reset(config.Interval)
 			}
 		}
 	}, cap.WithRestart(cap.Transient))
