@@ -62,6 +62,9 @@ func (server *Server) withTaskEndpoint(
 	if endpoint == nil {
 		return execute()
 	}
+	if err := server.checkTaskRemoteEndpoint(ctx, task); err != nil {
+		return Response{}, err
+	}
 	release, err := server.controllers.quiesce(
 		ctx,
 		controllerKey{kind: taskController, id: input.TaskID},
@@ -84,6 +87,9 @@ func (server *Server) withTaskEndpoint(
 			(worker == nil || worker.Generation != input.Generation || current == nil || *current != *endpoint) {
 			err = taskstate.ErrInvalidTransition
 		}
+		if err == nil {
+			err = server.checkTaskRemoteEndpoint(ctx, task)
+		}
 	}
 	if err != nil {
 		return Response{}, fmt.Errorf("task supervision is stopped: %w", err)
@@ -93,6 +99,14 @@ func (server *Server) withTaskEndpoint(
 		err = fmt.Errorf("task supervision is stopped: %w", err)
 	}
 	return response, err
+}
+
+func (server *Server) checkTaskRemoteEndpoint(ctx context.Context, task taskstate.Task) error {
+	worker := task.Snapshot().Worker
+	if worker == nil || worker.Lease.Remote == (taskstate.RemoteLease{}) {
+		return nil
+	}
+	return (hostRemoteRuntime{server: server}).CheckEndpoint(ctx, *worker)
 }
 
 func (server *Server) rejectTaskBoundPane(ctx context.Context, endpoint controllerEndpoint) error {
