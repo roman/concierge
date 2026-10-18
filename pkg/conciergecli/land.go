@@ -77,6 +77,11 @@ func (command *landCommand) run(ctx context.Context, root string, output io.Writ
 			return err
 		}
 		if delivery == "pr" {
+			if snapshot.Worker.Machine != "" {
+				if err := target.prepareRemotePullRequest(ctx, snapshot.Definition); err != nil {
+					return err
+				}
+			}
 			result, err = target.mergePullRequest(ctx)
 		} else {
 			result, err = target.fastForward(ctx)
