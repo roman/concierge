@@ -98,6 +98,9 @@ ship workers with native permissions, restarts its temporary primary, drops and
 recovers its tunnel, and lands into a temporary local Git origin. It does not
 push to the source repository. Existing Herdr and Codex workflow directories
 receive their normal runtime records. The report path must not exist.
+Acceptance workers explicitly select Codex's `workspace-write` sandbox and keep
+the existing native approval rules. The task directory is an additional writable
+root for the result and transport files. User configuration files stay unchanged.
 
 ## Develop
 
