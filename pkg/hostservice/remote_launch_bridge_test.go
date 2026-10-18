@@ -11,7 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/machineprep"
 	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/taskstate"
@@ -128,7 +130,7 @@ func (runner *launchBridgeSSH) Run(
 }
 
 func TestHostRemoteLaunchConnectsNativeWorktreeActivationAndDispatch(t *testing.T) {
-	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost"} {
+	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost", "restart", "restart start lost", "restart activation lost"} {
 		t.Run(mode, func(t *testing.T) { testHostRemoteLaunchBridge(t, mode) })
 	}
 }
@@ -269,6 +271,98 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	if err := os.WriteFile(pendingReply, []byte("retain this reply"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	expectedTunnels := int32(1)
+	if strings.HasPrefix(mode, "restart") {
+		oldGeneration := worker.Generation
+		oldDirectory := toolsForWorker.TaskDirectory
+		if err := os.WriteFile(filepath.Join(tools, "missing"), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if mode == "restart start lost" {
+			if err := os.WriteFile(filepath.Join(tools, "lose-start"), nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		runner.lostContextConfirmation = mode == "restart activation lost"
+		supervised, err := server.service.SupervisedWorker(
+			input.TaskID,
+			server.config.MessageRoot,
+			herdr.NewClient(server.config.HerdrExecutable),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		supervised = supervised.WithRemoteRuntime(hostRemoteRuntime{server: server}).
+			WithTunnelProbe(taskTunnelProbe{server: server})
+		restartContext, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		restartErr := supervised.Restart(restartContext)
+		if mode == "restart" && restartErr != nil {
+			t.Fatal(restartErr)
+		}
+		if mode != "restart" && restartErr == nil {
+			t.Fatal("lost restart confirmation completed without recovery")
+		}
+		pending, err := server.store.Read(restartContext, input.TaskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if connections := pending.Snapshot().Worker.Connections; connections != nil {
+			retry := connections.Herdr.NextRetry
+			if retry.Before(connections.Tunnel.NextRetry) {
+				retry = connections.Tunnel.NextRetry
+			}
+			if delay := time.Until(retry); delay > 0 {
+				timer := time.NewTimer(delay)
+				defer timer.Stop()
+				select {
+				case <-timer.C:
+				case <-restartContext.Done():
+					t.Fatal(restartContext.Err())
+				}
+			}
+		}
+		if err := supervised.Observe(restartContext); err != nil {
+			t.Fatal(err)
+		}
+		current, err := server.store.Read(restartContext, input.TaskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		worker = current.Snapshot().Worker
+		if worker.Generation == oldGeneration || worker.TransportGeneration != worker.Generation ||
+			worker.PendingLaunch != "" ||
+			worker.LaunchAttemptGeneration != "" {
+			t.Fatal("restart did not confirm one new generation")
+		}
+		if _, err := os.Lstat(filepath.Join(oldDirectory, "secret")); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatal("restart retained the revoked secret")
+		}
+		toolsForWorker, err = runner.site.Tools()
+		if err != nil {
+			t.Fatal(err)
+		}
+		secret, err := workeraccess.ReadSecretFile(
+			filepath.Join(toolsForWorker.TaskDirectory, "secret"),
+		)
+		if err != nil ||
+			worker.Access.Authorize(
+				input.TaskID,
+				worker.Generation,
+				workeraccess.Receive,
+				secret,
+			) != nil {
+			t.Fatal("new generation did not receive its own secret")
+		}
+		if data, err := os.ReadFile(filepath.Join(tools, "started")); err != nil ||
+			string(data) != "start\nstart\n" {
+			t.Fatalf("restart duplicated the native agent: %q %v", data, err)
+		}
+		expectedTunnels = 2
+	}
 	if _, err := server.service.Finish(context.Background(), input.TaskID, worker.Generation, taskstate.Close, "2026-10-17"); err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +404,7 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	if data, err := os.ReadFile(pendingReply); err != nil || string(data) != "retain this reply" {
 		t.Fatal("cleanup discarded an unsent result")
 	}
-	if processes.stops.Load() != 1 || processes.starts.Load() != 1 {
+	if processes.stops.Load() != expectedTunnels || processes.starts.Load() != expectedTunnels {
 		t.Fatal("cleanup did not stop exactly the owned tunnel")
 	}
 }
@@ -338,10 +432,15 @@ case "$1 $2" in
  ;;
 'pane process-info') printf '%%s' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"w1:p1","shell_pid":100,"foreground_processes":[{"pid":101,"name":"codex","argv0":"codex"}]}}}' ;;
 'agent get')
- if [ ! -f "$state/started" ]; then printf '%%s' '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi
+ if [ -f "$state/missing" ] || [ ! -f "$state/started" ]; then printf '%%s' '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi
  printf '%%s' '{"result":{"agent":{"pane_id":"w1:p1","agent":"codex","agent_status":"idle","agent_session":{"source":"herdr:codex","agent":"codex","kind":"id","value":"native-session"}}}}'
  ;;
-'agent start') printf 'start\n' >> "$state/started"; printf '%%s' '{"result":{}}' ;;
+'agent start')
+ rm -f "$state/missing"
+ printf 'start\n' >> "$state/started"
+ if [ -f "$state/lose-start" ]; then rm "$state/lose-start"; exit 72; fi
+ printf '%%s' '{"result":{}}'
+ ;;
 'pane report-metadata') printf '%%s' '{"result":{}}' ;;
 'agent prompt') printf 'prompt\n' >> "$state/prompts"; printf '%%s' '{"result":{}}' ;;
 *) exit 73 ;;
