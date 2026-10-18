@@ -152,6 +152,10 @@ func (task Task) AcceptResult(
 			worker.PendingAdoption || worker.PendingGeneration != "" || worker.PendingLaunch != "" {
 			return Task{}, ErrInvalidTransition
 		}
+		if worker.RemoteResult != (RemoteResult{}) &&
+			worker.RemoteResult.Phase != RemoteResultReady {
+			return Task{}, ErrInvalidTransition
+		}
 	}
 	snapshot := task.Snapshot()
 	switch mode {
@@ -197,6 +201,7 @@ func (task Task) RetireResult(generation string) (Task, error) {
 	snapshot.Receipt = &Receipt{Generation: generation, Mode: completion.Mode}
 	if snapshot.Worker != nil {
 		snapshot.Receipt.Lease = snapshot.Worker.Lease
+		snapshot.Receipt.RemoteResult = snapshot.Worker.RemoteResult
 	}
 	snapshot.Completion = nil
 	snapshot.Worker = nil

@@ -77,6 +77,7 @@ type RestartPlan struct {
 
 // Worker preserves the exact launch and endpoint identity for recovery.
 type Worker struct {
+	RemoteResult            RemoteResult        `json:"remote_result,omitzero"`
 	Access                  *workeraccess.Grant `json:"access,omitempty"`
 	TransportGeneration     string              `json:"transport_generation,omitempty"`
 	LaunchAttemptGeneration string              `json:"launch_attempt_generation,omitempty"`
@@ -126,9 +127,10 @@ type Completion struct {
 
 // Receipt preserves the latest retired generation after worker records disappear.
 type Receipt struct {
-	Lease      WorktreeLease  `json:"lease,omitzero"`
-	Generation string         `json:"generation"`
-	Mode       CompletionMode `json:"mode"`
+	RemoteResult RemoteResult   `json:"remote_result,omitzero"`
+	Lease        WorktreeLease  `json:"lease,omitzero"`
+	Generation   string         `json:"generation"`
+	Mode         CompletionMode `json:"mode"`
 }
 
 // LaunchAbandonment preserves retained resources across interrupted client calls.
@@ -362,6 +364,10 @@ func validate(selected record) error {
 		return ErrInvalidTask
 	}
 	if selected.Completion != nil {
+		if selected.Worker != nil && selected.Worker.RemoteResult != (RemoteResult{}) &&
+			selected.Worker.RemoteResult.Phase != RemoteResultReady {
+			return ErrInvalidTask
+		}
 		if !validCompletion(*selected.Completion) {
 			return ErrInvalidTask
 		}
@@ -380,6 +386,13 @@ func validate(selected record) error {
 		}
 	}
 	if selected.Receipt != nil {
+		if !validRemoteResult(selected.Receipt.RemoteResult, selected.Receipt.Lease) {
+			return ErrInvalidTask
+		}
+		if selected.Receipt.RemoteResult != (RemoteResult{}) &&
+			selected.Receipt.RemoteResult.Phase != RemoteResultReady {
+			return ErrInvalidTask
+		}
 		if !validWorktreeLease(selected.Receipt.Lease) ||
 			taskmeta.ValidateSpawnGeneration(selected.Receipt.Generation) != nil ||
 			(selected.Receipt.Mode != Close && selected.Receipt.Mode != Retain) {
@@ -413,6 +426,13 @@ func validate(selected record) error {
 	}
 	seenReceipts := make(map[string]bool, len(selected.PriorReceipts))
 	for _, receipt := range selected.PriorReceipts {
+		if !validRemoteResult(receipt.RemoteResult, receipt.Lease) {
+			return ErrInvalidTask
+		}
+		if receipt.RemoteResult != (RemoteResult{}) &&
+			receipt.RemoteResult.Phase != RemoteResultReady {
+			return ErrInvalidTask
+		}
 		if !validWorktreeLease(receipt.Lease) ||
 			taskmeta.ValidateSpawnGeneration(receipt.Generation) != nil ||
 			receipt.Mode != Retain ||
@@ -475,6 +495,18 @@ func validDefinition(input Definition) bool {
 }
 
 func validWorker(worker Worker) bool {
+	if !validRemoteResult(worker.RemoteResult, worker.Lease) {
+		return false
+	}
+	if worker.RemoteResult != (RemoteResult{}) {
+		if worker.PendingAdoption || worker.PendingLaunch != "" || worker.PendingGeneration != "" {
+			return false
+		}
+		if worker.RemoteResult.Lease != (WorktreeLease{}) &&
+			worker.RemoteResult.Lease.State != LeaseHeld {
+			return false
+		}
+	}
 	if worker.LaunchAttemptGeneration != "" {
 		if worker.Machine == "" || worker.Lease.Remote == (RemoteLease{}) {
 			return false
