@@ -1,6 +1,7 @@
 package hostservice
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -28,6 +29,36 @@ type launchBridgeSSH struct {
 	secretCopies            int
 	lostContextConfirmation bool
 	lostReturnConfirmation  bool
+	lostResultConfirmation  bool
+}
+
+func (runner *launchBridgeSSH) RunTo(
+	ctx context.Context,
+	arguments []string,
+	input io.Reader,
+	output io.Writer,
+) ([]byte, error) {
+	if !strings.Contains(arguments[len(arguments)-1], "'worker-worktree' 'export-result'") {
+		return nil, errors.New("unexpected streamed bridge operation")
+	}
+	request, err := remoteworker.DecodeWorktreeResultRequest(input)
+	if err != nil {
+		return nil, err
+	}
+	bundle, err := runner.manager.ExportResult(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	defer bundle.Close()
+	if err := json.NewEncoder(output).Encode(remoteworker.WorktreeResult{Lease: request.Lease, Commit: bundle.Commit()}); err != nil {
+		return nil, err
+	}
+	_, err = io.Copy(output, bundle)
+	if runner.lostResultConfirmation {
+		runner.lostResultConfirmation = false
+		return nil, errors.New("result confirmation lost")
+	}
+	return nil, err
 }
 
 func (runner *launchBridgeSSH) Run(
@@ -130,7 +161,7 @@ func (runner *launchBridgeSSH) Run(
 }
 
 func TestHostRemoteLaunchConnectsNativeWorktreeActivationAndDispatch(t *testing.T) {
-	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost", "restart", "restart start lost", "restart activation lost"} {
+	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost", "restart", "restart start lost", "restart activation lost", "result export", "result confirmation lost"} {
 		t.Run(mode, func(t *testing.T) { testHostRemoteLaunchBridge(t, mode) })
 	}
 }
@@ -270,6 +301,45 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	pendingReply := filepath.Join(toolsForWorker.TaskDirectory, "unsent-result")
 	if err := os.WriteFile(pendingReply, []byte("retain this reply"), 0600); err != nil {
 		t.Fatal(err)
+	}
+	if strings.HasPrefix(mode, "result") {
+		for _, arguments := range [][]string{
+			{"-C", worker.Worktree, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "--allow-empty", "-m", "Remote ship result"},
+		} {
+			if data, err := exec.Command(server.config.GitExecutable, arguments...).CombinedOutput(); err != nil {
+				t.Fatalf("remote result commit: %s %v", data, err)
+			}
+		}
+		current, err := server.store.Read(context.Background(), input.TaskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var output bytes.Buffer
+		exporter := hostRemoteResultExporter{server: server}
+		if mode == "result confirmation lost" {
+			runner.lostResultConfirmation = true
+			if _, err := exporter.Export(context.Background(), current, "", &output); err == nil ||
+				output.Len() != 0 {
+				t.Fatal("unconfirmed result reached the primary importer")
+			}
+		}
+		commit, err := exporter.Export(context.Background(), current, "", &output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		git := worktree.Client{Executable: server.config.GitExecutable}
+		reference := "refs/concierge/results/host-bridge"
+		if err := git.ImportResult(context.Background(), input.Project, commit, reference, &output); err != nil {
+			t.Fatal(err)
+		}
+		if err := git.VerifyResult(context.Background(), input.Project, commit, reference); err != nil {
+			t.Fatal(err)
+		}
+		if lease, err := runner.manager.Inspect(context.Background(), runner.site.Worktree); err != nil ||
+			lease != worker.Lease {
+			t.Fatal("result export changed the remote lease")
+		}
+		return
 	}
 	expectedTunnels := int32(1)
 	if strings.HasPrefix(mode, "restart") {

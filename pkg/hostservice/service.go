@@ -156,7 +156,8 @@ func New(config Config) (*Server, error) {
 		create:              service.Create,
 		reserveLaunchIntent: store.ReserveInitialLaunch,
 	}
-	server.service = service.WithRemoteLeases(hostRemoteLeases{server: server})
+	server.service = service.WithRemoteLeases(hostRemoteLeases{server: server}).
+		WithRemoteResultExporter(hostRemoteResultExporter{server: server})
 	return server, nil
 }
 
