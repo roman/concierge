@@ -31,6 +31,7 @@ type savedMachineAcceptance struct {
 	machine                                    string
 	remoteDirectory, owner                     string
 	fixedBase                                  string
+	decisionWait                               time.Duration
 	profile                                    herdr.SavedMachine
 	store                                      *taskstate.Store
 	host                                       *exec.Cmd
@@ -58,18 +59,22 @@ func newSavedMachineAcceptance(t *testing.T) *savedMachineAcceptance {
 			"--remote-base requires a canonical /tmp/ca.XXXXXX or /private/tmp/ca.XXXXXX path with six letters or digits",
 		)
 	}
+	decisionWait, err := acceptanceDecisionWait(os.Getenv("CONCIERGE_ACCEPTANCE_DECISION_WAIT"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	directory, err := newAcceptancePrimaryDirectory()
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 65*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*decisionWait+30*time.Minute)
 	run := &savedMachineAcceptance{t: t, ctx: ctx, cancel: cancel, directory: directory,
 		root: filepath.Join(directory, "state"), messages: filepath.Join(directory, "messages"),
 		project: filepath.Join(
 			directory,
 			"project",
 		), origin: filepath.Join(directory, "origin.git"),
-		binary: binary, source: source, reportPath: report, owner: rand.Text(), machine: os.Getenv("CONCIERGE_ACCEPTANCE_MACHINE"), fixedBase: fixedBase}
+		binary: binary, source: source, reportPath: report, owner: rand.Text(), machine: os.Getenv("CONCIERGE_ACCEPTANCE_MACHINE"), fixedBase: fixedBase, decisionWait: decisionWait}
 	t.Cleanup(run.cleanup)
 	run.store, err = taskstate.NewStore(run.root)
 	if err != nil {
@@ -83,6 +88,7 @@ func newSavedMachineAcceptance(t *testing.T) *savedMachineAcceptance {
 		t.Fatal(err)
 	}
 	run.note("Source and primary state: %s; %s", source, run.root)
+	run.note("Native decision wait per startup or reply stage: %s", run.decisionWait)
 	run.note(
 		"Saved machine: %s (%s), session %s",
 		run.profile.ID,
@@ -185,24 +191,8 @@ func (run *savedMachineAcceptance) wait(
 	check func() (bool, error),
 ) {
 	run.t.Helper()
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	var lastError error
-	for {
-		ready, err := check()
-		if ready && err == nil {
-			return
-		}
-		lastError = err
-		select {
-		case <-run.ctx.Done():
-			run.t.Fatalf("%s: %v", name, run.ctx.Err())
-		case <-deadline.C:
-			run.t.Fatalf("%s timed out: %v", name, lastError)
-		case <-ticker.C:
-		}
+	if err := waitAcceptanceCondition(run.ctx, timeout, time.Second, check); err != nil {
+		run.t.Fatalf("%s: %v", name, err)
 	}
 }
 

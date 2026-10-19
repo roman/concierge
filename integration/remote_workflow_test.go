@@ -171,8 +171,7 @@ func (run *savedMachineAcceptance) waitReply(id string) string {
 	}
 	var replyID string
 	var replyBody string
-	blockedPane := ""
-	run.wait(12*time.Minute, id+" bound reply", func() (bool, error) {
+	run.waitNative(id, id+" bound reply", func() (bool, error) {
 		pending, err := messages.List(recipient)
 		if err != nil {
 			return false, err
@@ -193,19 +192,7 @@ func (run *savedMachineAcceptance) waitReply(id string) string {
 		if count == 1 {
 			return true, nil
 		}
-		client, worker := run.boundAgent(id)
-		agent, err := client.Get(run.ctx, worker.Pane)
-		if err == nil && agent.Status == herdr.Blocked {
-			if blockedPane != worker.Pane {
-				screen, _ := client.VisibleScreen(run.ctx, worker.Pane)
-				run.note("%s needs operator input: machine %s, session %s, pane %s\n%s",
-					id, worker.Machine, worker.Session, worker.Pane, screen)
-				blockedPane = worker.Pane
-			}
-			return false, nil
-		}
-		blockedPane = ""
-		return false, err
+		return false, nil
 	})
 	if run.readTask(id).Definition().Kind == "scout" {
 		version := run.git(run.project, "show", run.commit+":VERSION")

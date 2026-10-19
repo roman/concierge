@@ -282,6 +282,14 @@ Primary acceptance state uses a short canonical directory under `/tmp`.
 The harness ignores a longer `TMPDIR` for this state to keep local sockets
 within both Darwin and Linux limits.
 
+`--decision-wait 60m` sets the wait for each native startup or bound reply.
+The default is 60 minutes. Values from `1s` through `6h` are accepted. The run
+reports changed native dialogs and their pane. The operator answers them.
+The overall deadline allows four decision stages plus 30 minutes of setup.
+An expired decision wait records the latest screen and a rerun command with
+the same fixed base. Use a new report path after confirmed cleanup. The
+harness never sends native trust or approval input.
+
 ## Use a local VM as the remote
 
 A VM on the primary machine uses the same SSH transport and worker protocol as

@@ -1,8 +1,6 @@
 package integration
 
 import (
-	"time"
-
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/taskstate"
 )
@@ -39,7 +37,7 @@ func (run *savedMachineAcceptance) launchWithNativeReview(id string, arguments .
 		intent.Endpoint.Pane,
 		agent.Status,
 	)
-	run.wait(12*time.Minute, id+" native startup review", func() (bool, error) {
+	run.waitNative(id, id+" native startup review", func() (bool, error) {
 		current := run.readTask(id).Snapshot()
 		if pending := current.LaunchIntent; pending != nil {
 			if pending.Generation != intent.Generation || pending.Endpoint == nil ||
