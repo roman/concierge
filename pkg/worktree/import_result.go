@@ -3,7 +3,6 @@ package worktree
 import (
 	"context"
 	"encoding/hex"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,14 +14,15 @@ import (
 func (client Client) ImportResult(
 	ctx context.Context,
 	project, commit, reference string,
-	input io.Reader,
+	input *CommitBundle,
 ) error {
 	decoded, err := hex.DecodeString(commit)
 	if err != nil || (len(decoded) != 20 && len(decoded) != 32) ||
 		strings.ToLower(commit) != commit {
 		return ErrIdentity
 	}
-	if input == nil || !filepath.IsAbs(client.Executable) || !filepath.IsAbs(project) ||
+	if input == nil || input.file == nil || input.Commit() != commit ||
+		!filepath.IsAbs(client.Executable) || !filepath.IsAbs(project) ||
 		!strings.HasPrefix(reference, "refs/concierge/results/") {
 		return ErrIdentity
 	}
@@ -36,22 +36,14 @@ func (client Client) ImportResult(
 	if err != nil || (current != "" && current != expected) {
 		return ErrIdentity
 	}
-	directory, err := os.MkdirTemp("", "concierge-result-import-")
-	if err != nil {
-		return err
+	path := input.file.Name()
+	opened, err := input.file.Stat()
+	if err != nil || !opened.Mode().IsRegular() {
+		return ErrIdentity
 	}
-	defer os.RemoveAll(directory)
-	path := filepath.Join(directory, "result.bundle")
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	_, copyErr := io.Copy(file, input)
-	if err := file.Close(); copyErr != nil || err != nil {
-		if copyErr != nil {
-			return copyErr
-		}
-		return err
+	currentFile, err := os.Lstat(path)
+	if err != nil || !os.SameFile(opened, currentFile) {
+		return ErrIdentity
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()

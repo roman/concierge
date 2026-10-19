@@ -15,6 +15,11 @@ type CommitBundle struct {
 	directory string
 }
 
+// AdoptCommitBundle transfers ownership of a completed private bundle file.
+func AdoptCommitBundle(file *os.File, commit string) *CommitBundle {
+	return &CommitBundle{commit: commit, file: file}
+}
+
 func (bundle *CommitBundle) Commit() string { return bundle.commit }
 
 func (bundle *CommitBundle) Read(data []byte) (int, error) {
@@ -27,8 +32,10 @@ func (bundle *CommitBundle) Read(data []byte) (int, error) {
 func (bundle *CommitBundle) Close() error {
 	var err error
 	if bundle.file != nil {
+		path := bundle.file.Name()
 		err = bundle.file.Close()
 		bundle.file = nil
+		err = errors.Join(err, os.Remove(path))
 	}
 	return errors.Join(err, os.RemoveAll(bundle.directory))
 }

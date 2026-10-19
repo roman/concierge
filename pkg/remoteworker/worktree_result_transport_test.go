@@ -45,18 +45,29 @@ func TestRemoteResultRejectsOversizedBundleAndRemovesSpool(t *testing.T) {
 					Lease:  held.Lease,
 					Commit: request.Commit,
 				}, payload: bytes.Repeat([]byte("x"), size)}
-			var output bytes.Buffer
-			_, err := (WorktreeTransport{Runner: fixture, MaxResultBytes: 16}).ExportResult(
+			result, err := (WorktreeTransport{Runner: fixture, MaxResultBytes: 16}).ExportResult(
 				context.Background(),
 				profile,
 				request,
-				&output,
 			)
-			if size == 16 && (err != nil || output.Len() != size) {
-				t.Fatalf("bounded result: bytes=%d err=%v", output.Len(), err)
+			if size == 16 {
+				if err != nil || result == nil {
+					t.Fatalf("bounded result: %v", err)
+				}
+				data, err := io.ReadAll(result.Bundle)
+				if err != nil || len(data) != size {
+					t.Fatalf("bounded payload: bytes=%d err=%v", len(data), err)
+				}
+				entries, err := os.ReadDir(directory)
+				if err != nil || len(entries) != 1 {
+					t.Fatalf("expected one owned spool: %v %v", entries, err)
+				}
+				if err := result.Bundle.Close(); err != nil {
+					t.Fatal(err)
+				}
 			}
-			if size > 16 && (!errors.Is(err, sshcommand.ErrOutputLimit) || output.Len() != 0) {
-				t.Fatalf("oversized result published: bytes=%d err=%v", output.Len(), err)
+			if size > 16 && (!errors.Is(err, sshcommand.ErrOutputLimit) || result != nil) {
+				t.Fatalf("oversized result published: result=%+v err=%v", result, err)
 			}
 			entries, err := os.ReadDir(directory)
 			if err != nil || len(entries) != 0 {
@@ -113,10 +124,14 @@ func TestRemoteResultTransferStreamsOnlyConfirmedMatchingResponse(t *testing.T) 
 		header:  WorktreeResult{Lease: held.Lease, Commit: request.Commit},
 		payload: bytes.Repeat([]byte{0, 255, 128, 1}, 128<<10)}
 	transport := WorktreeTransport{Runner: fixture}
-	var output bytes.Buffer
-	result, err := transport.ExportResult(context.Background(), profile, request, &output)
-	if err != nil || result != fixture.header || !bytes.Equal(output.Bytes(), fixture.payload) {
-		t.Fatalf("binary result transfer: bytes=%d err=%v", output.Len(), err)
+	result, err := transport.ExportResult(context.Background(), profile, request)
+	if err != nil || result == nil {
+		t.Fatalf("binary result transfer: %v", err)
+	}
+	defer result.Bundle.Close()
+	output, err := io.ReadAll(result.Bundle)
+	if err != nil || result.Result != fixture.header || !bytes.Equal(output, fixture.payload) {
+		t.Fatalf("binary result transfer: bytes=%d err=%v", len(output), err)
 	}
 	for _, mismatch := range []string{"generation scope", "commit", "mutable commit", "connection lost", "destination"} {
 		t.Run(mismatch, func(t *testing.T) {
@@ -134,17 +149,15 @@ func TestRemoteResultTransferStreamsOnlyConfirmedMatchingResponse(t *testing.T) 
 			case "destination":
 				selected.Target = "another-target"
 			}
-			var received bytes.Buffer
-			_, err := (WorktreeTransport{Runner: &changed}).ExportResult(
+			received, err := (WorktreeTransport{Runner: &changed}).ExportResult(
 				context.Background(),
 				selected,
 				request,
-				&received,
 			)
-			if err == nil || received.Len() != 0 {
+			if err == nil || received != nil {
 				t.Fatalf(
-					"unconfirmed result reached the importer: bytes=%d err=%v",
-					received.Len(),
+					"unconfirmed result reached the importer: result=%+v err=%v",
+					received,
 					err,
 				)
 			}

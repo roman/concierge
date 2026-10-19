@@ -2,10 +2,10 @@ package hostservice
 
 import (
 	"context"
-	"io"
 
 	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/worktree"
 )
 
 type hostRemoteResultExporter struct{ server *Server }
@@ -14,13 +14,12 @@ func (exporter hostRemoteResultExporter) Export(
 	ctx context.Context,
 	expected taskstate.Task,
 	selected string,
-	output io.Writer,
-) (string, error) {
+) (*worktree.CommitBundle, error) {
 	worker := expected.Snapshot().Worker
-	if worker == nil || output == nil {
-		return "", taskstate.ErrInvalidTransition
+	if worker == nil {
+		return nil, taskstate.ErrInvalidTransition
 	}
-	var commit string
+	var bundle *worktree.CommitBundle
 	_, err := exporter.server.store.WithTask(
 		ctx,
 		expected.ID(),
@@ -66,19 +65,23 @@ func (exporter hostRemoteResultExporter) Export(
 			}
 			transport := (hostRemoteLeases{server: exporter.server}).transport()
 			transport.MaxResultBytes = configuration.MaxResultBytes
-			result, err := transport.ExportResult(ctx, profile, request, output)
+			result, err := transport.ExportResult(ctx, profile, request)
 			if err != nil {
 				return err
 			}
 			if err := locked.CheckCurrent(); err != nil {
+				result.Bundle.Close()
 				return err
 			}
-			commit = result.Commit
+			bundle = result.Bundle
 			return nil
 		},
 	)
 	if err != nil {
-		return "", err
+		if bundle != nil {
+			bundle.Close()
+		}
+		return nil, err
 	}
-	return commit, nil
+	return bundle, nil
 }

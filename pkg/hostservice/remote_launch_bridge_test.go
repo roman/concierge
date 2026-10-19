@@ -1,7 +1,6 @@
 package hostservice
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -162,7 +161,7 @@ func (runner *launchBridgeSSH) Run(
 }
 
 func TestHostRemoteLaunchConnectsNativeWorktreeActivationAndDispatch(t *testing.T) {
-	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost", "restart", "restart start lost", "restart activation lost", "result export", "result confirmation lost", "ship", "ship return confirmation lost", "ship agent forwarding", "ship agent forwarding return confirmation lost"} {
+	for _, mode := range []string{"complete", "context confirmation lost", "return confirmation lost", "restart", "restart start lost", "restart activation lost", "result export", "result confirmation lost", "ship", "ship return confirmation lost", "ship agent forwarding", "ship agent forwarding return confirmation lost", "ship oversized result"} {
 		t.Run(mode, func(t *testing.T) { testHostRemoteLaunchBridge(t, mode) })
 	}
 }
@@ -207,6 +206,11 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 			{Name: "exmachina", URL: "ssh://git.test/project.git"},
 		},
 	}}
+	if mode == "ship oversized result" {
+		limited := configuration["saved-id"]
+		limited.MaxResultBytes = 1
+		configuration["saved-id"] = limited
+	}
 	encoded, err := json.Marshal(configuration)
 	if err != nil {
 		t.Fatal(err)
@@ -335,22 +339,23 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var output bytes.Buffer
 		exporter := hostRemoteResultExporter{server: server}
 		if mode == "result confirmation lost" {
 			runner.lostResultConfirmation = true
-			if _, err := exporter.Export(context.Background(), current, "", &output); err == nil ||
-				output.Len() != 0 {
+			if bundle, err := exporter.Export(context.Background(), current, ""); err == nil ||
+				bundle != nil {
 				t.Fatal("unconfirmed result reached the primary importer")
 			}
 		}
-		commit, err := exporter.Export(context.Background(), current, "", &output)
+		bundle, err := exporter.Export(context.Background(), current, "")
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer bundle.Close()
+		commit := bundle.Commit()
 		git := worktree.Client{Executable: server.config.GitExecutable}
 		reference := "refs/concierge/results/host-bridge"
-		if err := git.ImportResult(context.Background(), input.Project, commit, reference, &output); err != nil {
+		if err := git.ImportResult(context.Background(), input.Project, commit, reference, bundle); err != nil {
 			t.Fatal(err)
 		}
 		if err := git.VerifyResult(context.Background(), input.Project, commit, reference); err != nil {
@@ -364,6 +369,30 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	}
 	if strings.HasPrefix(mode, "ship") {
 		commitShipBridgeResult(t, server, *worker)
+	}
+	if mode == "ship oversized result" {
+		directory := t.TempDir()
+		t.Setenv("TMPDIR", directory)
+		if _, err := server.service.MaterializeRemoteResult(t.Context(), input.TaskID, worker.Generation); !errors.Is(
+			err,
+			sshcommand.ErrOutputLimit,
+		) {
+			t.Fatalf("oversized result accepted: %v", err)
+		}
+		current, err := server.store.Read(t.Context(), input.TaskID)
+		if err != nil || current.Snapshot().Worker.RemoteResult != (taskstate.RemoteResult{}) {
+			t.Fatalf("oversized result selected: %+v %v", current.Snapshot().Worker, err)
+		}
+		refs, err := exec.Command(server.config.GitExecutable, "-C", input.Project, "for-each-ref", "refs/concierge/results/").
+			CombinedOutput()
+		if err != nil || len(refs) != 0 {
+			t.Fatalf("oversized result imported: %s %v", refs, err)
+		}
+		entries, err := os.ReadDir(directory)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("overflow retained spool: %v %v", entries, err)
+		}
+		return
 	}
 	expectedTunnels := int32(1)
 	if strings.HasPrefix(mode, "restart") {

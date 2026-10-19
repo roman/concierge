@@ -3,7 +3,6 @@ package taskops
 import (
 	"context"
 	"errors"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -56,22 +55,15 @@ func (fixture *remoteResultExporterFixture) Export(
 	ctx context.Context,
 	task taskstate.Task,
 	selected string,
-	output io.Writer,
-) (string, error) {
+) (*worktree.CommitBundle, error) {
 	fixture.calls++
 	if fixture.failure != nil {
-		return "", fixture.failure
+		return nil, fixture.failure
 	}
 	if task.Snapshot().Worker == nil || (selected != "" && selected != fixture.commit) {
-		return "", errors.New("changed result selection")
+		return nil, errors.New("changed result selection")
 	}
-	bundle, err := fixture.git.ExportCommit(ctx, fixture.source, fixture.commit)
-	if err != nil {
-		return "", err
-	}
-	defer bundle.Close()
-	_, err = io.Copy(output, bundle)
-	return fixture.commit, err
+	return fixture.git.ExportCommit(ctx, fixture.source, fixture.commit)
 }
 
 func remoteResultMaterializationFixture(

@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -75,6 +74,19 @@ func TestImportResultPinsUnpublishedCommitWithoutMovingPrimary(t *testing.T) {
 	}
 }
 
+func TestImportResultConsumesCompletedBundleWithoutAnotherSpool(t *testing.T) {
+	client, spec := checkoutForTest(t)
+	bundle, err := client.ExportCommit(t.Context(), spec.Project, spec.BaseCommit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bundle.Close()
+	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "unavailable"))
+	if err := client.ImportResult(t.Context(), spec.Project, spec.BaseCommit, "refs/concierge/results/single-spool", bundle); err != nil {
+		t.Fatalf("import required another disk spool: %v", err)
+	}
+}
+
 func TestImportResultRejectsAnotherBundleBeforeAddingObjects(t *testing.T) {
 	for _, mismatch := range []string{"commit", "mutable", "reference", "existing reference", "truncated"} {
 		t.Run(mismatch, func(t *testing.T) {
@@ -111,7 +123,16 @@ func TestImportResultRejectsAnotherBundleBeforeAddingObjects(t *testing.T) {
 			case "existing reference":
 				gitForTest(t, spec.Project, "update-ref", reference, spec.BaseCommit)
 			case "truncated":
-				if err := client.ImportResult(context.Background(), spec.Project, selected, reference, strings.NewReader("incomplete")); err == nil {
+				file, err := os.CreateTemp(t.TempDir(), "incomplete-*")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := file.WriteString("incomplete"); err != nil {
+					t.Fatal(err)
+				}
+				incomplete := AdoptCommitBundle(file, selected)
+				defer incomplete.Close()
+				if err := client.ImportResult(context.Background(), spec.Project, selected, reference, incomplete); err == nil {
 					t.Fatal("accepted an incomplete result")
 				}
 				return

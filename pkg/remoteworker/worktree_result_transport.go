@@ -11,22 +11,27 @@ import (
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/sshcommand"
+	"github.com/roman/concierge/pkg/worktree"
 )
 
 const DefaultMaxResultBytes int64 = 1 << 30
+
+type CompletedResult struct {
+	Result WorktreeResult
+	Bundle *worktree.CommitBundle
+}
 
 // ExportResult publishes bytes only after a bounded, validated SSH transfer.
 func (transport WorktreeTransport) ExportResult(
 	ctx context.Context,
 	profile herdr.SavedMachine,
 	request WorktreeResultRequest,
-	output io.Writer,
-) (WorktreeResult, error) {
+) (*CompletedResult, error) {
 	runner, ok := transport.Runner.(sshcommand.StreamingRunner)
-	if !ok || output == nil || request.Validate() != nil || !profile.Enabled ||
+	if !ok || request.Validate() != nil || !profile.Enabled ||
 		profile.ID != request.Worktree.Location.Machine || profile.Target != request.Worktree.Location.Target ||
 		transport.MaxResultBytes < 0 {
-		return WorktreeResult{}, ErrWorktreeOwnership
+		return nil, ErrWorktreeOwnership
 	}
 	arguments, err := sshcommand.TrustedAuthenticationArguments(
 		profile.Target,
@@ -36,18 +41,23 @@ func (transport WorktreeTransport) ExportResult(
 		"export-result",
 	)
 	if err != nil {
-		return WorktreeResult{}, err
+		return nil, err
 	}
 	data, err := json.Marshal(request)
 	if err != nil {
-		return WorktreeResult{}, err
+		return nil, err
 	}
 	file, err := os.CreateTemp("", "concierge-remote-result-*")
 	if err != nil {
-		return WorktreeResult{}, err
+		return nil, err
 	}
-	defer os.Remove(file.Name())
-	defer file.Close()
+	complete := false
+	defer func() {
+		if !complete {
+			file.Close()
+			os.Remove(file.Name())
+		}
+	}()
 	limit := transport.MaxResultBytes
 	if limit == 0 {
 		limit = DefaultMaxResultBytes
@@ -57,18 +67,19 @@ func (transport WorktreeTransport) ExportResult(
 	defer cancel()
 	diagnostics, err := runner.RunTo(ctx, arguments, bytes.NewReader(data), &download)
 	if errors.Is(err, sshcommand.ErrOutputLimit) {
-		return WorktreeResult{}, err
+		return nil, err
 	}
 	if err != nil || ctx.Err() != nil || len(diagnostics) != 0 || download.result.Commit == "" {
-		return WorktreeResult{}, ErrWorktreeOwnership
+		return nil, ErrWorktreeOwnership
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return WorktreeResult{}, err
+		return nil, err
 	}
-	if _, err := io.Copy(output, file); err != nil {
-		return WorktreeResult{}, err
-	}
-	return download.result, nil
+	complete = true
+	return &CompletedResult{
+		Result: download.result,
+		Bundle: worktree.AdoptCommitBundle(file, download.result.Commit),
+	}, nil
 }
 
 type resultDownload struct {

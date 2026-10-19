@@ -79,7 +79,6 @@ func TestNativeWorktreeOperationsUseCapturedAuthentication(t *testing.T) {
 			t.Context(),
 			profile,
 			WorktreeResultRequest{Worktree: request.Worktree, Lease: request.Lease},
-			io.Discard,
 		)
 		if runner.calls != 6 {
 			t.Fatalf("operation skipped its captured authentication: calls=%d", runner.calls)

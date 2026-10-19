@@ -5,8 +5,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/roman/concierge/pkg/taskstate"
@@ -22,7 +20,7 @@ var ErrRemoteResultBusy = errors.New(
 )
 
 type RemoteResultExporter interface {
-	Export(context.Context, taskstate.Task, string, io.Writer) (string, error)
+	Export(context.Context, taskstate.Task, string) (*worktree.CommitBundle, error)
 }
 
 func (service *Service) WithRemoteResultExporter(exporter RemoteResultExporter) *Service {
@@ -72,16 +70,15 @@ func (service *Service) MaterializeRemoteResult(
 			result.Commit,
 			reference,
 		) != nil {
-		file, err := os.CreateTemp("", "concierge-primary-result-*")
+		bundle, err := service.remoteResults.Export(ctx, task, result.Commit)
 		if err != nil {
 			return taskstate.Task{}, err
 		}
-		defer os.Remove(file.Name())
-		defer file.Close()
-		commit, err := service.remoteResults.Export(ctx, task, result.Commit, file)
-		if err != nil {
-			return taskstate.Task{}, err
+		if bundle == nil {
+			return taskstate.Task{}, worktree.ErrIdentity
 		}
+		defer bundle.Close()
+		commit := bundle.Commit()
 		if result == (taskstate.RemoteResult{}) {
 			holder := fmt.Sprintf(
 				"concierge:result:%x",
@@ -97,10 +94,7 @@ func (service *Service) MaterializeRemoteResult(
 		if commit != result.Commit {
 			return taskstate.Task{}, worktree.ErrIdentity
 		}
-		if _, err := file.Seek(0, io.SeekStart); err != nil {
-			return taskstate.Task{}, err
-		}
-		if err := service.git.ImportResult(ctx, worker.Lease.Remote.PrimaryProject, result.Commit, reference, file); err != nil {
+		if err := service.git.ImportResult(ctx, worker.Lease.Remote.PrimaryProject, result.Commit, reference, bundle); err != nil {
 			return taskstate.Task{}, err
 		}
 	}
