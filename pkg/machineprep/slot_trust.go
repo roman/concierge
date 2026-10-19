@@ -82,8 +82,8 @@ func (preparer Preparer) InspectSlotTrust(
 			checks,
 			Check{
 				Name:   "slot-trust",
-				Status: "missing",
-				Detail: configuration.Base + "/worktrees",
+				Status: "ready",
+				Detail: "0 allocated pool slots under " + configuration.Base + "/worktrees",
 				Step: "The first remote task launch allocates a stable pool slot. Make its native folder-trust decision in that task's pane, then rerun concierge machine check " + sshcommand.Quote(
 					machine.Label,
 				) + ".",

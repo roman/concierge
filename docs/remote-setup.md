@@ -174,6 +174,9 @@ agent or changing configuration. An untrusted slot includes the exact
 `codex -C '<slot-path>'` command for the operator's one-time folder-trust
 decision. The first launch can allocate a new slot before any slots exist.
 Each additional concurrent slot requires its own decision.
+An empty pool reports zero allocated slots and permits preparation. Readiness
+checks cover the slots that already exist. A future slot can still require
+its first native trust decision.
 
 Codex keys trust by the exact working directory or a recognized repository
 root. A trusted parent base does not cover this bare-repository pool. The

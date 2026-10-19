@@ -75,3 +75,25 @@ func TestSlotTrustReadsNativeConfigWithoutChanges(t *testing.T) {
 		})
 	}
 }
+
+func TestSlotTrustWithNoAllocatedSlotsDoesNotBlockPreparation(t *testing.T) {
+	if _, err := exec.LookPath("nix"); err != nil {
+		t.Skip("Nix is required for the remote TOML reader")
+	}
+	base := t.TempDir()
+	checks, err := (Preparer{Runner: localPreparation{environment: []string{"CODEX_HOME=" + t.TempDir()}}}).InspectSlotTrust(
+		t.Context(),
+		testMachine(),
+		Configuration{
+			Target: testMachine().Target, Base: base, Agent: "codex", Repositories: []Repository{{Name: "concierge", URL: "ssh://git.test/concierge.git"}},
+		},
+	)
+	if err != nil || len(checks) != 1 {
+		t.Fatalf("empty pool inspection: %+v %v", checks, err)
+	}
+	if !(Report{Checks: checks}).Ready() || !strings.Contains(checks[0].Detail, "0 allocated") ||
+		!strings.Contains(checks[0].Detail, base+"/worktrees") ||
+		!strings.Contains(checks[0].Step, "first remote task launch") {
+		t.Fatalf("empty pool blocked preparation or implied slot trust: %+v", checks)
+	}
+}
