@@ -21,7 +21,7 @@ import (
 var version = "dev"
 var revision = "dev"
 
-const cliHelp = "commands: host serve|status|stop|restart, launch TASK_ID, land TASK_ID [--operator-approved], project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover|upgrade|recover-upgrade, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
+const cliHelp = "commands: host serve|status|stop|restart, launch TASK_ID, land TASK_ID [--operator-approved], land-recovered TASK_ID --generation GENERATION --commit COMMIT --operator-approved, project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover|upgrade|recover-upgrade, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
 type cli struct {
 	hostExpectations        hostservice.Expectations
@@ -46,6 +46,7 @@ type cli struct {
 	WorkerWorktree workerWorktreeCommands `cmd:"" help:"Manage an owned remote worktree for primary-controlled SSH setup."`
 	Launch         launchCommand          `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
 	Land           landCommand            `cmd:"" help:"Land an accepted worker result using the repository settings."`
+	LandRecovered  landRecoveredCommand   `cmd:"" help:"Land an approved local result from a closed task with a returned worktree lease."`
 	Project        projectCommands        `cmd:"" help:"Inspect and set operator-owned repository settings."`
 	Machine        machineCommands        `cmd:"" help:"Check saved remote machines using config/machines.json keyed by saved machine ID."`
 	Operator       operatorCommands       `cmd:"" help:"Record, resolve, list, and remind about open operator actions."`
@@ -226,6 +227,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return runOperatorReminder(ctx, root, command.Operator.Remind.Interval, time.Now(), stdout)
 	case "land <task-id>":
 		return command.Land.run(ctx, root, stdout)
+	case "land-recovered <task-id>":
+		return command.LandRecovered.run(ctx, root, stdout)
 	case "project show <repo>":
 		return command.Project.show(root, stdout)
 	case "machine check <label>", "machine status <label>":

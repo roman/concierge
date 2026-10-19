@@ -25,6 +25,7 @@ type PoolClient struct {
 
 type poolEntry struct {
 	Lease
+	Name           string `json:"name"`
 	Flavor         string `json:"flavor"`
 	RecoveryReason string `json:"recovery_reason"`
 	BranchError    string `json:"branch_error"`
@@ -130,6 +131,129 @@ func (client PoolClient) Find(ctx context.Context, project, holder string) (Leas
 		found = entry.Lease
 	}
 	return found, found.ID != "", nil
+}
+
+// ReserveReturned leases a free slot in place, without resetting its checkout.
+func (client PoolClient) ReserveReturned(
+	ctx context.Context,
+	project, path, holder string,
+) (Lease, error) {
+	if !cleanPoolPath(path) || !poolText(holder) {
+		return Lease{}, ErrIdentity
+	}
+	entries, err := client.entries(ctx, project)
+	if err != nil {
+		return Lease{}, err
+	}
+	for _, entry := range entries {
+		if entry.Path != path {
+			continue
+		}
+		if entry.Name == "" || entry.Flavor != "git" ||
+			entry.RecoveryReason != "" || entry.BranchError != "" || len(*entry.Processes) != 0 {
+			return Lease{}, fmt.Errorf(
+				"%w: recorded treehouse slot is leased or damaged",
+				ErrIdentity,
+			)
+		}
+		if entry.ID != "" || entry.Holder != "" {
+			if entry.ID == "" || entry.Holder != holder {
+				return Lease{}, fmt.Errorf(
+					"%w: recorded treehouse slot has another holder",
+					ErrIdentity,
+				)
+			}
+			confirmed, found, err := client.Find(ctx, project, holder)
+			if err != nil || !found || confirmed != entry.Lease {
+				return entry.Lease, fmt.Errorf(
+					"%w: prior recovery lease is unconfirmed: %v",
+					ErrIdentity,
+					err,
+				)
+			}
+			if err := client.ConfirmReservation(ctx, project, entry.Lease); err != nil {
+				return entry.Lease, err
+			}
+			return entry.Lease, nil
+		}
+		output, err := client.run(
+			ctx,
+			project,
+			"lease",
+			entry.Name,
+			"--json",
+			"--lease-holder",
+			holder,
+		)
+		if err != nil {
+			return Lease{}, err
+		}
+		var lease Lease
+		if json.Unmarshal(output, &lease) != nil || lease.ID == "" || lease.Path != path ||
+			lease.Holder != holder {
+			mismatch := fmt.Errorf(
+				"%w: Treehouse returned a different recovery lease",
+				ErrIdentity,
+			)
+			if cleanupErr := client.releaseUnconfirmedReservation(ctx, project, holder); cleanupErr != nil {
+				return Lease{}, fmt.Errorf(
+					"%w; recovery lease cleanup failed: %v",
+					mismatch,
+					cleanupErr,
+				)
+			}
+			return Lease{}, mismatch
+		}
+		confirmed, found, err := client.Find(ctx, project, holder)
+		if err != nil || !found || confirmed != lease {
+			return lease, fmt.Errorf("%w: recovery lease is unconfirmed: %v", ErrIdentity, err)
+		}
+		if err := client.ConfirmReservation(ctx, project, lease); err != nil {
+			return lease, err
+		}
+		return lease, nil
+	}
+	return Lease{}, fmt.Errorf("%w: recorded treehouse slot is absent", ErrIdentity)
+}
+
+func (client PoolClient) releaseUnconfirmedReservation(
+	ctx context.Context,
+	project, holder string,
+) error {
+	lease, found, err := client.Find(ctx, project, holder)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("%w: recovery lease holder is absent", ErrIdentity)
+	}
+	return client.Return(ctx, project, lease)
+}
+
+// ConfirmReservation requires the exact recovery lease to remain quiet and undamaged.
+func (client PoolClient) ConfirmReservation(
+	ctx context.Context,
+	project string,
+	lease Lease,
+) error {
+	if !validLeaseForProject(project, lease) {
+		return ErrIdentity
+	}
+	entries, err := client.entries(ctx, project)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.Path != lease.Path {
+			continue
+		}
+		if entry.Lease != lease || entry.Flavor != "git" || entry.RecoveryReason != "" ||
+			entry.BranchError != "" || len(*entry.Processes) != 0 {
+			return fmt.Errorf("%w: recovery lease changed or has live processes", ErrIdentity)
+		}
+		return nil
+	}
+	return fmt.Errorf("%w: recovery lease slot is absent", ErrIdentity)
 }
 
 // Acquire confirms the returned identity against treehouse's durable inventory.

@@ -152,16 +152,30 @@ func prepareLanding(ctx context.Context, worker taskstate.Worker) (landing, erro
 	if err != nil {
 		return landing{}, err
 	}
+	return prepareLandingSource(ctx, source, taskstate.LeaseHeld)
+}
+
+func prepareLandingSource(
+	ctx context.Context,
+	source landingSource,
+	requiredState taskstate.LeaseState,
+) (landing, error) {
 	lease := source.lease
 	if lease.Branch == "" || lease.Path != source.worktree || lease.Project != source.project ||
-		lease.State != taskstate.LeaseHeld {
-		return landing{}, errors.New("task has no held worktree lease with a recorded branch")
+		lease.State != requiredState {
+		if requiredState == taskstate.LeaseHeld {
+			return landing{}, errors.New("task has no held worktree lease with a recorded branch")
+		}
+		return landing{}, errors.New(
+			"task has no worktree lease with the required state and recorded branch",
+		)
 	}
 	target := landing{project: source.project, worktree: source.worktree, branch: lease.Branch}
-	target.remote, err = matchingLandingEndpoints(ctx, target.project)
+	remote, err := matchingLandingEndpoints(ctx, target.project)
 	if err != nil {
 		return landing{}, err
 	}
+	target.remote = remote
 	if _, err := landingGitCommand(ctx, target.project, "check-ref-format", "--branch", target.branch); err != nil {
 		return landing{}, err
 	}
@@ -226,7 +240,7 @@ func prepareLanding(ctx context.Context, worker taskstate.Worker) (landing, erro
 			"primary worktree HEAD differs from the selected remote result",
 		)
 	}
-	remote, err := landingGitCommand(ctx, target.project, "ls-remote", "--symref", "origin", "HEAD")
+	remote, err = landingGitCommand(ctx, target.project, "ls-remote", "--symref", "origin", "HEAD")
 	if err != nil {
 		return landing{}, err
 	}

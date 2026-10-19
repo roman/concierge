@@ -23,6 +23,7 @@
 | `concierge project set REPO [--merge on\|off] [--delivery pr\|fast-forward]` | Atomically update approved repository settings. |
 | `concierge brief-include set --file FILE` / `clear` | Replace or clear approved standing worker instructions. |
 | `concierge land TASK_ID [--operator-approved]` | Land an accepted result with the configured delivery mode. |
+| `concierge land-recovered TASK_ID --generation GENERATION --commit COMMIT --operator-approved` | Land an explicitly approved local result after the task closes and its lease returns. |
 
 ## Host upgrades
 
@@ -127,6 +128,22 @@ With merge off, pass `--operator-approved` only after the operator approves that
 exact landing. The command checks the recorded lease, branch, and clean worktree,
 including ignored files. It discovers the default branch from `origin` and
 requires the task branch to contain its fetched tip.
+
+For a closed task whose local worktree lease has already returned, use
+`concierge land-recovered TASK_ID --generation GENERATION --commit COMMIT
+--operator-approved`. The operator must approve that exact task, generation, and
+full reviewed commit, even when `merge: on`. The command supports
+`delivery: fast-forward` only. It requires the latest close receipt and the
+recorded returned local lease. It reserves the recorded free Treehouse slot
+without changing its checkout. It releases the reservation after landing.
+It recovers its own prior reservation after an interrupted attempt. The
+command requires the clean worktree to use the recorded repository and
+branch. It requires worktree HEAD to equal `--commit`, the recorded base to
+be an ancestor of that commit, and the fetched default branch tip to be an
+ancestor too. A missing, occupied, damaged, or reused slot stops landing.
+Use `--treehouse PATH` to select a Treehouse binary with the `lease` command.
+Keep the worktree and
+task receipt intact until the landing finishes.
 
 Fast-forward delivery pushes the verified commit to the remote default branch.
 It deletes a matching remote task branch when present. An explicit lease makes
