@@ -240,7 +240,7 @@ func (run *savedMachineAcceptance) prepare() {
 	if err != nil {
 		run.t.Fatalf("create remote temporary directory: %v", err)
 	}
-	if !strings.HasPrefix(remote, "/private/tmp/ca.") || strings.ContainsAny(remote, "\n\r") {
+	if !validSavedMachineAcceptanceDirectory(remote) {
 		run.t.Fatalf("unexpected remote temporary directory: %q", remote)
 	}
 	run.remoteDirectory = remote
@@ -267,6 +267,24 @@ func (run *savedMachineAcceptance) prepare() {
 	)
 	run.note("Machine status: %s", run.cli("machine", "status", run.machine))
 	run.cli("project", "set", "concierge", "--merge", "on", "--delivery", "fast-forward")
+}
+
+func validSavedMachineAcceptanceDirectory(directory string) bool {
+	if directory != filepath.Clean(directory) {
+		return false
+	}
+	parent := filepath.Dir(directory)
+	if parent != "/tmp" && parent != "/private/tmp" {
+		return false
+	}
+	name := filepath.Base(directory)
+	if len(name) != len("ca.")+6 || !strings.HasPrefix(name, "ca.") {
+		return false
+	}
+	return strings.IndexFunc(name[len("ca."):], func(character rune) bool {
+		return !(character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' || character >= '0' && character <= '9')
+	}) == -1
 }
 
 const createSavedMachineAcceptanceDirectory = `set -eu

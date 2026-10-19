@@ -119,7 +119,8 @@ func (run *savedMachineAcceptance) cleanup() {
 const removeSavedMachineAcceptanceDirectory = `set -eu
 directory=$1
 owner=$2
-case "$directory" in /private/tmp/ca.??????) ;; *) exit 1 ;; esac
+case "${directory%/*}" in /tmp|/private/tmp) ;; *) exit 1 ;; esac
+case "${directory##*/}" in ca.??????) ;; *) exit 1 ;; esac
 [ -d "$directory" ] && [ ! -L "$directory" ] || exit 1
 [ "$(cd -P "$directory" && pwd)" = "$directory" ] || exit 1
 [ -f "$directory/.acceptance-owner" ] && [ ! -L "$directory/.acceptance-owner" ] || exit 1
@@ -148,6 +149,28 @@ func TestSavedMachineAcceptancePathsStayInsideOwnedDirectory(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if got := insideDirectory(root, test.path); got != test.inside {
 				t.Fatalf("inside=%v want %v", got, test.inside)
+			}
+		})
+	}
+}
+
+func TestSavedMachineAcceptanceDirectoryOnUnixPlatforms(t *testing.T) {
+	for _, test := range []struct {
+		name, directory string
+		valid           bool
+	}{
+		{"macos", "/private/tmp/ca.Abc123", true},
+		{"linux", "/tmp/ca.Abc123", true},
+		{"relative", "tmp/ca.Abc123", false},
+		{"other root", "/var/tmp/ca.Abc123", false},
+		{"parent traversal", "/tmp/../tmp/ca.Abc123", false},
+		{"child", "/private/tmp/ca.Abc123/child", false},
+		{"short identity", "/private/tmp/ca.Abc12", false},
+		{"newline", "/private/tmp/ca.Abc12\n", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := validSavedMachineAcceptanceDirectory(test.directory); got != test.valid {
+				t.Fatalf("directory %q accepted = %v, want %v", test.directory, got, test.valid)
 			}
 		})
 	}

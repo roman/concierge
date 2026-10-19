@@ -106,8 +106,10 @@ func (checker Checker) Check(
 	osName, osOK := checker.probe(ctx, machine.Target, "uname", "-s")
 	architecture, archOK := checker.probe(ctx, machine.Target, "uname", "-m")
 	platform := Check{Name: "platform", Status: "ready", Detail: osName + " " + architecture}
-	if !osOK || !archOK || osName != "Darwin" || architecture != "arm64" {
-		platform.Status, platform.Step = "missing", "Use an Apple Silicon macOS saved machine; other platforms require remote support."
+	supportedPlatform := osName == "Darwin" && architecture == "arm64" ||
+		osName == "Linux" && (architecture == "x86_64" || architecture == "aarch64")
+	if !osOK || !archOK || !supportedPlatform {
+		platform.Status, platform.Step = "missing", "Use an Apple Silicon macOS, x86_64 Linux, or aarch64 Linux saved machine."
 	}
 	report.Checks = append(report.Checks, platform)
 	probe(

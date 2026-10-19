@@ -50,8 +50,9 @@ Existing state requires the [migration procedure](docs/state.md).
 
 ## Remote workers
 
-Register an SSH machine with Herdr once. Concierge supports Apple Silicon macOS
-remotes. Install Nix with flakes, Herdr, and the selected agent on the remote.
+Register an SSH machine with Herdr once. Remote machines can run x86_64 Linux,
+aarch64 Linux, or Apple Silicon macOS. Install Nix with flakes, Herdr, and the
+selected agent on the remote.
 Choose remote repository keys or SSH agent forwarding to a trusted machine.
 Complete the agent login on the remote by hand.
 Verify the SSH host keys on both machines before running unattended commands.
@@ -85,8 +86,8 @@ primary command `concierge task reply reconcile --file RECORD` at the original
 root. Keep the original generation, assignment, reply key, recipient, and body.
 The guide explains recovery and cleanup checks.
 
-Run the optional acceptance workflow against a saved Apple Silicon macOS
-machine from a native primary session:
+Run the optional acceptance workflow against a saved SSH machine from a native
+primary session:
 
 ```sh
 bash scripts/acceptance-remote.sh dev-remote /tmp/concierge-remote-report.md

@@ -2,7 +2,8 @@
 
 Concierge runs coding workers on a saved Herdr machine over SSH. The primary
 stays on your development machine and owns task state, supervision, result
-acceptance, and delivery. The supported remote platform is Apple Silicon macOS.
+acceptance, and delivery. Supported remote platforms are x86_64 Linux, aarch64
+Linux, and Apple Silicon macOS.
 `dev-remote` below is an example saved machine name; use your own machine name.
 
 For the component and protocol design, read [remote architecture](remote-architecture.md).
@@ -193,3 +194,29 @@ restart and tunnel recovery, and lands into a temporary local Git origin.
 It does not push to the source repository. Resolve native trust dialogs in the
 pane reported by the run. See the [README](../README.md#remote-workers) for
 the acceptance worker's native approval settings and runtime effects.
+
+## Use a local Linux VM as the remote
+
+A VM on the primary machine uses the same SSH transport and worker protocol as
+a separate physical machine. Provision its Nix installation, Herdr service,
+agent, and development tools through its NixOS configuration. Run Herdr as the
+development user's service and enable lingering so it stays available between
+SSH sessions. Complete the agent login inside the VM.
+
+Forward an SSH port to the guest on the primary's loopback interface. For
+example, a guest SSH service forwarded to `127.0.0.1:22222` can be registered as:
+
+```sh
+herdr machine add ssh://developer@127.0.0.1:22222 --label dev-remote
+```
+
+Verify the guest's host key through the VM console or another trusted channel
+before unattended SSH access. Authorize the primary's SSH public key in the
+guest. Repository access still uses either remote credentials or explicitly
+selected agent forwarding.
+
+Use the saved profile's exact SSH target in `config/machines.json`, such as
+`ssh://developer@127.0.0.1:22222`. Select a private guest base path such as
+`/home/developer/concierge`, then follow the same check, prepare, launch, and
+acceptance steps above. The VM must remain running while tasks hold remote
+leases. Retire those workers before stopping or deleting the guest.

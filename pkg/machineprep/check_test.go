@@ -15,6 +15,7 @@ type probeRunner struct {
 	t        *testing.T
 	fail     string
 	commands []string
+	outputs  map[string]string
 }
 
 func (runner *probeRunner) Run(
@@ -48,6 +49,11 @@ func (runner *probeRunner) Run(
 			), errors.New(
 				"probe failed",
 			)
+	}
+	for fragment, output := range runner.outputs {
+		if strings.Contains(command, fragment) {
+			return []byte(output), nil, nil
+		}
 	}
 	for fragment, output := range map[string]string{
 		"'true'": "", "'uname' '-s'": "Darwin\n", "'uname' '-m'": "arm64\n",
@@ -86,6 +92,48 @@ func TestCheckReportsPrerequisitesWithoutCredentialsOrWrites(t *testing.T) {
 					}
 				}
 			}
+		})
+	}
+}
+
+func TestCheckSupportedRemotePlatforms(t *testing.T) {
+	for _, test := range []struct {
+		name, operatingSystem, architecture, nixSystem string
+		status                                         string
+	}{
+		{"apple silicon", "Darwin", "arm64", "aarch64-darwin", "ready"},
+		{"linux amd64", "Linux", "x86_64", "x86_64-linux", "ready"},
+		{"linux arm64", "Linux", "aarch64", "aarch64-linux", "ready"},
+		{"intel mac", "Darwin", "x86_64", "x86_64-darwin", "missing"},
+		{"linux armv7", "Linux", "armv7l", "armv7l-linux", "missing"},
+		{"freebsd", "FreeBSD", "amd64", "x86_64-freebsd", "missing"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runner := &probeRunner{t: t, outputs: map[string]string{
+				"'uname' '-s'": test.operatingSystem + "\n",
+				"'uname' '-m'": test.architecture + "\n",
+				"'nix' 'eval'": "\"" + test.nixSystem + "\"\n",
+			}}
+			report, err := (Checker{Runner: runner}).Check(
+				t.Context(), testMachine(), "codex", nil,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, check := range report.Checks {
+				if check.Name != "platform" {
+					continue
+				}
+				if check.Status != test.status ||
+					check.Detail != test.operatingSystem+" "+test.architecture {
+					t.Fatalf("platform = %+v, want %s", check, test.status)
+				}
+				if check.Status == "missing" && check.Step == "" {
+					t.Fatal("unsupported platform has no operator step")
+				}
+				return
+			}
+			t.Fatal("platform check is missing")
 		})
 	}
 }
