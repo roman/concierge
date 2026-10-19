@@ -44,6 +44,9 @@ func (runner *preparationSSH) Run(
 	if strings.Contains(command, "'uname' '-m'") {
 		return []byte("arm64"), nil, nil
 	}
+	if strings.Contains(command, "'herdr' '--version'") {
+		return []byte("herdr 0.9.5"), nil, nil
+	}
 	return []byte("version"), nil, nil
 }
 

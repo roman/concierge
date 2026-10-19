@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -129,11 +130,23 @@ func (checker Checker) Check(
 		"--expr",
 		"builtins.currentSystem",
 	)
-	probe(
+	herdrVersion, herdrOK := probe(
 		"herdr",
 		"Install Herdr 0.9.5 or newer on the remote and make herdr available to non-interactive SSH commands.",
 		"herdr",
 		"--version",
+	)
+	if herdrOK && !supportedHerdrVersion(herdrVersion) {
+		check := &report.Checks[len(report.Checks)-1]
+		check.Status = "missing"
+		check.Step = "Install Herdr 0.9.5 or newer on the remote; herdr --version must report a supported release."
+	}
+	probe(
+		"lsof",
+		"Install lsof through the remote Nix configuration before allocating work; cleanup requires it.",
+		"command",
+		"-v",
+		"lsof",
 	)
 	for _, repository := range repositories {
 		step := "On the remote, provision read-only access to " + repository.Name + "; run git ls-remote -- " + sshcommand.Quote(
@@ -173,6 +186,30 @@ func (checker Checker) Check(
 	}
 	report.Checks = append(report.Checks, loginCheck)
 	return report, nil
+}
+
+func supportedHerdrVersion(output string) bool {
+	fields := strings.Fields(output)
+	if len(fields) != 2 || fields[0] != "herdr" {
+		return false
+	}
+	parts := strings.Split(fields[1], ".")
+	if len(parts) != 3 {
+		return false
+	}
+	var version [3]int
+	for index, part := range parts {
+		if part == "" ||
+			strings.IndexFunc(part, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
+			return false
+		}
+		number, err := strconv.Atoi(part)
+		if err != nil {
+			return false
+		}
+		version[index] = number
+	}
+	return version[0] > 0 || version[1] > 9 || (version[1] == 9 && version[2] >= 5)
 }
 
 func (checker Checker) probe(ctx context.Context, target string, command ...string) (string, bool) {

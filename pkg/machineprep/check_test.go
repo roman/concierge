@@ -59,7 +59,7 @@ func (runner *probeRunner) Run(
 		"'true'": "", "'uname' '-s'": "Darwin\n", "'uname' '-m'": "arm64\n",
 		"'nix' '--version'": "nix (Nix) 2.31.2\n", "'nix' 'eval'": "\"aarch64-darwin\"\n",
 		"'herdr' '--version'": "herdr 0.9.5\n", "'ls-remote'": "", "'login' 'status'": "Logged in\n",
-		"'auth' 'status'": "{}\n",
+		"'auth' 'status'": "{}\n", "'command' '-v' 'lsof'": "/usr/bin/lsof\n",
 	} {
 		if strings.Contains(command, fragment) {
 			return []byte(output), nil, nil
@@ -82,8 +82,17 @@ func TestCheckReportsPrerequisitesWithoutCredentialsOrWrites(t *testing.T) {
 			if err != nil || !report.Ready() {
 				t.Fatalf("report=%+v error=%v", report, err)
 			}
-			if len(report.Checks) != 8 || report.Checks[2].Detail != "Darwin arm64" {
-				t.Fatalf("incomplete report: %+v", report)
+			checks := make(map[string]Check)
+			for _, check := range report.Checks {
+				checks[check.Name] = check
+			}
+			for _, name := range []string{"ssh", "ssh-policy", "platform", "nix", "flakes", "herdr", "repository:project", "agent:" + agent} {
+				if checks[name].Status != "ready" {
+					t.Fatalf("missing ready check %s: %+v", name, report)
+				}
+			}
+			if checks["platform"].Detail != "Darwin arm64" {
+				t.Fatalf("wrong platform: %+v", checks["platform"])
 			}
 			for _, command := range runner.commands {
 				for _, forbidden := range []string{"clone", "fetch", "mkdir", "install", "printenv", "cat"} {
@@ -92,6 +101,46 @@ func TestCheckReportsPrerequisitesWithoutCredentialsOrWrites(t *testing.T) {
 					}
 				}
 			}
+		})
+	}
+}
+
+func TestCheckRequiresSupportedHerdrAndCleanupTool(t *testing.T) {
+	for _, test := range []struct {
+		name, version, missing, status string
+	}{
+		{"minimum", "herdr 0.9.5", "", "ready"},
+		{"newer", "herdr 1.0.0", "", "ready"},
+		{"old", "herdr 0.9.4", "", "missing"},
+		{"malformed", "herdr latest", "", "missing"},
+		{"empty", "", "", "missing"},
+		{"prerelease", "herdr 0.9.5-rc1", "", "missing"},
+		{"cleanup tool absent", "herdr 0.9.5", "'command' '-v' 'lsof'", "missing"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runner := &probeRunner{
+				t:       t,
+				fail:    test.missing,
+				outputs: map[string]string{"'herdr' '--version'": test.version},
+			}
+			report, err := (Checker{Runner: runner}).Check(t.Context(), testMachine(), "codex", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := "herdr"
+			if test.missing != "" {
+				name = "lsof"
+			}
+			for _, check := range report.Checks {
+				if check.Name == name {
+					if check.Status != test.status ||
+						(test.status == "missing" && check.Step == "") {
+						t.Fatalf("invalid readiness: %+v", check)
+					}
+					return
+				}
+			}
+			t.Fatalf("missing %s check", name)
 		})
 	}
 }
