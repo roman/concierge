@@ -145,6 +145,14 @@ both computed lengths, the limit and a shorter base example such as
 alias or a long home directory can increase the resolved length. Select a
 private base you own. Concierge never moves an existing prepared base.
 
+The primary also needs room for its per-task socket under `--root`. Launch
+checks this before binding a worker or issuing credentials. The usable socket
+limit is 107 bytes on Linux and 103 bytes on Darwin. The per-task filename
+needs 40 bytes beyond the root, leaving root limits of 67 and 63 bytes.
+Choose a short primary state root for acceptance runs. An error reports the
+actual path, length, platform limit and required shorter `--root`. Existing
+state is never moved automatically. Existing valid roots keep their socket paths.
+
 Omit `authentication` or select `remote` for credentials stored on the remote.
 Forwarding requires an explicit selection for each saved machine.
 

@@ -63,6 +63,9 @@ func (server *Server) startWorkerSocket(
 }
 
 func (server *Server) ensureTaskWorkerSocket(task string) error {
+	if err := remoteworker.ValidatePrimaryWorkerSocketPath(server.config.Root, task); err != nil {
+		return err
+	}
 	server.workerTaskMu.Lock()
 	defer server.workerTaskMu.Unlock()
 	if server.workerServer == nil {

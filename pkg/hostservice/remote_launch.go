@@ -44,6 +44,9 @@ func (server *Server) executeRemoteInitialLaunch(
 			return Response{}, err
 		}
 	}
+	if err := remoteworker.ValidatePrimaryWorkerSocketPath(server.config.Root, input.TaskID); err != nil {
+		return Response{}, err
+	}
 	profile, location, err := server.resolveRemoteLaunchLocation(
 		ctx,
 		input.Machine,

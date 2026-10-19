@@ -101,6 +101,9 @@ func (server *Server) activateRemoteWorkerLocked(
 	tools remoteworker.Tools,
 ) (result error) {
 	taskID := task.Current().ID()
+	if err := remoteworker.ValidatePrimaryWorkerSocketPath(server.config.Root, taskID); err != nil {
+		return err
+	}
 	if server.tunnels == nil {
 		return remoteworker.ErrTunnelUnreachable
 	}
