@@ -154,6 +154,36 @@ write only the exact reply text, without headers, quoting, or an added newline:
 concierge task report TASK_ID REPLY_ID --format body > reply.md
 ```
 
+### Import accepted notes through a vault worker
+
+Projects that record notes in a Locker vault use this flow:
+
+```text
+Worker reply -> saved report -> vault worker -> import -> commit -> land
+```
+
+The project worker includes a handoff and any gaps, learnings, or artifacts in
+its reply. The launch instructions supply the exact headings and field formats.
+The project worker never writes into a vault. The primary accepts the result
+and saves its body with the report command above. The primary does not edit
+the vault.
+
+Assign the saved report to a separate vault worker in its own worktree on a
+branch of the vault repository. The vault worker uses the same options for
+preview and import:
+
+```sh
+locker handoff preview /path/to/reply.md --project PROJECT --vault VAULT --task-id TASK_ID
+locker handoff import /path/to/reply.md --project PROJECT --vault VAULT --task-id TASK_ID
+locker check --vault VAULT
+```
+
+The vault worker commits the notes. The primary lands the vault branch under
+the vault project's delivery and merge settings. Concierge carries the reply
+as text. Locker remains a separate tool.
+
+### Resolve and retire a worker
+
 Act on a reply only when `check` reports `status: current`. Resolution verifies
 its assignment and worker generation, records acceptance, and acknowledges the
 reply. Close requires an explicit valid closing date. Retry the same reply ID,

@@ -313,6 +313,15 @@ not saved as reports.
 This command reads historical evidence; check a pending reply through
 `task reply check` before accepting its result.
 
+For an accepted result from a project with a Locker vault, save its reply with
+`concierge task report TASK_ID REPLY_ID --format body > reply.md`.
+Give that report to a separate vault worker on a branch of the vault repository
+in its own worktree. The primary does not edit the vault. The project's worker
+does not edit the vault. The vault worker runs `locker handoff preview REPORT`
+then `locker handoff import REPORT` with the same `--project`, `--vault`,
+and `--task-id` options. It runs `locker check --vault VAULT` and commits.
+The primary lands the vault branch like any other.
+
 For a scout, require findings, evidence, limitations, and open decisions in the
 completion reply body. Keep unresolved operator decisions
 open. Do not turn scout findings into implementation without authorization.

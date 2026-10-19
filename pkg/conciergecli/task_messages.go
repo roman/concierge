@@ -25,7 +25,7 @@ type taskCommands struct {
 	Report    struct {
 		TaskID  string `arg:"" help:"Task ID."`
 		ReplyID string `arg:"" optional:"" help:"Reply message ID; omit to list saved reports."`
-		Format  string `default:"toon" enum:"toon,body" help:"Output format; body writes the exact reply text and requires a reply ID."`
+		Format  string `default:"toon" enum:"toon,body" help:"Output format. Body writes the exact reply text and requires a reply ID."`
 	} `cmd:"" help:"Read or list archived task reports, including after worker cleanup."`
 	Abandon struct {
 		TaskID     string `arg:"" help:"Task ID."`
