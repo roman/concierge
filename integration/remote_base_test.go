@@ -111,6 +111,64 @@ func TestFixedAcceptanceBaseRejectsUnmarkedOrLinkedDirectory(t *testing.T) {
 	}
 }
 
+func TestFixedAcceptanceBaseReleaseHandlesStoppedGitMonitor(t *testing.T) {
+	for _, mode := range []string{"running", "stopped", "uncertain"} {
+		t.Run(mode, func(t *testing.T) {
+			directory := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(directory, ".acceptance-active"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			for name, body := range map[string]string{".acceptance-pool": "pool\nmachine\norigin\n", ".acceptance-active/owner": "owner\n"} {
+				if err := os.WriteFile(filepath.Join(directory, name), []byte(body), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.MkdirAll(filepath.Join(directory, "work", "client-sources", "old", ".git"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			commands := t.TempDir()
+			git := `#!/bin/sh
+case "$3" in
+ config) printf 'true\n' ;;
+ fsmonitor--daemon)
+  case "$TEST_ACCEPTANCE_MONITOR" in
+   running) exit 0 ;;
+   stopped) printf 'fatal: fsmonitor--daemon is not running\n' >&2; exit 128 ;;
+   uncertain) printf 'fatal: cannot access fsmonitor state\n' >&2; exit 128 ;;
+  esac ;;
+ *) exit 74 ;;
+esac
+`
+			for name, body := range map[string]string{"git": git, "lsof": "#!/bin/sh\nexit 1\n"} {
+				if err := os.WriteFile(filepath.Join(commands, name), []byte(body), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("PATH", commands+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("TEST_ACCEPTANCE_MONITOR", mode)
+			output, err := exec.Command("sh", "-c", releaseFixedAcceptanceBase, "acceptance", directory, "owner").
+				CombinedOutput()
+			if mode == "uncertain" {
+				if err == nil {
+					t.Fatalf("released uncertain monitor: %s", output)
+				}
+				if _, err := os.Stat(filepath.Join(directory, ".acceptance-active", "owner")); err != nil {
+					t.Fatal("lost claim after uncertain cleanup")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("release %s monitor: %s %v", mode, output, err)
+			}
+			if _, err := os.Stat(filepath.Join(directory, ".acceptance-active")); !os.IsNotExist(
+				err,
+			) {
+				t.Fatalf("retained claim: %v", err)
+			}
+		})
+	}
+}
+
 const claimFixedAcceptanceBase = `set -eu
 umask 077
 directory=$1
@@ -162,7 +220,16 @@ if [ -d "$directory/work" ]; then
   checkout=${metadata%/.git}
   case "$checkout" in "$directory/work/"*) ;; *) exit 1 ;; esac
   if [ "$(git -C "$checkout" config --get core.fsmonitor || true)" = true ]; then
-   git -C "$checkout" fsmonitor--daemon stop
+   set +e
+   monitor_output=$(LC_ALL=C git -C "$checkout" fsmonitor--daemon stop 2>&1)
+   monitor_status=$?
+   set -e
+   if [ "$monitor_status" != 0 ]; then
+    [ "$monitor_status" = 128 ] && [ "$monitor_output" = 'fatal: fsmonitor--daemon is not running' ] || {
+     printf '%s\n' "$monitor_output" >&2
+     exit 1
+    }
+   fi
   fi
  done
 fi
