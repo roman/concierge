@@ -38,6 +38,12 @@ func (server *Server) executeRemoteInitialLaunch(
 	if err := completedLaunchConflict(existing.Snapshot()); err != nil {
 		return Response{}, err
 	}
+	// Captured launches retain their original arguments during reconciliation.
+	if existing.Snapshot().LaunchIntent == nil {
+		if err := validateRemotePermissions(input); err != nil {
+			return Response{}, err
+		}
+	}
 	profile, location, err := server.resolveRemoteLaunchLocation(
 		ctx,
 		input.Machine,
@@ -128,4 +134,32 @@ func (server *Server) executeRemoteInitialLaunch(
 	}
 	snapshot := task.Snapshot()
 	return Response{Transition: &snapshot}, nil
+}
+
+func validateRemotePermissions(input LaunchRequest) error {
+	if input.Harness != "codex" {
+		return nil
+	}
+	mode := ""
+	for index := 0; index < len(input.AgentArgs); index++ {
+		argument := input.AgentArgs[index]
+		switch {
+		case argument == "--sandbox" || argument == "-s":
+			mode = ""
+			index++
+			if index < len(input.AgentArgs) {
+				mode = input.AgentArgs[index]
+			}
+		case strings.HasPrefix(argument, "--sandbox="):
+			mode = strings.TrimPrefix(argument, "--sandbox=")
+		case strings.HasPrefix(argument, "-s="):
+			mode = strings.TrimPrefix(argument, "-s=")
+		}
+	}
+	if mode == "workspace-write" {
+		return nil
+	}
+	return errors.New(
+		"remote Codex needs its private task directory through --add-dir; select --agent-arg=--sandbox=workspace-write explicitly before launching; native default or read-only permissions cannot add writable roots",
+	)
 }

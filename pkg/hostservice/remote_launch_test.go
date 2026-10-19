@@ -99,8 +99,51 @@ func remoteHostLaunchFixture(t *testing.T) (*Server, LaunchRequest, *interrupted
 	)
 	return server, LaunchRequest{
 		TaskID: definition.ID, Machine: "saved-id", Harness: "codex", Project: project,
-		Branch: "task/result", BaseCommit: run("rev-parse", "HEAD"), Body: "Complete the task.",
+		AgentArgs: []string{"--sandbox=workspace-write"},
+		Branch:    "task/result", BaseCommit: run("rev-parse", "HEAD"), Body: "Complete the task.",
 	}, runner
+}
+
+func TestRemoteDefaultPermissionsFailBeforePreparation(t *testing.T) {
+	server, input, runner := remoteHostLaunchFixture(t)
+	input.AgentArgs = nil
+	_, err := server.executeInitialLaunch(t.Context(), input, operatorLaunch)
+	if err == nil || !strings.Contains(err.Error(), "--agent-arg=--sandbox=workspace-write") {
+		t.Fatalf("missing early permission guidance: %v", err)
+	}
+	task, readErr := server.store.Read(t.Context(), input.TaskID)
+	if readErr != nil || task.Snapshot().LaunchIntent != nil || runner.clientReads != 0 ||
+		len(runner.imports) != 0 {
+		t.Fatalf("default permissions caused launch effects: %+v %v", task, readErr)
+	}
+}
+
+func TestRemotePermissionsRequireAnExplicitCompleteMode(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		arguments []string
+		accepted  bool
+	}{
+		{"default", nil, false},
+		{"long", []string{"--sandbox=workspace-write"}, true},
+		{"separate", []string{"--sandbox", "workspace-write"}, true},
+		{"short", []string{"-s", "workspace-write"}, true},
+		{"read-only", []string{"--sandbox=read-only"}, false},
+		{"last mode", []string{"--sandbox=workspace-write", "--sandbox=read-only"}, false},
+		{"incomplete", []string{"--sandbox=workspace-write", "--sandbox"}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateRemotePermissions(
+				LaunchRequest{Harness: "codex", AgentArgs: test.arguments},
+			)
+			if (err == nil) != test.accepted {
+				t.Fatalf("permission validation: %v", err)
+			}
+		})
+	}
+	if err := validateRemotePermissions(LaunchRequest{Harness: "claude"}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestHostRemoteLaunchCapturesDestinationBeforeTransferAndRecoversIdentity(t *testing.T) {

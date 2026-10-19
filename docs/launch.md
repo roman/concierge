@@ -109,6 +109,13 @@ another creation attempt.
 
 ## Native checkpoints
 
+New remote Codex launches require
+`--agent-arg=--sandbox=workspace-write`. Concierge rejects the request before
+remote preparation when the explicit mode is missing or incompatible. Codex's
+default read-only permissions cannot add the private task directory as a
+writable root. Captured launches retain their original arguments on recovery.
+Local launches and Claude launches keep their existing permission settings.
+
 A blocked initial worker remains an unadopted launch intent. Concierge reports
 `checkpoint: folder_trust` for a recognized Claude workspace trust dialog and
 `checkpoint: native_input` for other blocked input or unavailable screen text.

@@ -189,6 +189,7 @@ the usual [launch command](launch.md):
 
 ```sh
 concierge launch task-1 --machine dev-remote --harness codex \
+  --agent-arg=--sandbox=workspace-write \
   --project /absolute/primary/my-project --branch task/task-1 \
   --base-commit FULL_COMMIT_ID --body-file brief.txt
 ```
@@ -197,6 +198,13 @@ Use the primary project path, a full commit ID, and a new task branch. Concierge
 selects the remote checkout and launches the agent through Herdr. The recorded
 launch captures the machine, authentication mode, and prepared client revision.
 An interrupted launch must retain those settings on retry.
+
+New remote Codex launches require an explicit
+`--agent-arg=--sandbox=workspace-write`. Concierge rejects missing or incompatible
+modes before it prepares a lease or reserves a launch. Native default read-only
+permissions cannot accept the task directory supplied through `--add-dir`.
+Concierge preserves an existing captured launch's arguments during recovery.
+Local launches and Claude launches keep their existing settings.
 
 Codex keeps its native approval policy. To select native automatic review for
 one launch, append `--agent-arg=-c --agent-arg=approvals_reviewer=auto_review`.
