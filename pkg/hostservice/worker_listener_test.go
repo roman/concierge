@@ -19,7 +19,8 @@ import (
 
 func workerHost(t *testing.T, version int) *Server {
 	t.Helper()
-	directory, err := os.MkdirTemp("", "worker-host-")
+	// Nix's Darwin build prefix leaves little room for per-task socket names.
+	directory, err := os.MkdirTemp("", "wh-")
 	if err != nil {
 		t.Fatal(err)
 	}
