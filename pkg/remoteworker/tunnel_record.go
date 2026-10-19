@@ -2,7 +2,10 @@ package remoteworker
 
 import (
 	"errors"
+	"path/filepath"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/roman/concierge/pkg/primary"
 	"github.com/roman/concierge/pkg/sshcommand"
@@ -23,14 +26,20 @@ const (
 )
 
 type TunnelSpec struct {
-	Owner          SocketOwner               `json:"owner"`
-	MachineID      string                    `json:"machine_id"`
-	Target         string                    `json:"target"`
-	Authentication sshcommand.Authentication `json:"authentication,omitempty"`
-	Tools          Tools                     `json:"tools"`
+	Owner              SocketOwner               `json:"owner"`
+	MachineID          string                    `json:"machine_id"`
+	Target             string                    `json:"target"`
+	Authentication     sshcommand.Authentication `json:"authentication,omitempty"`
+	Tools              Tools                     `json:"tools"`
+	PrimaryAgentSocket string                    `json:"primary_agent_socket,omitempty"`
 }
 
 func (spec TunnelSpec) Validate() error {
+	if spec.PrimaryAgentSocket != "" && (spec.Authentication != sshcommand.ForwardedAgent ||
+		!filepath.IsAbs(spec.PrimaryAgentSocket) || strings.ContainsRune(spec.PrimaryAgentSocket, ':') ||
+		strings.IndexFunc(spec.PrimaryAgentSocket, unicode.IsControl) >= 0) {
+		return ErrTunnelOwnership
+	}
 	if spec.Owner.Validate() != nil || spec.MachineID == "" ||
 		!sshcommand.ValidTarget(
 			spec.Target,

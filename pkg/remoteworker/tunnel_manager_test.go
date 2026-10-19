@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/roman/concierge/pkg/primary"
+	"github.com/roman/concierge/pkg/sshcommand"
 )
 
 type tunnelProcesses struct {
@@ -18,6 +19,62 @@ type tunnelProcesses struct {
 	startError error
 	stops      atomic.Int32
 	stopError  error
+}
+
+func TestTunnelManagerReplacesOwnedTunnelAfterAgentDestinationChanges(t *testing.T) {
+	for _, ownership := range []struct {
+		name            string
+		status          primary.ProcessStatus
+		failure         error
+		wantReplacement bool
+	}{
+		{"running", primary.ProcessRunning, nil, true},
+		{"exited", primary.ProcessExited, nil, true},
+		{"unknown", primary.ProcessRunning, primary.ErrProcessOwnership, false},
+	} {
+		t.Run(ownership.name, func(t *testing.T) {
+			root, spec := tunnelFixture(t)
+			spec.Authentication = sshcommand.ForwardedAgent
+			t.Setenv("SSH_AUTH_SOCK", "/tmp/old-agent.sock")
+			processes := &tunnelProcesses{status: primary.ProcessRunning}
+			remote := &tunnelRemote{}
+			manager, _ := NewTunnelManager(root, processes, remote)
+			if err := manager.Ensure(context.Background(), spec); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("SSH_AUTH_SOCK", "/tmp/new-agent.sock")
+			processes.status, processes.err = ownership.status, ownership.failure
+			restarted, _ := NewTunnelManager(root, processes, remote)
+			err := restarted.Probe(context.Background(), spec.Owner, spec.MachineID)
+			if !ownership.wantReplacement {
+				if !errors.Is(err, ErrTunnelOwnership) || processes.starts.Load() != 1 ||
+					processes.stops.Load() != 0 {
+					t.Fatalf("uncertain tunnel replaced: %v", err)
+				}
+				return
+			}
+			if err != nil || processes.starts.Load() != 2 {
+				t.Fatalf(
+					"old agent destination retained: starts=%d err=%v",
+					processes.starts.Load(),
+					err,
+				)
+			}
+			store, _ := NewTunnelStore(root)
+			if err := store.WithTask(context.Background(), spec.Owner.Task, func(lease *TunnelLease) error {
+				record, err := lease.Read()
+				if err != nil {
+					return err
+				}
+				if record.Spec.PrimaryAgentSocket != "/tmp/new-agent.sock" || record.Spec.Owner != spec.Owner {
+					t.Fatalf("changed worker identity or lost agent destination: %+v", record.Spec)
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
 func (processes *tunnelProcesses) Start(

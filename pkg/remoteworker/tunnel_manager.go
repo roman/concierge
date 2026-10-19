@@ -3,10 +3,12 @@ package remoteworker
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/roman/concierge/pkg/primary"
+	"github.com/roman/concierge/pkg/sshcommand"
 )
 
 var ErrTunnelUnreachable = errors.New("remote worker tunnel is unreachable")
@@ -64,7 +66,9 @@ func (manager *TunnelManager) Ensure(ctx context.Context, spec TunnelSpec) error
 				return err
 			}
 		}
-		if record.Spec != spec {
+		identity := record.Spec
+		identity.PrimaryAgentSocket = spec.PrimaryAgentSocket
+		if identity != spec {
 			return ErrTunnelOwnership
 		}
 		return manager.reconcile(ctx, lease, record)
@@ -111,6 +115,9 @@ func (manager *TunnelManager) reconcile(
 		// A crash between process creation and token publication leaves ownership
 		// uncertain. A second process could create another listener.
 		return ErrTunnelOwnership
+	}
+	if err := manager.refreshAgentDestination(ctx, lease, record); err != nil {
+		return err
 	}
 	now := manager.Now().UTC()
 	if now.Before(record.NextRetry) {
@@ -160,6 +167,48 @@ func (manager *TunnelManager) reconcile(
 		return nil
 	}
 	record.Failures, record.NextRetry = 0, time.Time{}
+	return lease.Save(*record)
+}
+
+func (manager *TunnelManager) refreshAgentDestination(
+	ctx context.Context,
+	lease *TunnelLease,
+	record *TunnelRecord,
+) error {
+	if record.Spec.Authentication != sshcommand.ForwardedAgent {
+		return nil
+	}
+	desired := record.Spec
+	desired.PrimaryAgentSocket = os.Getenv("SSH_AUTH_SOCK")
+	if desired.PrimaryAgentSocket == "" || desired.Validate() != nil {
+		return sshcommand.ErrPrimaryAgent
+	}
+	if desired == record.Spec {
+		return nil
+	}
+	if record.Process != nil {
+		status, err := manager.processes.Status(*record.Process)
+		if err != nil {
+			return ErrTunnelOwnership
+		}
+		if status == primary.ProcessRunning {
+			if err := manager.processes.Stop(ctx, *record.Process); err != nil {
+				return errors.Join(ErrTunnelOwnership, err)
+			}
+			status, err = manager.processes.Status(*record.Process)
+		}
+		if err != nil || status != primary.ProcessExited {
+			return ErrTunnelOwnership
+		}
+	}
+	// An old record can omit the destination. Replace only the token-owned
+	// process before publishing the new destination and preparing its sockets.
+	record.Process, record.Phase = nil, TunnelRetry
+	record.Failures, record.NextRetry = 0, time.Time{}
+	if err := lease.Save(*record); err != nil {
+		return err
+	}
+	record.Spec = desired
 	return lease.Save(*record)
 }
 

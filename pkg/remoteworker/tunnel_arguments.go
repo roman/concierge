@@ -28,7 +28,10 @@ func TunnelArguments(spec TunnelSpec, localSocket string) ([]string, error) {
 		filepath.Join(spec.Tools.TaskDirectory, "worker.sock")+":"+localSocket,
 	)
 	if spec.Authentication == sshcommand.ForwardedAgent {
-		agentSocket := os.Getenv("SSH_AUTH_SOCK")
+		agentSocket := spec.PrimaryAgentSocket
+		if agentSocket == "" {
+			agentSocket = os.Getenv("SSH_AUTH_SOCK")
+		}
 		if _, err := taskmeta.ParseAbsolutePath(agentSocket); err != nil ||
 			strings.ContainsRune(agentSocket, ':') {
 			return nil, sshcommand.ErrPrimaryAgent

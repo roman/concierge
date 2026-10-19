@@ -192,6 +192,7 @@ func newRemoteActivationFixtureWithAuthentication(
 }
 
 func TestRemoteActivationPersistsSelectedAgentPolicyAcrossRestart(t *testing.T) {
+	t.Setenv("SSH_AUTH_SOCK", filepath.Join(t.TempDir(), "primary-agent.sock"))
 	fixture := newRemoteActivationFixtureWithAuthentication(t, sshcommand.ForwardedAgent)
 	if err := fixture.activate(t); err != nil {
 		t.Fatal(err)

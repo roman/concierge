@@ -40,6 +40,11 @@ only for a machine and worker processes you trust with those capabilities.
 Repository host-key checks still apply on the remote. A missing or empty primary
 agent stops preparation. Lost agent access preserves the worker and its lease.
 Restore the primary agent and its loaded key, then allow the host to retry.
+After replacing an agent at a different socket path, restart the primary host
+with that `SSH_AUTH_SOCK`. Recovery replaces the positively identified owned
+tunnel and preserves the worker generation, grant, secret and lease. An older
+tunnel record without a captured agent destination receives the same repair.
+Uncertain process ownership prevents replacement and retains the resources.
 
 Use a format-three state root and an active primary claim. Follow the existing
 [state migration procedure](state.md) for an older root. Create

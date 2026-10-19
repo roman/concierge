@@ -197,6 +197,7 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	authentication := sshcommand.Authentication("")
 	if strings.Contains(mode, "agent forwarding") {
 		authentication = sshcommand.ForwardedAgent
+		t.Setenv("SSH_AUTH_SOCK", filepath.Join(base, "primary-agent.sock"))
 	}
 	configuration := map[string]machineprep.Configuration{"saved-id": {
 		Target: "dev-remote", Base: base, Agent: "codex",
