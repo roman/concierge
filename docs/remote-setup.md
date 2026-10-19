@@ -130,6 +130,12 @@ the Concierge repository, the task repository, and every dependency repository.
 Repository names match the names used by `backlog add --repo`. The primary
 project's `origin` must match its declared URL.
 
+Omitting `base` selects `$HOME/.local/share/concierge` on the remote. Keep the
+same base between runs. Machine checks and preparation resolve it to its
+canonical physical path without creating directories during the check.
+For example, a macOS `/tmp` prefix resolves to `/private/tmp`. Launch records
+the resolved destination. Cleanup uses that captured destination.
+
 Omit `authentication` or select `remote` for credentials stored on the remote.
 Forwarding requires an explicit selection for each saved machine.
 

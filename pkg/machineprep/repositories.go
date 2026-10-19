@@ -25,7 +25,7 @@ func (preparer Preparer) PrepareRepositories(
 		configuration.Target != machine.Target {
 		return errors.New("preparation requires the configured saved machine identity and target")
 	}
-	if err := configuration.Validate(); err != nil {
+	if err := configuration.validateResolved(); err != nil {
 		return err
 	}
 	command := []string{"sh", "-s", "--", configuration.Base, machine.ID}

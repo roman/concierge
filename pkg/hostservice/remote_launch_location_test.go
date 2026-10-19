@@ -18,9 +18,12 @@ type launchLocationSSH struct{ reads int }
 
 func (runner *launchLocationSSH) Run(
 	_ context.Context,
-	_ []string,
+	arguments []string,
 	_ io.Reader,
 ) ([]byte, []byte, error) {
+	if strings.Contains(arguments[len(arguments)-1], "concierge-base-resolve") {
+		return []byte("/remote/base\n"), nil, nil
+	}
 	runner.reads++
 	return []byte(strings.Repeat("a", 40)), nil, nil
 }

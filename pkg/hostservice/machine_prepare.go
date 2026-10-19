@@ -108,6 +108,10 @@ func (server *Server) prepareMachine(
 		}
 	}
 	preparer := machineprep.Preparer{Runner: runner}
+	configuration, err = server.resolveMachineBase(ctx, machine, configuration)
+	if err != nil {
+		return Response{}, err
+	}
 	if err = preparer.PrepareRepositories(ctx, machine, configuration); err != nil {
 		return Response{}, errors.Join(ErrOutcomeUnknown, err)
 	}
@@ -122,6 +126,25 @@ func (server *Server) prepareMachine(
 			Client:    client,
 		},
 	}, nil
+}
+
+func (server *Server) resolveMachineBase(
+	ctx context.Context,
+	machine herdr.SavedMachine,
+	configuration machineprep.Configuration,
+) (machineprep.Configuration, error) {
+	runner := server.preparationSSH
+	if runner == nil {
+		runner = sshcommand.SystemRunner{}
+	}
+	base, err := (machineprep.Preparer{Runner: runner}).ResolveBase(
+		ctx,
+		machine,
+		configuration.Authentication,
+		configuration.Base,
+	)
+	configuration.Base = base
+	return configuration, err
 }
 
 func readMachineConfiguration(

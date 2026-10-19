@@ -37,6 +37,8 @@ alongside the worker protocol tunnel and recovers it after a disconnect.
 Private keys and passphrases stay on the primary. Processes with access to the
 remote socket can request authentication with the agent's keys. Select this mode
 only for a machine and worker processes you trust with those capabilities.
+A compromised remote with access to that socket can request signatures from
+the primary agent.
 Repository host-key checks still apply on the remote. A missing or empty primary
 agent stops preparation. Lost agent access preserves the worker and its lease.
 Restore the primary agent and its loaded key, then allow the host to retry.

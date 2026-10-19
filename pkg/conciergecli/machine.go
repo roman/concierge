@@ -129,6 +129,24 @@ func inspectMachine(
 	if err != nil {
 		return fail(output, 1, err, "correct "+configurationPath+" and retry")
 	}
+	for _, check := range report.Checks {
+		if check.Name == "ssh-policy" && check.Status == "ready" {
+			configuration.Base, err = (machineprep.Preparer{Runner: runner}).ResolveBase(
+				ctx,
+				machine,
+				configuration.Authentication,
+				configuration.Base,
+			)
+			if err != nil {
+				return fail(
+					output,
+					1,
+					err,
+					"inspect the reported remote base and its parent directories",
+				)
+			}
+		}
+	}
 	status := "missing"
 	var client machineprep.Client
 	if inspection == inspectPreparedClient {

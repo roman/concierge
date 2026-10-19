@@ -26,6 +26,9 @@ func (runner *interruptedLaunchSSH) Run(
 	input io.Reader,
 ) ([]byte, []byte, error) {
 	command := arguments[len(arguments)-1]
+	if strings.Contains(command, "concierge-base-resolve") {
+		return []byte("/remote/base\n"), nil, nil
+	}
 	if strings.Contains(command, "concierge-client-status") {
 		runner.clientReads++
 		return []byte(strings.Repeat("a", 40)), nil, nil

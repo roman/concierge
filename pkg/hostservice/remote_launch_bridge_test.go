@@ -23,6 +23,7 @@ import (
 )
 
 type launchBridgeSSH struct {
+	base                    string
 	server                  *Server
 	manager                 remoteworker.Worktrees
 	site                    remoteworker.LaunchSiteRequest
@@ -67,6 +68,9 @@ func (runner *launchBridgeSSH) Run(
 	input io.Reader,
 ) ([]byte, []byte, error) {
 	command := arguments[len(arguments)-1]
+	if strings.Contains(command, "concierge-base-resolve") {
+		return []byte(runner.base + "\n"), nil, nil
+	}
 	switch {
 	case strings.Contains(command, "concierge-client-status"):
 		return []byte(strings.Repeat("a", 40)), nil, nil
@@ -232,6 +236,7 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		}
 	}
 	runner := &launchBridgeSSH{
+		base:   base,
 		server: server,
 		manager: remoteworker.Worktrees{
 			Git:        worktree.Client{Executable: server.config.GitExecutable},

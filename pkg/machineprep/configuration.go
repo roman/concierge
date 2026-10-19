@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"path"
 	"strings"
-	"unicode"
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/sshcommand"
@@ -55,9 +53,7 @@ func (configuration Configuration) Validate() error {
 	if err := configuration.Authentication.Validate(); err != nil {
 		return err
 	}
-	if configuration.Base == "/" || !path.IsAbs(configuration.Base) ||
-		path.Clean(configuration.Base) != configuration.Base ||
-		strings.IndexFunc(configuration.Base, unicode.IsControl) >= 0 {
+	if configuration.Base != "" && !validBase(configuration.Base) {
 		return errors.New("machine base must be an absolute, clean remote directory other than /")
 	}
 	if configuration.Agent != "codex" && configuration.Agent != "claude" {
@@ -72,6 +68,16 @@ func (configuration Configuration) Validate() error {
 		}
 	}
 	return errors.New("declare the concierge source repository before preparing the client")
+}
+
+func (configuration Configuration) validateResolved() error {
+	if err := configuration.Validate(); err != nil {
+		return err
+	}
+	if configuration.Base == "" {
+		return errors.New("resolve the remote base before using prepared paths")
+	}
+	return nil
 }
 
 func validateRepositories(repositories []Repository) error {

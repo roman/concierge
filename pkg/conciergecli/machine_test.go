@@ -35,6 +35,9 @@ func (runner *preparationSSH) Run(
 		), nil, nil
 	}
 	command := arguments[len(arguments)-1]
+	if strings.Contains(command, "concierge-base-resolve") {
+		return []byte("/remote/base\n"), nil, nil
+	}
 	if strings.Contains(command, "concierge-client-status") {
 		return []byte(runner.clientCommit), nil, nil
 	}

@@ -50,6 +50,10 @@ func (server *Server) resolveRemoteLaunchLocation(
 	if err != nil {
 		return profile, empty, err
 	}
+	configuration, err = server.resolveMachineBase(ctx, profile, configuration)
+	if err != nil {
+		return profile, empty, err
+	}
 	origin := ""
 	for _, declared := range configuration.Repositories {
 		if declared.Name == repository {

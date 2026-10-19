@@ -34,7 +34,7 @@ func (preparer Preparer) BuildClient(
 			"client build requires the configured saved machine and source bundle",
 		)
 	}
-	if err := configuration.Validate(); err != nil {
+	if err := configuration.validateResolved(); err != nil {
 		return Client{}, err
 	}
 	if decoded, err := hex.DecodeString(commit); err != nil || len(decoded) != 20 ||

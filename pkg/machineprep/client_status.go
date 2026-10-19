@@ -25,7 +25,7 @@ func (preparer Preparer) ReadClient(
 		configuration.Target != machine.Target {
 		return Client{}, ErrClientUnavailable
 	}
-	if err := configuration.Validate(); err != nil {
+	if err := configuration.validateResolved(); err != nil {
 		return Client{}, err
 	}
 	arguments, err := sshcommand.TrustedBatchArguments(
