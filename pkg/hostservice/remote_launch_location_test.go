@@ -14,7 +14,10 @@ import (
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
-type launchLocationSSH struct{ reads int }
+type launchLocationSSH struct {
+	reads int
+	base  string
+}
 
 func (runner *launchLocationSSH) Run(
 	_ context.Context,
@@ -22,6 +25,9 @@ func (runner *launchLocationSSH) Run(
 	_ io.Reader,
 ) ([]byte, []byte, error) {
 	if strings.Contains(arguments[len(arguments)-1], "concierge-base-resolve") {
+		if runner.base != "" {
+			return []byte(runner.base + "\n"), nil, nil
+		}
 		return []byte("/remote/base\n"), nil, nil
 	}
 	runner.reads++
@@ -78,6 +84,22 @@ func TestRemoteLaunchLocationPinsPreparedClientAndDeclaredRepository(t *testing.
 	if err := location.Validate(); err != nil {
 		t.Fatal(err)
 	}
+	t.Run("long canonical base fails before source or client inspection", func(t *testing.T) {
+		runner.base = "/" + strings.Repeat("b", 52)
+		defer func() { runner.base = "" }()
+		_, _, err := server.resolveRemoteLaunchLocation(
+			t.Context(),
+			"saved-id",
+			"/must-not-be-read",
+			"project",
+			nil,
+		)
+		if err == nil || !strings.Contains(err.Error(), "104 bytes") ||
+			!strings.Contains(err.Error(), "103 bytes") ||
+			runner.reads != 1 {
+			t.Fatalf("late or unclear path failure: reads=%d err=%v", runner.reads, err)
+		}
+	})
 	intent := &taskstate.LaunchIntent{
 		Machine: profile.ID,
 		Session: profile.Session,

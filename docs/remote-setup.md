@@ -136,6 +136,15 @@ canonical physical path without creating directories during the check.
 For example, a macOS `/tmp` prefix resolves to `/private/tmp`. Launch records
 the resolved destination. Cleanup uses that captured destination.
 
+`machine check` and launch reject a canonical base longer than 52 bytes.
+The fixed generation directory and `worker.sock` need another 51 bytes.
+`agent.sock` is one byte shorter. Concierge keeps socket paths within
+Darwin's 103-byte usable limit on all supported platforms. An error reports
+both computed lengths, the limit and a shorter base example such as
+`/private/tmp/concierge`. Count bytes after canonical resolution; a `/tmp`
+alias or a long home directory can increase the resolved length. Select a
+private base you own. Concierge never moves an existing prepared base.
+
 Omit `authentication` or select `remote` for credentials stored on the remote.
 Forwarding requires an explicit selection for each saved machine.
 

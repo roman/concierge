@@ -8,6 +8,7 @@ import (
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/machineprep"
+	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/sshcommand"
 )
 
@@ -143,6 +144,14 @@ func inspectMachine(
 					1,
 					err,
 					"inspect the reported remote base and its parent directories",
+				)
+			}
+			if err := remoteworker.ValidateSocketBase(configuration.Base); err != nil {
+				return fail(
+					output,
+					1,
+					err,
+					"configure a shorter canonical base in "+configurationPath,
 				)
 			}
 			if configuration.Agent == "codex" {

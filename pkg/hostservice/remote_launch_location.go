@@ -11,6 +11,7 @@ import (
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/machineprep"
+	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/stateversion"
 	"github.com/roman/concierge/pkg/taskmeta"
@@ -52,6 +53,9 @@ func (server *Server) resolveRemoteLaunchLocation(
 	}
 	configuration, err = server.resolveMachineBase(ctx, profile, configuration)
 	if err != nil {
+		return profile, empty, err
+	}
+	if err := remoteworker.ValidateSocketBase(configuration.Base); err != nil {
 		return profile, empty, err
 	}
 	origin := ""

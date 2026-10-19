@@ -22,6 +22,7 @@ type preparationSSH struct {
 	calls        int
 	clientCommit string
 	slotStatus   string
+	base         string
 }
 
 func (runner *preparationSSH) Run(
@@ -37,15 +38,22 @@ func (runner *preparationSSH) Run(
 	}
 	command := arguments[len(arguments)-1]
 	if strings.Contains(command, "CONCIERGE_SLOT_BASE=") {
+		base := runner.base
+		if base == "" {
+			base = "/remote/base"
+		}
 		status := runner.slotStatus
 		if status == "" {
 			status = "ready"
 		}
 		return []byte(
-			`[{"path":"/remote/base/worktrees/repo/1/repo","status":"` + status + `"}]`,
+			`[{"path":"` + base + `/worktrees/repo/1/repo","status":"` + status + `"}]`,
 		), nil, nil
 	}
 	if strings.Contains(command, "concierge-base-resolve") {
+		if runner.base != "" {
+			return []byte(runner.base + "\n"), nil, nil
+		}
 		return []byte("/remote/base\n"), nil, nil
 	}
 	if strings.Contains(command, "concierge-client-status") {
@@ -61,6 +69,54 @@ func (runner *preparationSSH) Run(
 		return []byte("herdr 0.9.5"), nil, nil
 	}
 	return []byte("version"), nil, nil
+}
+
+func TestMachineCheckRejectsLongCanonicalSocketBase(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		base string
+		code int
+	}{
+		{"fits Darwin", "/" + strings.Repeat("b", 51), 0},
+		{"exceeds Darwin", "/" + strings.Repeat("b", 52), 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.Mkdir(filepath.Join(root, "config"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			configuration := `{"machine-id":{"target":"dev-remote","base":"/alias","agent":"codex","repositories":[{"name":"concierge","url":"git@example.org:roman/concierge.git"}]}}`
+			if err := os.WriteFile(filepath.Join(root, "config", "machines.json"), []byte(configuration), 0600); err != nil {
+				t.Fatal(err)
+			}
+			machine := herdr.SavedMachine{
+				ID:      "machine-id",
+				Label:   "dev-remote",
+				Target:  "dev-remote",
+				Session: "default",
+				Enabled: true,
+			}
+			var output bytes.Buffer
+			code := runMachineCheck(
+				t.Context(),
+				root,
+				"dev-remote",
+				preparationMachines{machine},
+				&preparationSSH{base: test.base},
+				&output,
+			)
+			if code != test.code {
+				t.Fatalf("code %d: %s", code, &output)
+			}
+			if test.code != 0 {
+				for _, text := range []string{test.base, "104 bytes", "103 bytes", "52 bytes", "/private/tmp/concierge"} {
+					if !strings.Contains(output.String(), text) {
+						t.Fatalf("missing %q: %s", text, &output)
+					}
+				}
+			}
+		})
+	}
 }
 
 func TestMachineConfigurationBindsSavedIdentityAndDestination(t *testing.T) {

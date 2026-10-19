@@ -17,7 +17,7 @@ var ErrLaunchDirectoryOwnership = errors.New(
 )
 
 var ErrLaunchSocketPath = errors.New(
-	"remote socket path is too long; configure a shorter machine base path",
+	"remote socket path is too long",
 )
 
 type LaunchSiteRequest struct {
@@ -62,19 +62,19 @@ func ToolsForGeneration(location taskstate.RemoteLease, task, generation string)
 	if _, err := taskmeta.ParseTaskID(task); err != nil {
 		return Tools{}, ErrWorktreeOwnership
 	}
+	if err := ValidateSocketBase(location.Base); err != nil {
+		return Tools{}, err
+	}
 	digest := sha256.Sum256(
 		[]byte(
 			location.PrimaryRoot + "\x00" + task + "\x00" + generation,
 		),
 	)
 	// A 128-bit directory identity leaves room for Darwin's Unix socket path limit.
-	name := hex.EncodeToString(digest[:16])
+	name := hex.EncodeToString(digest[:launchIdentityBytes])
 	tools := Tools{
 		Concierge:     location.ClientPath(),
 		TaskDirectory: filepath.Join(location.Base, "tasks", name),
-	}
-	if len(filepath.Join(tools.TaskDirectory, "worker.sock")) > 103 {
-		return Tools{}, ErrLaunchSocketPath
 	}
 	return tools, tools.Validate()
 }

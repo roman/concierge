@@ -143,7 +143,8 @@ func TestRemoteLaunchSiteReportsTheDarwinSocketPathLimit(t *testing.T) {
 	request.Lease.Remote.Base = request.Worktree.Location.Base
 	request.Lease.Project = request.Lease.Remote.ProjectPath()
 	request.Lease.Path = filepath.Join(request.Lease.Remote.PoolRoot(), "slot", "repo")
-	if _, err := request.Tools(); !errors.Is(err, ErrLaunchSocketPath) {
+	if _, err := request.Tools(); !errors.Is(err, ErrLaunchSocketPath) ||
+		!strings.Contains(err.Error(), "103 bytes") {
 		t.Fatalf("long base needs an exact operator step: %v", err)
 	}
 }
