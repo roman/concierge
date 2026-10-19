@@ -91,7 +91,7 @@ func (server *Server) prepareMachine(
 	defer bundle.Close()
 	runner := server.preparationSSH
 	if runner == nil {
-		runner = sshcommand.SystemRunner{}
+		runner = sshcommand.SystemRunner{Diagnostics: preparationDiagnostics{server}}
 	}
 	report, err := (machineprep.Checker{Runner: runner, Authentication: configuration.Authentication}).Check(
 		ctx,

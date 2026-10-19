@@ -41,14 +41,14 @@ func (preparer Preparer) PrepareRepositories(
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	output, _, err := preparer.Runner.Run(
+	output, diagnostics, err := preparer.Runner.Run(
 		ctx,
 		arguments,
 		strings.NewReader(prepareRepositoriesScript),
 	)
 	if err != nil || ctx.Err() != nil ||
 		strings.TrimSpace(string(output)) != "status: repositories-ready" {
-		return ErrPreparationUnconfirmed
+		return preparationFailure(ctx, "repositories", diagnostics, err)
 	}
 	return nil
 }

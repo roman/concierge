@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -70,7 +71,12 @@ type StreamingRunner interface {
 	RunTo(context.Context, []string, io.Reader, io.Writer) ([]byte, error)
 }
 
-type SystemRunner struct{ Executable string }
+type SystemRunner struct {
+	Executable string
+	// Diagnostics streams preparation output to the private host log. A bounded
+	// tail remains available to the caller without limiting build log length.
+	Diagnostics io.Writer
+}
 
 func (runner SystemRunner) Run(
 	ctx context.Context,
@@ -105,9 +111,24 @@ func (runner SystemRunner) RunTo(
 	command.Stdin = input
 	command.WaitDelay = time.Second
 	var stderr limitedBuffer
+	var tail diagnosticTail
 	stdout := &cancelOnWriteError{output: output, cancel: cancel}
 	command.Stdout, command.Stderr = stdout, &stderr
+	if runner.Diagnostics != nil {
+		command.Stderr = io.MultiWriter(runner.Diagnostics, &tail)
+	}
 	err := command.Run()
+	if runner.Diagnostics != nil {
+		status := "exit status 0"
+		if err != nil {
+			status = err.Error()
+		}
+		_, logErr := fmt.Fprintf(runner.Diagnostics, "\nssh completion: %s\n", status)
+		if stdout.failure != nil {
+			err = stdout.failure
+		}
+		return tail.data, errors.Join(err, logErr)
+	}
 	if stdout.failure != nil {
 		return stderr.Bytes(), stdout.failure
 	}
@@ -115,6 +136,22 @@ func (runner SystemRunner) RunTo(
 		return nil, ErrOutputLimit
 	}
 	return stderr.Bytes(), err
+}
+
+type diagnosticTail struct{ data []byte }
+
+func (tail *diagnosticTail) Write(data []byte) (int, error) {
+	const capacity = 4096
+	count := len(data)
+	if count >= capacity {
+		tail.data = append(tail.data[:0], data[count-capacity:]...)
+		return count, nil
+	}
+	if excess := len(tail.data) + count - capacity; excess > 0 {
+		tail.data = append(tail.data[:0], tail.data[excess:]...)
+	}
+	tail.data = append(tail.data, data...)
+	return count, nil
 }
 
 type cancelOnWriteError struct {

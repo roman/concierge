@@ -156,6 +156,12 @@ Concierge source checkout's committed HEAD and builds that client with remote
 Nix. Unpublished commits can be prepared without pushing them. Local Git
 configuration and uncommitted files are excluded from the transfer.
 
+The primary's private `host.log` records preparation stderr and command exit
+status. Preparation errors include the failed phase and the final 4 KiB of
+stderr. An unconfirmed result still requires inspection of the owned base and
+preparation lock before retrying. Concierge does not repeat a failed build
+automatically.
+
 The source checkout's origin must match the declared Concierge URL. Repeating
 preparation reuses owned directories. A foreign directory or a changed origin
 stops preparation. `status` verifies the prepared client executable as well as

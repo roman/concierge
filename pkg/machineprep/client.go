@@ -65,10 +65,10 @@ func (preparer Preparer) BuildClient(
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
-	output, _, err := preparer.Runner.Run(ctx, arguments, bundle)
+	output, diagnostics, err := preparer.Runner.Run(ctx, arguments, bundle)
 	if err != nil || ctx.Err() != nil ||
 		strings.TrimSpace(string(output)) != "status: client-ready" {
-		return Client{}, ErrPreparationUnconfirmed
+		return Client{}, preparationFailure(ctx, "client build", diagnostics, err)
 	}
 	return Client{
 		Commit:     commit,
