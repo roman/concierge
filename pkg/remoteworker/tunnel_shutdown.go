@@ -11,6 +11,28 @@ import (
 // Revoke requires the caller to revoke the primary grant under the task lock
 // first. Persistent tunnel revocation prevents recovery during partial cleanup.
 func (manager *TunnelManager) Revoke(ctx context.Context, owner SocketOwner) error {
+	return manager.revoke(ctx, owner, requireTunnelRecord)
+}
+
+type revocationScope int
+
+const (
+	requireTunnelRecord revocationScope = iota
+	unfinishedLaunch
+)
+
+// RevokePartialLaunch also accepts an absent record. Tunnel startup saves its
+// record before creating a process. The caller excludes launch recovery and
+// durably revokes the grant under the task lock before calling this method.
+func (manager *TunnelManager) RevokePartialLaunch(ctx context.Context, owner SocketOwner) error {
+	return manager.revoke(ctx, owner, unfinishedLaunch)
+}
+
+func (manager *TunnelManager) revoke(
+	ctx context.Context,
+	owner SocketOwner,
+	scope revocationScope,
+) error {
 	if err := owner.Validate(); err != nil {
 		return err
 	}
@@ -18,6 +40,9 @@ func (manager *TunnelManager) Revoke(ctx context.Context, owner SocketOwner) err
 		record, err := lease.Read()
 		if err != nil {
 			return err
+		}
+		if record == nil && scope == unfinishedLaunch {
+			return nil
 		}
 		if record == nil || record.Spec.Owner != owner || record.Phase == TunnelStarting {
 			return ErrTunnelOwnership

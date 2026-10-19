@@ -76,3 +76,36 @@ func TestTunnelProbeAndTeardownRefuseDifferentOwnership(t *testing.T) {
 		t.Fatal("different ownership reached an external operation")
 	}
 }
+
+func TestPartialLaunchRevocationAcceptsOnlyAbsentOrOwnedTunnel(t *testing.T) {
+	root, spec := tunnelFixture(t)
+	processes := &tunnelProcesses{status: primary.ProcessRunning}
+	remote := &tunnelRemote{}
+	manager, _ := NewTunnelManager(root, processes, remote)
+	if err := manager.Revoke(context.Background(), spec.Owner); !errors.Is(
+		err,
+		ErrTunnelOwnership,
+	) {
+		t.Fatalf("ordinary revocation accepted missing ownership: %v", err)
+	}
+	if err := manager.RevokePartialLaunch(context.Background(), spec.Owner); err != nil {
+		t.Fatal(err)
+	}
+	if processes.stops.Load() != 0 || remote.preparations.Load() != 0 {
+		t.Fatal("absent tunnel caused process or socket effects")
+	}
+	if err := manager.Ensure(context.Background(), spec); err != nil {
+		t.Fatal(err)
+	}
+	other := spec.Owner
+	other.Generation = "other-generation"
+	if err := manager.RevokePartialLaunch(context.Background(), other); !errors.Is(
+		err,
+		ErrTunnelOwnership,
+	) {
+		t.Fatalf("partial launch accepted foreign ownership: %v", err)
+	}
+	if processes.stops.Load() != 0 {
+		t.Fatal("stopped another generation")
+	}
+}

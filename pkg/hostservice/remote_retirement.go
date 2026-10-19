@@ -2,6 +2,8 @@ package hostservice
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 
 	"github.com/roman/concierge/pkg/herdr"
@@ -51,15 +53,28 @@ func (server *Server) revokeRemoteWorkerTransportLocked(
 	if worker == nil {
 		return workeraccess.ErrDenied
 	}
-	location := worker.Lease.Remote
+	lease := worker.Lease
+	partial := snapshot.LaunchIntent != nil
+	if partial {
+		if err := locked.Current().CheckAbandonInitialLaunch(generation); err != nil {
+			return err
+		}
+		lease = snapshot.LaunchIntent.Lease
+	}
+	location := lease.Remote
 	grant := worker.Access
-	if grant == nil || !grant.Revoked || grant.Validate() != nil ||
-		grant.Task != taskID || grant.Generation != generation ||
-		worker.Generation != generation ||
+	if worker.Generation != generation ||
 		location == (taskstate.RemoteLease{}) || location.Validate() != nil ||
 		location.PrimaryRoot != server.config.Root || location.Machine != worker.Machine ||
 		location.Repository != snapshot.Definition.Repo || location.ProjectPath() != worker.Project ||
-		worker.Lease.Path != worker.Worktree || server.tunnels == nil {
+		lease.Path != worker.Worktree || server.tunnels == nil {
+		return workeraccess.ErrDenied
+	}
+	if grant == nil && !partial {
+		return workeraccess.ErrDenied
+	}
+	if grant != nil &&
+		(!grant.Revoked || grant.Validate() != nil || grant.Task != taskID || grant.Generation != generation) {
 		return workeraccess.ErrDenied
 	}
 	machines := server.preparationMachines
@@ -79,10 +94,10 @@ func (server *Server) revokeRemoteWorkerTransportLocked(
 	location.Backend = ""
 	request := remoteworker.LaunchSiteRequest{
 		Worktree: remoteworker.WorktreeRequest{
-			Task: taskID, Location: location, Holder: worker.Lease.Holder,
-			Branch: worker.Lease.Branch, BaseCommit: worker.Lease.BaseCommit,
+			Task: taskID, Location: location, Holder: lease.Holder,
+			Branch: lease.Branch, BaseCommit: lease.BaseCommit,
 		},
-		Lease: worker.Lease, Generation: generation,
+		Lease: lease, Generation: generation,
 	}
 	tools, err := request.Tools()
 	if err != nil {
@@ -91,7 +106,25 @@ func (server *Server) revokeRemoteWorkerTransportLocked(
 	if err := locked.CheckCurrent(); err != nil {
 		return err
 	}
-	if err := server.tunnels.Revoke(ctx, remoteworker.SocketOwner{
+	if grant == nil {
+		// Activation publishes the grant before any remote credential or tunnel
+		// effect. Only the primary staging secret can exist before publication.
+		stage, err := remoteworker.OpenPrimaryCredentialStage(ctx, server.config.Root, request)
+		if err != nil {
+			return err
+		}
+		secret, err := stage.ReadSecret()
+		if err == nil && len(secret) != 0 {
+			digest := sha256.Sum256(secret)
+			err = stage.RemoveSecret(hex.EncodeToString(digest[:]))
+		}
+		return errors.Join(err, stage.Close())
+	}
+	revoke := server.tunnels.Revoke
+	if partial {
+		revoke = server.tunnels.RevokePartialLaunch
+	}
+	if err := revoke(ctx, remoteworker.SocketOwner{
 		Task: taskID, Generation: generation, Verifier: grant.Verifier,
 	}); err != nil {
 		return err

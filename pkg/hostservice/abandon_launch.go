@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/presentation"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
@@ -19,32 +20,46 @@ func (server *Server) abandonLaunch(
 	if err != nil {
 		return Response{}, err
 	}
-	if result, ok := task.LaunchAbandonment(input.Generation); ok {
-		snapshot := task.Snapshot()
-		return Response{Transition: &snapshot, Abandoned: &result}, nil
-	}
 	key := controllerKey{kind: taskController, id: input.TaskID}
 	release, err := server.controllers.reserveInitialLaunch(key)
 	if err != nil {
 		return Response{}, err
 	}
 	defer release()
-	result := &AbandonedLaunch{Generation: input.Generation}
+	if _, ok := task.LaunchAbandonment(input.Generation); ok {
+		return server.finishAbandonedLaunch(ctx, task, input.Generation)
+	}
 	clearedIntent := false
 	task, err = server.store.WithTask(ctx, input.TaskID, func(locked *taskstate.LockedTask) error {
 		current := locked.Current()
-		if _, err := current.AbandonInitialLaunch(input.Generation); err != nil {
+		if err := current.CheckAbandonInitialLaunch(input.Generation); err != nil {
 			return err
 		}
 		intent := current.Snapshot().LaunchIntent
-		if receipt, ok := current.LaunchAbandonment(input.Generation); ok {
-			*result = receipt
+		if _, ok := current.LaunchAbandonment(input.Generation); ok {
 			return nil
 		}
 		client, err := herdr.NewClient(server.config.HerdrExecutable).
 			ForEndpoint(intent.Machine, intent.Session)
 		if err != nil {
 			return err
+		}
+		if worker := current.Snapshot().Worker; worker != nil {
+			if worker.Machine != "" {
+				if _, err := locked.Apply(func(task taskstate.Task) (taskstate.Task, error) { return task.RevokeWorkerAccess(input.Generation) }); err != nil {
+					return err
+				}
+				if err := server.revokeRemoteWorkerTransportLocked(ctx, locked, input.Generation); err != nil {
+					return err
+				}
+			}
+			target, err := herdr.ParseEndpoint(worker.Machine, worker.Session, worker.Pane)
+			if err != nil {
+				return err
+			}
+			if err := presentation.CloseBoundPane(ctx, client, target, worker.Workspace, worker.Tab, locked.CheckCurrent); err != nil {
+				return err
+			}
 		}
 		resources := herdr.LaunchResources{Name: intent.Name, Label: intent.Label}
 		if intent.Endpoint != nil {
@@ -56,11 +71,10 @@ func (server *Server) abandonLaunch(
 		if _, err := locked.Apply(func(task taskstate.Task) (taskstate.Task, error) { return task.AbandonInitialLaunch(input.Generation) }); err != nil {
 			return err
 		}
-		receipt, ok := locked.Current().LaunchAbandonment(input.Generation)
+		_, ok := locked.Current().LaunchAbandonment(input.Generation)
 		if !ok {
 			return taskstate.ErrInvalidTransition
 		}
-		*result = receipt
 		clearedIntent = true
 		return nil
 	})
@@ -70,8 +84,30 @@ func (server *Server) abandonLaunch(
 	if clearedIntent {
 		server.controllers.forgetInitialWakeup(key)
 	}
+	return server.finishAbandonedLaunch(ctx, task, input.Generation)
+}
+
+// A durable bound-worker receipt makes lease return retryable after a lost
+// confirmation. Unbound abandonment retains its existing explicit-return policy.
+func (server *Server) finishAbandonedLaunch(
+	ctx context.Context,
+	task taskstate.Task,
+	generation string,
+) (Response, error) {
+	result, ok := task.LaunchAbandonment(generation)
+	if !ok {
+		return Response{}, taskstate.ErrInvalidTransition
+	}
+	if result.WorkerRetired && result.Lease != (taskstate.WorktreeLease{}) {
+		var err error
+		task, err = server.service.ReleaseWorktree(ctx, task.ID(), generation)
+		if err != nil {
+			return Response{}, err
+		}
+		result, _ = task.LaunchAbandonment(generation)
+	}
 	snapshot := task.Snapshot()
-	return Response{Transition: &snapshot, Abandoned: result}, nil
+	return Response{Transition: &snapshot, Abandoned: &result}, nil
 }
 
 func validateAbandonedLaunchResponse(response Response, request Request) error {

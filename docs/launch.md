@@ -100,6 +100,19 @@ Inspect `abandoned_launches` in `ROOT/records/TASK_ID.json` for the retained
 receipt. Cleanup preserves the task hold, worktree, and branch. It does not
 remove worker resources.
 
+`concierge task abandon TASK_ID --generation GEN` also retires a confirmed
+worker whose initial launch did not finish. The host excludes launch recovery,
+revokes its credentials, closes its owned transport, and closes its confirmed
+pane. Uncertain pane ownership or process state stops retirement and preserves
+the recorded binding for a retry. The host then clears the worker and intent,
+returns the held worktree lease, and leaves the task queued. A durable
+`worker_retired` abandonment receipt allows the same command to retry an
+interrupted lease return. The branch remains available. Git fallback checkouts
+are removed during return. Treehouse slots remain available for reuse.
+
+An unbound launch still requires confirmed resource absence before abandonment.
+Its lease remains held until an explicit `backlog release-worktree` request.
+
 Exact pending retries must preserve every request field. A completed or retired
 launch requires inspection instead of another launch. A disconnected client
 cannot establish whether launch completed. Inspect `backlog show TASK_ID` and

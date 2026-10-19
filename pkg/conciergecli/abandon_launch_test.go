@@ -47,6 +47,12 @@ func TestAbandonLaunchRequiresHostAdmission(t *testing.T) {
 }
 
 func TestHistoricalAbandonmentReportsCurrentState(t *testing.T) {
+	for _, mode := range []string{"retained", "returned"} {
+		t.Run(mode, func(t *testing.T) { testHistoricalAbandonmentOutput(t, mode) })
+	}
+}
+
+func testHistoricalAbandonmentOutput(t *testing.T, mode string) {
 	root := lifecycleRoot(t)
 	store, err := taskstate.NewStore(root)
 	if err != nil {
@@ -62,6 +68,22 @@ func TestHistoricalAbandonmentReportsCurrentState(t *testing.T) {
 		Generation: "abandoned-gen",
 		Worktree:   "/worktree",
 		Branch:     "task-1",
+	}
+	if mode == "returned" {
+		receipt.WorkerRetired = true
+		receipt.Project, receipt.LeaseHolder, receipt.BaseCommit = "/project", "holder", strings.Repeat(
+			"a",
+			40,
+		)
+		receipt.Lease = taskstate.WorktreeLease{
+			ID:         "lease-one",
+			Holder:     receipt.LeaseHolder,
+			Project:    receipt.Project,
+			Path:       receipt.Worktree,
+			Branch:     receipt.Branch,
+			BaseCommit: receipt.BaseCommit,
+			State:      taskstate.LeaseReturned,
+		}
 	}
 	snapshot.AbandonedLaunches = []taskstate.LaunchAbandonment{receipt}
 	listener, err := net.ListenUnix(
@@ -101,7 +123,14 @@ func TestHistoricalAbandonmentReportsCurrentState(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("abandon code %d: %s", code, &output)
 	}
-	for _, part := range []string{"state: in_flight", "retained_worktree: \"/worktree\"", "retained_branch: \"task-1\"", "inspect current ownership"} {
+	pathLabel := "retained_worktree"
+	if mode == "returned" {
+		pathLabel = "returned_worktree"
+		if strings.Contains(output.String(), "release_help:") {
+			t.Fatalf("returned lease suggests another release: %s", &output)
+		}
+	}
+	for _, part := range []string{"state: in_flight", pathLabel + ": \"/worktree\"", "retained_branch: \"task-1\"", "inspect current ownership"} {
 		if !strings.Contains(output.String(), part) {
 			t.Fatalf("missing %q: %s", part, &output)
 		}

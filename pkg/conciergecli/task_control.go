@@ -61,7 +61,11 @@ func (command *taskCommands) runControl(
 			return 1
 		}
 		if result.Worktree != "" {
-			if _, err := fmt.Fprintf(output, "retained_worktree: %s\nretained_branch: %s\nhelp: %s\n", quote(result.Worktree), quote(result.Branch), quote("paths belong to the abandoned generation; inspect current ownership before removing the worktree or branch")); err != nil {
+			pathLabel := "retained_worktree"
+			if result.Lease.State == taskstate.LeaseReturned {
+				pathLabel = "returned_worktree"
+			}
+			if _, err := fmt.Fprintf(output, "%s: %s\nretained_branch: %s\nhelp: %s\n", pathLabel, quote(result.Worktree), quote(result.Branch), quote("paths belong to the abandoned generation; inspect current ownership before removing the worktree or branch")); err != nil {
 				return 1
 			}
 		}
@@ -75,8 +79,13 @@ func (command *taskCommands) runControl(
 				command.Abandon.TaskID,
 				result.Generation,
 			)
-			if _, err := fmt.Fprintf(output, "lease: %s\nlease_holder: %s\nproject: %s\nrelease_help: %s\n", status, quote(result.LeaseHolder), quote(result.Project), quote(help)); err != nil {
+			if _, err := fmt.Fprintf(output, "lease: %s\nlease_holder: %s\nproject: %s\n", status, quote(result.LeaseHolder), quote(result.Project)); err != nil {
 				return 1
+			}
+			if result.Lease.State != taskstate.LeaseReturned {
+				if _, err := fmt.Fprintf(output, "release_help: %s\n", quote(help)); err != nil {
+					return 1
+				}
 			}
 		}
 	case "task stop <task-id>":

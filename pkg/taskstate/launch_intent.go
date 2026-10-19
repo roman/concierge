@@ -239,20 +239,49 @@ func (task Task) CancelInitialLaunch(generation string) (Task, error) {
 	return newTransition(snapshot)
 }
 
-// AbandonInitialLaunch clears an unbound intent after external absence verification.
+// CheckAbandonInitialLaunch excludes completed launches and worker replacements.
+func (task Task) CheckAbandonInitialLaunch(generation string) error {
+	if _, ok := task.LaunchAbandonment(generation); ok {
+		return nil
+	}
+	intent := task.record.LaunchIntent
+	if taskmeta.ValidateSpawnGeneration(generation) != nil || intent == nil ||
+		intent.Generation != generation ||
+		task.record.Completion != nil {
+		return ErrInvalidTransition
+	}
+	worker := task.record.Worker
+	if worker == nil {
+		if task.State() != Queued {
+			return ErrInvalidTransition
+		}
+		return nil
+	}
+	if task.State() != InFlight || worker.Generation != generation || worker.PendingAdoption ||
+		worker.PendingGeneration != "" ||
+		worker.PendingLaunch != "" ||
+		worker.Workspace == "" ||
+		worker.Tab == "" ||
+		(worker.Lease != (WorktreeLease{}) && worker.Lease != intent.Lease) {
+		return ErrInvalidTransition
+	}
+	return nil
+}
+
+// AbandonInitialLaunch clears an intent after external absence verification.
 // The host must exclude launch execution and verify Herdr resources before applying it.
 func (task Task) AbandonInitialLaunch(generation string) (Task, error) {
 	if _, ok := task.LaunchAbandonment(generation); ok {
 		return task, nil
 	}
-	if taskmeta.ValidateSpawnGeneration(generation) != nil || task.State() != Queued ||
-		task.record.Worker != nil {
+	if err := task.CheckAbandonInitialLaunch(generation); err != nil {
+		return Task{}, err
+	}
+	if worker := task.record.Worker; worker != nil && worker.Access != nil &&
+		!worker.Access.Revoked {
 		return Task{}, ErrInvalidTransition
 	}
 	intent := task.record.LaunchIntent
-	if intent == nil || intent.Generation != generation {
-		return Task{}, ErrInvalidTransition
-	}
 	snapshot := task.Snapshot()
 	project := ""
 	baseCommit := ""
@@ -263,17 +292,20 @@ func (task Task) AbandonInitialLaunch(generation string) (Task, error) {
 	snapshot.AbandonedLaunches = append(
 		snapshot.AbandonedLaunches,
 		LaunchAbandonment{
-			Remote:      intent.Remote,
-			BaseCommit:  baseCommit,
-			Generation:  generation,
-			Worktree:    intent.Worktree,
-			Branch:      intent.Branch,
-			Lease:       intent.Lease,
-			LeaseHolder: intent.LeaseHolder,
-			Project:     project,
+			WorkerRetired: snapshot.Worker != nil,
+			Remote:        intent.Remote,
+			BaseCommit:    baseCommit,
+			Generation:    generation,
+			Worktree:      intent.Worktree,
+			Branch:        intent.Branch,
+			Lease:         intent.Lease,
+			LeaseHolder:   intent.LeaseHolder,
+			Project:       project,
 		},
 	)
 	snapshot.LaunchIntent = nil
+	snapshot.Worker = nil
+	snapshot.State = Queued
 	return newTransition(snapshot)
 }
 

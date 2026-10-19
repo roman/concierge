@@ -135,14 +135,15 @@ type Receipt struct {
 
 // LaunchAbandonment preserves retained resources across interrupted client calls.
 type LaunchAbandonment struct {
-	Remote      RemoteLease   `json:"remote,omitzero"`
-	BaseCommit  string        `json:"base_commit,omitempty"`
-	Lease       WorktreeLease `json:"lease,omitzero"`
-	LeaseHolder string        `json:"lease_holder,omitempty"`
-	Project     string        `json:"project,omitempty"`
-	Generation  string        `json:"generation"`
-	Worktree    string        `json:"worktree"`
-	Branch      string        `json:"branch"`
+	WorkerRetired bool          `json:"worker_retired,omitempty"`
+	Remote        RemoteLease   `json:"remote,omitzero"`
+	BaseCommit    string        `json:"base_commit,omitempty"`
+	Lease         WorktreeLease `json:"lease,omitzero"`
+	LeaseHolder   string        `json:"lease_holder,omitempty"`
+	Project       string        `json:"project,omitempty"`
+	Generation    string        `json:"generation"`
+	Worktree      string        `json:"worktree"`
+	Branch        string        `json:"branch"`
 }
 
 type record struct {

@@ -174,6 +174,12 @@ func TestFailedRemoteNativeStartupReleasesLaunchAndAllowsAbandonment(t *testing.
 	testHostRemoteLaunchBridge(t, "native startup failed")
 }
 
+func TestAbandonPartialRemoteLaunchReturnsRealWorktree(t *testing.T) {
+	for _, mode := range []string{"partial abandon", "partial abandon return confirmation lost", "partial abandon active tunnel", "partial abandon moved pane"} {
+		t.Run(mode, func(t *testing.T) { testHostRemoteLaunchBridge(t, mode) })
+	}
+}
+
 func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	t.Helper()
 	server, input, _ := remoteHostLaunchFixture(t)
@@ -247,7 +253,8 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 			CheckQuiet: func(context.Context, string) error { return nil },
 		},
 	}
-	runner.lostContextConfirmation = mode == "context confirmation lost"
+	runner.lostContextConfirmation = mode == "context confirmation lost" ||
+		strings.HasPrefix(mode, "partial abandon")
 	runner.lostReturnConfirmation = strings.HasSuffix(mode, "return confirmation lost")
 	server.preparationSSH = runner
 	processes := &retirementProcesses{}
@@ -260,7 +267,7 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		t.Fatal(err)
 	}
 	tools := t.TempDir()
-	policy := "#!/bin/sh\n[ \"$1\" = -G ] || exit 73\nprintf 'hostname synthetic\\nforwardagent no\\nforwardx11 no\\ntunnel false\\n'\n"
+	policy := "#!/bin/sh\ncase \"$*\" in *\"'session' 'list'\"*) printf '%s' '{\"sessions\":[{\"name\":\"default\",\"running\":true,\"socket_path\":\"/tmp/bridge.sock\"}]}'; exit 0;; *\"'terminal' 'title' 'clear'\"*) printf '%s' '{\"result\":{\"reason\":\"no_foreground_client\"}}'; exit 0;; esac\n[ \"$1\" = -G ] || exit 73\nprintf 'hostname synthetic\\nforwardagent no\\nforwardx11 no\\ntunnel false\\n'\n"
 	if err := os.WriteFile(filepath.Join(tools, "ssh"), []byte(policy), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -327,6 +334,109 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		return
 	}
 	response, err := server.executeInitialLaunch(context.Background(), input, operatorLaunch)
+	if strings.HasPrefix(mode, "partial abandon") {
+		if err == nil {
+			t.Fatal("expected interrupted context installation")
+		}
+		pending, readErr := server.store.Read(t.Context(), input.TaskID)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		intent := pending.Snapshot().LaunchIntent
+		if intent == nil || pending.Snapshot().Worker == nil ||
+			intent.Lease.State != taskstate.LeaseHeld {
+			t.Fatal("partial launch lost its worker or held lease")
+		}
+		if mode == "partial abandon active tunnel" {
+			launchTools, err := runner.site.Tools()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := server.activateRemoteWorker(t.Context(), input.TaskID, intent.Generation, herdr.SavedMachine{ID: "saved-id", Target: "dev-remote", Session: "default", Enabled: true}, launchTools); err != nil {
+				t.Fatal(err)
+			}
+		}
+		request := TransitionRequest{TaskID: input.TaskID, Generation: intent.Generation}
+		if _, err := server.abandonLaunch(t.Context(), TransitionRequest{TaskID: input.TaskID, Generation: "wrong-generation"}); !errors.Is(
+			err,
+			taskstate.ErrInvalidTransition,
+		) {
+			t.Fatalf("wrong generation: %v", err)
+		}
+		if mode == "partial abandon moved pane" {
+			if err := os.WriteFile(filepath.Join(tools, "moved"), nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := server.abandonLaunch(t.Context(), request); err == nil {
+				t.Fatal("closed a moved pane")
+			}
+			current, err := server.store.Read(t.Context(), input.TaskID)
+			if err != nil || current.Snapshot().Worker == nil ||
+				current.Snapshot().LaunchIntent == nil ||
+				current.Snapshot().LaunchIntent.Lease != intent.Lease {
+				t.Fatal("uncertain pane lost the retirement binding")
+			}
+			if _, err := os.Stat(filepath.Join(tools, "gone")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("closed a moved pane")
+			}
+			if err := os.Remove(filepath.Join(tools, "moved")); err != nil {
+				t.Fatal(err)
+			}
+		}
+		abandoned, err := server.abandonLaunch(t.Context(), request)
+		if strings.HasSuffix(mode, "return confirmation lost") {
+			if !errors.Is(err, remoteworker.ErrWorktreeOwnership) {
+				t.Fatalf("lost return: %v", err)
+			}
+			abandoned, err = server.abandonLaunch(t.Context(), request)
+		}
+		if err != nil {
+			t.Fatalf("retire partial launch: %v", err)
+		}
+		if abandoned.Transition.Worker != nil || abandoned.Transition.LaunchIntent != nil ||
+			abandoned.Transition.State != taskstate.Queued ||
+			abandoned.Abandoned.Lease.State != taskstate.LeaseReturned {
+			t.Fatalf("incomplete partial retirement: %+v", abandoned)
+		}
+		lease, err := runner.manager.Return(
+			t.Context(),
+			remoteworker.WorktreeReturnRequest{
+				Worktree: runner.site.Worktree,
+				Lease:    intent.Lease,
+				Proof: remoteworker.WorktreeReturnProof{
+					Outcome: remoteworker.WorktreeAbandoned,
+					Commit:  intent.BaseCommit,
+				},
+			},
+		)
+		if err != nil || lease.State != taskstate.LeaseReturned || lease.ID != intent.Lease.ID {
+			t.Fatalf("remote lease: %+v %v", lease, err)
+		}
+		launchTools, _ := runner.site.Tools()
+		if _, err := os.Stat(filepath.Join(launchTools.TaskDirectory, "secret")); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("retained secret: %v", err)
+		}
+		if _, err := os.Stat(intent.Lease.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("retained Git checkout: %v", err)
+		}
+		if data, err := exec.Command(server.config.GitExecutable, "-C", intent.Project, "rev-parse", "refs/heads/"+intent.Branch).Output(); err != nil ||
+			strings.TrimSpace(string(data)) != intent.BaseCommit {
+			t.Fatalf("lost retained branch: %s %v", data, err)
+		}
+		if processes.starts.Load() != processes.stops.Load() {
+			t.Fatal("retained active tunnel")
+		}
+		if _, err := os.Stat(filepath.Join(tools, "gone")); err != nil {
+			t.Fatal("pane was not closed")
+		}
+		if _, err := server.abandonLaunch(t.Context(), request); err != nil {
+			t.Fatalf("retirement retry: %v", err)
+		}
+		return
+	}
 	expectedCopies := 1
 	verifier := ""
 	if mode == "context confirmation lost" {
@@ -619,7 +729,9 @@ fi
 [ "$1 $2" = '--machine saved-id' ] || exit 73
 shift 2
 case "$1 $2" in
-'workspace list') if [ -f "$state/gone" ]; then printf '%%s' '{"result":{"workspaces":[]}}'; else exit 73; fi ;;
+'workspace list') if [ -f "$state/gone" ]; then printf '%%s' '{"result":{"workspaces":[]}}'; else printf '%%s' '{"result":{"workspaces":[{"workspace_id":"w1","active_tab_id":"w1:t1","focused":true}]}}'; fi ;;
+'tab list') printf '%%s' '{"result":{"tabs":[{"tab_id":"w1:t1","focused":true}]}}' ;;
+'pane close') touch "$state/gone"; printf '%%s' '{"result":{}}' ;;
 'workspace create')
  shift 2
  while [ "$#" -gt 0 ]; do
@@ -630,6 +742,7 @@ case "$1 $2" in
  ;;
 'pane get')
  if [ -f "$state/gone" ]; then printf '%%s' '{"error":{"code":"pane_not_found"}}' >&2; exit 1; fi
+ if [ -f "$state/moved" ]; then printf '%%s' '{"result":{"pane":{"workspace_id":"w1","tab_id":"w1:t2","pane_id":"w1:p1"}}}'; exit 0; fi
  printf '{"result":{"pane":{"workspace_id":"w1","tab_id":"w1:t1","pane_id":"w1:p1","foreground_cwd":"%%s"}}}' "$(cat "$state/cwd")"
  ;;
 'pane process-info')
@@ -638,7 +751,7 @@ case "$1 $2" in
 'agent read')
  if [ -f "$state/fail-native-start" ] && [ -f "$state/started" ]; then printf 'Error adding directories: effective permissions reject /remote/task\nshell prompt\n'; else printf 'shell prompt\n'; fi ;;
 'agent get')
- if [ -f "$state/fail-native-start" ] || [ -f "$state/missing" ] || [ ! -f "$state/started" ]; then printf '%%s' '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi
+ if [ -f "$state/gone" ] || [ -f "$state/fail-native-start" ] || [ -f "$state/missing" ] || [ ! -f "$state/started" ]; then printf '%%s' '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi
  printf '%%s' '{"result":{"agent":{"pane_id":"w1:p1","agent":"codex","agent_status":"idle","agent_session":{"source":"herdr:codex","agent":"codex","kind":"id","value":"native-session"}}}}'
  ;;
 'agent start')
