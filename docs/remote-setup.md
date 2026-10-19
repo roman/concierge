@@ -206,10 +206,16 @@ permissions cannot accept the task directory supplied through `--add-dir`.
 Concierge preserves an existing captured launch's arguments during recovery.
 Local launches and Claude launches keep their existing settings.
 
-Codex keeps its native approval policy. To select native automatic review for
-one launch, append `--agent-arg=-c --agent-arg=approvals_reviewer=auto_review`.
-This does not change the user's configuration or disable the sandbox. Any
-remaining native input appears in the recorded remote pane.
+Codex keeps its configured approval reviewer by default. The named launch
+option `--codex-approval-reviewer=auto-review` explicitly selects native
+automatic review for one remote Codex launch. Its default, `native`, preserves
+the current settings. The selected arguments remain captured for exact retries
+and worker recovery. Existing raw `--agent-arg` settings remain supported.
+
+Automatic review evaluates eligible approval requests. It can reject a request
+or require operator input. It grants no exact Unix-socket allowance and never
+answers a folder-trust dialog. The sandbox remains active. The option writes
+no native configuration. Remaining dialogs appear in the recorded remote pane.
 
 Inspect the worker with `concierge worker show task-1`. Accept its result through
 the normal task workflow, then use `concierge land task-1` under the project's

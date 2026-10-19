@@ -78,6 +78,10 @@ For Codex, also supply `--agent-arg=--sandbox=workspace-write`. New remote
 launches fail before preparation when this mode is absent. Codex's default
 read-only permissions cannot accept the private task directory through
 `--add-dir`. Native approval and folder-trust decisions remain with the operator.
+The named option `--codex-approval-reviewer=auto-review` explicitly selects
+native automatic review for a remote Codex launch. It evaluates eligible
+approval requests. It grants no exact socket allowance. It never answers a
+folder-trust dialog. The default, `native`, preserves the configured reviewer.
 The primary owns supervision, result acceptance, landing, and lease cleanup.
 It imports a ship worker's immutable commit into a primary worktree before
 acceptance. Fast-forward delivery needs no remote push. PR delivery publishes

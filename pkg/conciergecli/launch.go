@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/roman/concierge/pkg/herdr"
@@ -14,17 +15,18 @@ import (
 )
 
 type launchCommand struct {
-	TaskID     string   `arg:"" help:"Queued task ID."`
-	Machine    string   `help:"Saved Herdr machine label or ID; omit for a local worker."`
-	Herdr      string   `default:"herdr" env:"TINCAN_HERDR" help:"Executable that owns the saved machine catalog."`
-	Harness    string   `required:"" enum:"codex,claude" help:"Worker harness."`
-	Project    string   `required:"" help:"Absolute source repository path."`
-	Worktree   string   `help:"Existing launch worktree path; omit for a treehouse lease."`
-	Branch     string   `required:"" help:"New literal worktree branch."`
-	BaseCommit string   `required:"" help:"Full commit ID from the source repository."`
-	Workspace  string   `help:"Existing shared Herdr workspace ID; omit to create a task-owned workspace. Labels are unsupported."`
-	AgentArgs  []string `name:"agent-arg" sep:"none" help:"Worker launch argument; repeat in order, using --agent-arg=VALUE for options."`
-	BodyFile   string   `required:"" help:"Assignment file, or - for stdin."`
+	TaskID                string   `arg:"" help:"Queued task ID."`
+	Machine               string   `help:"Saved Herdr machine label or ID; omit for a local worker."`
+	Herdr                 string   `default:"herdr" env:"TINCAN_HERDR" help:"Executable that owns the saved machine catalog."`
+	Harness               string   `required:"" enum:"codex,claude" help:"Worker harness."`
+	Project               string   `required:"" help:"Absolute source repository path."`
+	Worktree              string   `help:"Existing launch worktree path; omit for a treehouse lease."`
+	Branch                string   `required:"" help:"New literal worktree branch."`
+	BaseCommit            string   `required:"" help:"Full commit ID from the source repository."`
+	Workspace             string   `help:"Existing shared Herdr workspace ID; omit to create a task-owned workspace. Labels are unsupported."`
+	AgentArgs             []string `name:"agent-arg" sep:"none" help:"Worker launch argument; repeat in order, using --agent-arg=VALUE for options."`
+	CodexApprovalReviewer string   `default:"native" enum:"native,auto-review" help:"Remote Codex approval reviewer. Native preserves current settings. Auto-review explicitly selects automatic review."`
+	BodyFile              string   `required:"" help:"Assignment file, or - for stdin."`
 }
 
 func (command *launchCommand) run(
@@ -34,11 +36,20 @@ func (command *launchCommand) run(
 	stdin io.Reader,
 	output io.Writer,
 ) int {
+	agentArguments, err := command.agentArguments()
+	if err != nil {
+		return fail(
+			output,
+			2,
+			err,
+			"use --codex-approval-reviewer=auto-review only with --machine and --harness=codex. Native preserves the configured reviewer",
+		)
+	}
 	body, err := readBodyFile(command.BodyFile, stdin)
 	if err != nil {
 		return fail(output, 1, err, "provide a readable --body-file or use --body-file - for stdin")
 	}
-	if err := taskops.ValidateInitialLaunch(command.Harness, command.AgentArgs, body); err != nil {
+	if err := taskops.ValidateInitialLaunch(command.Harness, agentArguments, body); err != nil {
 		return fail(output, 2, err, "provide a nonblank assignment and compatible worker arguments")
 	}
 	body, err = appendBriefInclude(root, body)
@@ -71,7 +82,7 @@ func (command *launchCommand) run(
 		Launch: &hostservice.LaunchRequest{
 			TaskID: command.TaskID, Machine: machineID, Harness: command.Harness, Project: command.Project,
 			Worktree: command.Worktree, Branch: command.Branch, BaseCommit: command.BaseCommit,
-			Workspace: command.Workspace, AgentArgs: command.AgentArgs, Body: body,
+			Workspace: command.Workspace, AgentArgs: agentArguments, Body: body,
 		},
 	})
 	if err == nil &&
@@ -112,6 +123,24 @@ func (command *launchCommand) run(
 		}
 	}
 	return 0
+}
+
+func (command launchCommand) agentArguments() ([]string, error) {
+	arguments := slices.Clone(command.AgentArgs)
+	switch command.CodexApprovalReviewer {
+	case "", "native":
+		return arguments, nil
+	case "auto-review":
+		if command.Machine == "" || command.Harness != "codex" {
+			return nil, errors.New("automatic approval review requires a remote Codex launch")
+		}
+		return append(arguments, "-c", "approvals_reviewer=auto_review"), nil
+	default:
+		return nil, fmt.Errorf(
+			"unknown Codex approval reviewer %q. Choose native or auto-review",
+			command.CodexApprovalReviewer,
+		)
+	}
 }
 
 func appendBriefInclude(root, body string) (string, error) {

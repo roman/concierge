@@ -116,6 +116,13 @@ default read-only permissions cannot add the private task directory as a
 writable root. Captured launches retain their original arguments on recovery.
 Local launches and Claude launches keep their existing permission settings.
 
+For a remote Codex worker, `--codex-approval-reviewer=auto-review` selects
+native automatic review explicitly. The default, `native`, preserves the
+configured reviewer. Automatic review evaluates eligible approval requests.
+Requests can still be rejected or need operator input. It grants no exact
+socket allowance and never answers a folder-trust dialog. The sandbox remains
+active. The choice is captured in the launch's native arguments for recovery.
+
 A remote native startup can fail before Herdr registers the worker. Concierge
 reports a fresh native error after two shell-only process samples. It cancels
 the startup wait and releases its task and endpoint reservations. An
