@@ -21,6 +21,7 @@ func (resolver preparationMachines) Resolve(context.Context, string) (herdr.Save
 type preparationSSH struct {
 	calls        int
 	clientCommit string
+	slotStatus   string
 }
 
 func (runner *preparationSSH) Run(
@@ -35,6 +36,15 @@ func (runner *preparationSSH) Run(
 		), nil, nil
 	}
 	command := arguments[len(arguments)-1]
+	if strings.Contains(command, "CONCIERGE_SLOT_BASE=") {
+		status := runner.slotStatus
+		if status == "" {
+			status = "ready"
+		}
+		return []byte(
+			`[{"path":"/remote/base/worktrees/repo/1/repo","status":"` + status + `"}]`,
+		), nil, nil
+	}
 	if strings.Contains(command, "concierge-base-resolve") {
 		return []byte("/remote/base\n"), nil, nil
 	}
@@ -129,6 +139,46 @@ func TestMachineCheckAndStatusHelp(t *testing.T) {
 				"machines.json",
 			) || !strings.Contains(output.String(), `"repositories"`) {
 			t.Fatalf("code %d: %s", code, &output)
+		}
+	}
+}
+
+func TestMachineCheckReportsExactSlotTrust(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "config"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	configuration := `{"machine-id":{"target":"dev-remote","base":"/remote/base","agent":"codex","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"}]}}`
+	if err := os.WriteFile(filepath.Join(root, "config", "machines.json"), []byte(configuration), 0600); err != nil {
+		t.Fatal(err)
+	}
+	machine := herdr.SavedMachine{
+		ID:      "machine-id",
+		Label:   "dev-remote",
+		Target:  "dev-remote",
+		Session: "default",
+		Enabled: true,
+	}
+	for _, status := range []string{"ready", "missing"} {
+		var output bytes.Buffer
+		code := runMachineCheck(
+			t.Context(),
+			root,
+			"dev-remote",
+			preparationMachines{machine},
+			&preparationSSH{slotStatus: status},
+			&output,
+		)
+		if !strings.Contains(output.String(), `/remote/base/worktrees/repo/1/repo`) ||
+			!strings.Contains(output.String(), `check: "slot-trust"`) {
+			t.Fatalf("missing slot report: %s", &output)
+		}
+		if status == "missing" &&
+			(code != 1 || !strings.Contains(output.String(), "folder-trust decision")) {
+			t.Fatalf("missing native trust step: %s", &output)
+		}
+		if status == "ready" && code != 0 {
+			t.Fatalf("trusted slot failed: %s", &output)
 		}
 	}
 }

@@ -199,6 +199,20 @@ func TestRemoteTreehouseIntegration(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	if resolved, err := filepath.EvalSymlinks(lease.Path); err != nil || resolved != lease.Path {
+		t.Fatalf("returned slot lost its canonical path: %q %v", resolved, err)
+	}
+	request.Task, request.Holder, request.Branch = "task-two", "next-task-holder", "task/next"
+	next, err := manager.Acquire(context.Background(), request)
+	if err != nil || next.Path != lease.Path || next.ID == lease.ID {
+		t.Fatalf("next task did not reuse the stable slot with a new lease: %+v %v", next, err)
+	}
+	if _, err := manager.Return(context.Background(), WorktreeReturnRequest{
+		Worktree: request, Lease: next,
+		Proof: WorktreeReturnProof{Outcome: WorktreeUnchanged, Commit: base},
+	}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRemoteWorktreeUsesANewHolderForTheNextLaunch(t *testing.T) {

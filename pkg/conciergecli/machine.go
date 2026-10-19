@@ -145,6 +145,26 @@ func inspectMachine(
 					"inspect the reported remote base and its parent directories",
 				)
 			}
+			if configuration.Agent == "codex" {
+				checks, trustErr := (machineprep.Preparer{Runner: runner}).InspectSlotTrust(
+					ctx,
+					machine,
+					configuration,
+				)
+				if trustErr != nil {
+					report.Checks = append(
+						report.Checks,
+						machineprep.Check{
+							Name:   "slot-trust",
+							Status: "unconfirmed",
+							Detail: trustErr.Error(),
+							Step:   "Read the native Codex config and the reported pool paths without changing trust.",
+						},
+					)
+				} else {
+					report.Checks = append(report.Checks, checks...)
+				}
+			}
 		}
 	}
 	status := "missing"

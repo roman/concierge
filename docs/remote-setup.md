@@ -161,6 +161,27 @@ preparation reuses owned directories. A foreign directory or a changed origin
 stops preparation. `status` verifies the prepared client executable as well as
 the machine setup.
 
+The packaged client includes Treehouse. The first task allocates a slot under
+`<base>/worktrees/.treehouse/<repository-id>/<slot>/<repository>`. Returning a
+clean, quiet lease releases the slot for the next task at the same canonical
+path. Keep the prepared base and pool between launches. Removing the base or
+changing it creates new slot paths. Unwrapped clients without Treehouse use a
+legacy Git fallback with a different path for each lease.
+
+For Codex, `machine check` lists every existing slot and its trust status. It
+reads the documented native `config.toml` project entries without starting an
+agent or changing configuration. An untrusted slot includes the exact
+`codex -C '<slot-path>'` command for the operator's one-time folder-trust
+decision. The first launch can allocate a new slot before any slots exist.
+Each additional concurrent slot requires its own decision.
+
+Codex keys trust by the exact working directory or a recognized repository
+root. A trusted parent base does not cover this bare-repository pool. The
+contract is one native decision per stable slot. See the
+[source evidence](../../exmachina/vault/projects/concierge/artifacts/2026-10-18-remote-hardening-trust-evidence.md)
+and the [native configuration reference](https://developers.openai.com/codex/config-reference/).
+Concierge never writes native trust settings or answers a trust dialog.
+
 ## 6. Launch a task
 
 Queue a task through the normal [task workflow](tasks.md). Add `--machine` to
