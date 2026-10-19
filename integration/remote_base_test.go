@@ -26,6 +26,11 @@ func TestAcceptancePrimaryDirectoryIgnoresDeepTMPDIR(t *testing.T) {
 }
 
 func TestFixedAcceptanceBaseKeepsPoolAndExcludesOtherRuns(t *testing.T) {
+	commands := t.TempDir()
+	if err := os.WriteFile(filepath.Join(commands, "lsof"), []byte("#!/bin/sh\nif [ -n \"$TEST_ACCEPTANCE_BUSY\" ]; then printf 'p123\\n'; exit 0; fi\nexit 1\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", commands+string(os.PathListSeparator)+os.Getenv("PATH"))
 	data, err := exec.Command("mktemp", "-d", "/tmp/ca.XXXXXX").Output()
 	if err != nil {
 		t.Fatal(err)
@@ -60,6 +65,11 @@ func TestFixedAcceptanceBaseKeepsPoolAndExcludesOtherRuns(t *testing.T) {
 	if output, err := exec.Command("sh", "-c", releaseFixedAcceptanceBase, "acceptance", directory, "other").CombinedOutput(); err == nil {
 		t.Fatalf("foreign release: %s", output)
 	}
+	t.Setenv("TEST_ACCEPTANCE_BUSY", "1")
+	if output, err := exec.Command("sh", "-c", releaseFixedAcceptanceBase, "acceptance", directory, "first").CombinedOutput(); err == nil {
+		t.Fatalf("released a busy base: %s", output)
+	}
+	t.Setenv("TEST_ACCEPTANCE_BUSY", "")
 	if output, err := exec.Command("sh", "-c", releaseFixedAcceptanceBase, "acceptance", directory, "first").CombinedOutput(); err != nil {
 		t.Fatalf("release: %s %v", output, err)
 	}
@@ -137,6 +147,28 @@ active="$directory/.acceptance-active"
 [ -d "$active" ] && [ ! -L "$active" ] || exit 1
 [ -f "$active/owner" ] && [ ! -L "$active/owner" ] || exit 1
 [ "$(cat "$active/owner")" = "$owner" ] || exit 1
+if [ -e "$directory/work/machine-owner" ]; then
+ [ -f "$directory/work/machine-owner" ] && [ ! -L "$directory/work/machine-owner" ] || exit 1
+ [ "$(cat "$directory/work/machine-owner")" = "$(sed -n '2p' "$directory/.acceptance-pool")" ] || exit 1
+fi
+` + quietAcceptanceDirectory + `
 rm -- "$active/owner"
 rmdir -- "$active"
+`
+
+const quietAcceptanceDirectory = `
+if [ -d "$directory/work" ]; then
+ find "$directory/work" -name .git -prune -print | while IFS= read -r metadata; do
+  checkout=${metadata%/.git}
+  case "$checkout" in "$directory/work/"*) ;; *) exit 1 ;; esac
+  if [ "$(git -C "$checkout" config --get core.fsmonitor || true)" = true ]; then
+   git -C "$checkout" fsmonitor--daemon stop
+  fi
+ done
+fi
+set +e
+output=$(lsof +D "$directory" 2>&1)
+status=$?
+set -e
+[ "$status" = 1 ] && [ -z "$output" ] || exit 1
 `

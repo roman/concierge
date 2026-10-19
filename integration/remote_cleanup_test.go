@@ -2,13 +2,18 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/presentation"
 	"github.com/roman/concierge/pkg/remoteworker"
+	"github.com/roman/concierge/pkg/taskstate"
 )
 
 func (run *savedMachineAcceptance) cleanup() {
@@ -17,20 +22,8 @@ func (run *savedMachineAcceptance) cleanup() {
 	defer cancel()
 	safe := true
 	for _, id := range run.tasks {
-		task, err := run.store.Read(ctx, id)
-		if err != nil {
-			run.t.Errorf("cleanup read %s: %v", id, err)
-			safe = false
-			continue
-		}
-		if worker := task.Snapshot().Worker; worker != nil {
-			if output, err := run.call(ctx, nil, "task", "stop", id, "--generation", worker.Generation); err != nil {
-				run.t.Errorf("cleanup native pane %s: %v %s", id, err, output)
-			}
-			// Keep unaccepted or uncertain work and its record for inspection.
-			safe = false
-		}
-		if task.Snapshot().LaunchIntent != nil {
+		if err := run.retireAcceptanceTask(ctx, id); err != nil {
+			run.t.Errorf("cleanup task %s: %v", id, err)
 			safe = false
 		}
 		store, err := remoteworker.NewTunnelStore(run.root)
@@ -60,11 +53,13 @@ func (run *savedMachineAcceptance) cleanup() {
 			run.t.Errorf("stop temporary host: %v %s", err, output)
 			safe = false
 		}
-		select {
-		case <-run.hostDone:
-		case <-ctx.Done():
-			run.t.Errorf("original temporary host did not exit: %v", ctx.Err())
-			safe = false
+		if err == nil {
+			select {
+			case <-run.hostDone:
+			case <-ctx.Done():
+				run.t.Errorf("original temporary host did not exit: %v", ctx.Err())
+				safe = false
+			}
 		}
 	}
 	if run.remoteDirectory != "" && safe {
@@ -127,6 +122,124 @@ func (run *savedMachineAcceptance) cleanup() {
 	}
 }
 
+func (run *savedMachineAcceptance) cleanupCall(ctx context.Context, arguments ...string) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		output, err := run.call(ctx, nil, arguments...)
+		if err == nil {
+			return nil
+		}
+		failure := fmt.Errorf("%s: %w\n%s", strings.Join(arguments, " "), err, output)
+		if !strings.Contains(output, "controller or endpoint is already reserved") {
+			return failure
+		}
+		select {
+		case <-ctx.Done():
+			return errors.Join(ctx.Err(), failure)
+		case <-ticker.C:
+		}
+	}
+}
+
+func (run *savedMachineAcceptance) retireAcceptanceTask(ctx context.Context, id string) error {
+	task, err := run.store.Read(ctx, id)
+	if err != nil {
+		return err
+	}
+	snapshot := task.Snapshot()
+	if intent := snapshot.LaunchIntent; intent != nil {
+		if err := run.cleanupCall(ctx, "backlog", "hold", id, "--reason", "acceptance cleanup"); err != nil {
+			return err
+		}
+		if err := run.closeUnboundAcceptancePane(ctx, id, intent.Generation); err != nil {
+			return err
+		}
+		if err := run.cleanupCall(ctx, "task", "abandon", id, "--generation", intent.Generation); err != nil {
+			return err
+		}
+	} else if worker := snapshot.Worker; worker != nil {
+		if snapshot.Completion == nil {
+			if err := run.cleanupCall(ctx, "backlog", "hold", id, "--reason", "acceptance cleanup"); err != nil {
+				return err
+			}
+		}
+		if err := run.cleanupCall(ctx, "task", "stop", id, "--generation", worker.Generation); err != nil {
+			return err
+		}
+		if snapshot.Completion == nil {
+			if err := run.cleanupCall(ctx, "backlog", "finish", id, "--generation", worker.Generation, "--mode", "retain"); err != nil {
+				return err
+			}
+		}
+		if err := run.cleanupCall(ctx, "backlog", "cleanup", id, "--generation", worker.Generation); err != nil {
+			return err
+		}
+	}
+	task, err = run.store.Read(ctx, id)
+	if err != nil {
+		return err
+	}
+	snapshot = task.Snapshot()
+	if snapshot.Worker != nil || snapshot.LaunchIntent != nil {
+		return errors.New("acceptance task still has a worker or launch intent")
+	}
+	for _, receipt := range snapshot.AbandonedLaunches {
+		if receipt.Lease.State == taskstate.LeaseHeld ||
+			(receipt.Lease == (taskstate.WorktreeLease{}) && receipt.LeaseHolder != "") {
+			if err := run.cleanupCall(ctx, "backlog", "release-worktree", id, "--generation", receipt.Generation); err != nil {
+				return err
+			}
+		}
+	}
+	receipts := snapshot.PriorReceipts
+	if snapshot.Receipt != nil {
+		receipts = append(receipts, *snapshot.Receipt)
+	}
+	for _, receipt := range receipts {
+		if receipt.Lease.State == taskstate.LeaseHeld ||
+			receipt.RemoteResult.Lease.State == taskstate.LeaseHeld {
+			if err := run.cleanupCall(ctx, "backlog", "release-worktree", id, "--generation", receipt.Generation); err != nil {
+				return err
+			}
+		}
+	}
+	run.note("%s: acceptance cleanup confirms retired bindings and returned leases", id)
+	return nil
+}
+
+func (run *savedMachineAcceptance) closeUnboundAcceptancePane(
+	ctx context.Context,
+	id, generation string,
+) error {
+	_, err := run.store.WithTask(ctx, id, func(locked *taskstate.LockedTask) error {
+		current := locked.Current()
+		if err := current.CheckAbandonInitialLaunch(generation); err != nil {
+			return err
+		}
+		snapshot := current.Snapshot()
+		intent := snapshot.LaunchIntent
+		if snapshot.Worker != nil || intent == nil || intent.Endpoint == nil {
+			return nil
+		}
+		target, err := herdr.ParseEndpoint(intent.Machine, intent.Session, intent.Endpoint.Pane)
+		if err != nil {
+			return err
+		}
+		return presentation.CloseBoundPane(
+			ctx,
+			herdr.NewClient("herdr"),
+			target,
+			intent.Endpoint.Workspace,
+			intent.Endpoint.Tab,
+			locked.CheckCurrent,
+		)
+	})
+	return err
+}
+
 const removeSavedMachineAcceptanceDirectory = `set -eu
 directory=$1
 owner=$2
@@ -136,11 +249,7 @@ case "${directory##*/}" in ca.??????) ;; *) exit 1 ;; esac
 [ "$(cd -P "$directory" && pwd)" = "$directory" ] || exit 1
 [ -f "$directory/.acceptance-owner" ] && [ ! -L "$directory/.acceptance-owner" ] || exit 1
 [ "$(cat "$directory/.acceptance-owner")" = "$owner" ] || exit 1
-set +e
-output=$(lsof -F p -a -d cwd +D "$directory" 2>&1)
-status=$?
-set -e
-[ "$status" = 1 ] && [ -z "$output" ] || exit 1
+` + quietAcceptanceDirectory + `
 rm -rf -- "$directory"
 [ ! -e "$directory" ]
 `

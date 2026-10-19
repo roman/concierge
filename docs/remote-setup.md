@@ -290,6 +290,16 @@ An expired decision wait records the latest screen and a rerun command with
 the same fixed base. Use a new report path after confirmed cleanup. The
 harness never sends native trust or approval input.
 
+Timeout cleanup first holds each owned task to stop automatic launch recovery.
+It abandons an unfinished launch and returns its held lease. A completed
+launch is stopped and retained through the normal result workflow. Cleanup
+returns both applicable leases. Dirty work or uncertain ownership prevents
+release and keeps the state and fixed-base claim for inspection. Cleanup stops
+owned Git filesystem monitors and requires an empty `lsof +D` result before
+deleting a temporary base or releasing a fixed-base claim. The temporary host
+stops after the task bindings are retired. A refused host stop is reported
+immediately.
+
 ## Use a local VM as the remote
 
 A VM on the primary machine uses the same SSH transport and worker protocol as
