@@ -50,5 +50,5 @@ Report other message kinds or mismatched bootstrap context. Keep unprocessed mes
 		command,
 		resultFile,
 	)
-	return strings.ReplaceAll(protocol, "\n", " "), nil
+	return strings.ReplaceAll(protocol+workerReplyInstructions, "\n", " "), nil
 }
