@@ -68,11 +68,15 @@ func (run *savedMachineAcceptance) cleanup() {
 		}
 	}
 	if run.remoteDirectory != "" && safe {
+		operation := removeSavedMachineAcceptanceDirectory
+		if run.fixedBase != "" {
+			operation = releaseFixedAcceptanceBase
+		}
 		output, err := run.ssh(
 			ctx,
 			"sh",
 			"-c",
-			removeSavedMachineAcceptanceDirectory,
+			operation,
 			"concierge-acceptance",
 			run.remoteDirectory,
 			run.owner,
@@ -82,7 +86,14 @@ func (run *savedMachineAcceptance) cleanup() {
 			safe = false
 		}
 		if safe {
-			run.note("Owned remote temporary directory deleted after checking for live processes")
+			if run.fixedBase != "" {
+				run.note(
+					"Fixed acceptance base released; prepared clients and trusted pool slots retained at %s",
+					run.remoteDirectory,
+				)
+			} else {
+				run.note("Owned remote temporary directory deleted after checking for live processes")
+			}
 		}
 	}
 	if safe && !run.t.Failed() {

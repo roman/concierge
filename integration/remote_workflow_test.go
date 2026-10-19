@@ -56,7 +56,7 @@ Retain and retry the identical reply after a transport error. Remain idle after 
 		"--project",
 		run.project,
 		"--branch",
-		"acceptance/"+kind,
+		"acceptance/"+kind+"-"+run.owner,
 		"--base-commit",
 		run.commit,
 		"--agent-arg=--no-daemon",

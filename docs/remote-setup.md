@@ -265,6 +265,23 @@ It does not push to the source repository. Resolve native trust dialogs in the
 pane reported by the run. See the [README](../README.md#remote-workers) for
 the acceptance worker's native approval settings and runtime effects.
 
+Use `--remote-base /private/tmp/ca.RH2026` on Darwin, or
+`--remote-base /tmp/ca.RH2026` on Linux, to retain a prepared acceptance pool.
+The suffix must contain exactly six letters or digits. Choose a new path for
+the first run. Later runs verify its acceptance marker, saved machine and
+repository URL. A claim excludes concurrent runs. An unresolved claim requires
+inspection before reuse. Ordinary remote directories cannot be adopted.
+
+Fixed-base cleanup returns the leases and releases the claim. It preserves
+prepared clients, repositories and Treehouse slots. Each canonical slot keeps
+its native folder-trust decision between runs. The legacy Git fallback creates
+new checkout paths. Each run uses unique branches to preserve earlier results.
+Omit the option to use and delete a new remote temporary directory.
+
+Primary acceptance state uses a short canonical directory under `/tmp`.
+The harness ignores a longer `TMPDIR` for this state to keep local sockets
+within both Darwin and Linux limits.
+
 ## Use a local VM as the remote
 
 A VM on the primary machine uses the same SSH transport and worker protocol as

@@ -30,6 +30,7 @@ type savedMachineAcceptance struct {
 	binary, source, commit, reportPath         string
 	machine                                    string
 	remoteDirectory, owner                     string
+	fixedBase                                  string
 	profile                                    herdr.SavedMachine
 	store                                      *taskstate.Store
 	host                                       *exec.Cmd
@@ -51,11 +52,13 @@ func newSavedMachineAcceptance(t *testing.T) *savedMachineAcceptance {
 			t.Fatal("use scripts/acceptance-remote.sh with an absolute report path")
 		}
 	}
-	directory, err := os.MkdirTemp("", "concierge-accept-")
-	if err != nil {
-		t.Fatal(err)
+	fixedBase := os.Getenv("CONCIERGE_ACCEPTANCE_BASE")
+	if fixedBase != "" && !validSavedMachineAcceptanceDirectory(fixedBase) {
+		t.Fatal(
+			"--remote-base requires a canonical /tmp/ca.XXXXXX or /private/tmp/ca.XXXXXX path with six letters or digits",
+		)
 	}
-	directory, err = filepath.EvalSymlinks(directory)
+	directory, err := newAcceptancePrimaryDirectory()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +69,7 @@ func newSavedMachineAcceptance(t *testing.T) *savedMachineAcceptance {
 			directory,
 			"project",
 		), origin: filepath.Join(directory, "origin.git"),
-		binary: binary, source: source, reportPath: report, owner: rand.Text(), machine: os.Getenv("CONCIERGE_ACCEPTANCE_MACHINE")}
+		binary: binary, source: source, reportPath: report, owner: rand.Text(), machine: os.Getenv("CONCIERGE_ACCEPTANCE_MACHINE"), fixedBase: fixedBase}
 	t.Cleanup(run.cleanup)
 	run.store, err = taskstate.NewStore(run.root)
 	if err != nil {
@@ -87,6 +90,18 @@ func newSavedMachineAcceptance(t *testing.T) *savedMachineAcceptance {
 		run.profile.Session,
 	)
 	return run
+}
+
+func newAcceptancePrimaryDirectory() (string, error) {
+	directory, err := os.MkdirTemp("/tmp", "ca-")
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(directory)
+	if err != nil {
+		_ = os.Remove(directory)
+	}
+	return resolved, err
 }
 
 func (run *savedMachineAcceptance) note(format string, arguments ...any) {
@@ -154,7 +169,13 @@ func (run *savedMachineAcceptance) ssh(ctx context.Context, command ...string) (
 	if err != nil {
 		return "", err
 	}
-	stdout, _, err := (sshcommand.SystemRunner{}).Run(ctx, arguments, nil)
+	stdout, diagnostics, err := (sshcommand.SystemRunner{}).Run(ctx, arguments, nil)
+	if err != nil && len(diagnostics) != 0 {
+		if len(diagnostics) > 4096 {
+			diagnostics = diagnostics[len(diagnostics)-4096:]
+		}
+		err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(diagnostics)))
+	}
 	return strings.TrimSpace(string(stdout)), err
 }
 
@@ -229,13 +250,19 @@ func (run *savedMachineAcceptance) prepare() {
 	if destination := run.git(run.project, "remote", "get-url", "--push", "origin"); destination != run.origin {
 		run.t.Fatal("landing push destination escaped the temporary origin")
 	}
+	create := createSavedMachineAcceptanceDirectory
+	parameters := []string{run.owner}
+	if run.fixedBase != "" {
+		create = claimFixedAcceptanceBase
+		parameters = []string{run.fixedBase, run.owner, run.profile.ID, declaredOrigin}
+		run.note(
+			"Claiming fixed acceptance base %s; prepared clients and trusted pool slots remain between runs",
+			run.fixedBase,
+		)
+	}
 	remote, err := run.ssh(
 		run.ctx,
-		"sh",
-		"-c",
-		createSavedMachineAcceptanceDirectory,
-		"concierge-acceptance",
-		run.owner,
+		append([]string{"sh", "-c", create, "concierge-acceptance"}, parameters...)...,
 	)
 	if err != nil {
 		run.t.Fatalf("create remote temporary directory: %v", err)
