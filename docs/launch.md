@@ -126,10 +126,14 @@ requires confirmed resource absence and retains the worktree lease. `task stop`
 reports this recovery step for an initial launch without a confirmed worker.
 
 A blocked initial worker remains an unadopted launch intent. Concierge reports
-`checkpoint: folder_trust` for a recognized Claude workspace trust dialog and
-`checkpoint: native_input` for other blocked input or unavailable screen text.
+`checkpoint: folder_trust` for recognized Codex or Claude folder-trust dialogs.
+The help names the recorded worktree path. A recognized Codex execution
+approval reports `checkpoint: command_approval` and the displayed command.
+Other blocked input or unavailable screen text reports `checkpoint: native_input`.
 The response names the recorded session, pane, and worktree and reports whether
-the primary notification was confirmed. It requires an operator decision in the
+the primary notification was confirmed. Remote help includes the saved machine
+in `herdr --machine MACHINE agent read PANE --source visible`. Local help keeps
+its explicit session. A checkpoint requires an operator decision in the
 existing native dialog. After the dialog is resolved, retry the exact launch;
 background reconciliation also continues the saved intent without creating a
 second worker.

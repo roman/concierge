@@ -17,6 +17,10 @@ func checkpointLaunchFixture(t *testing.T, mode string) (*Server, LaunchRequest)
 	t.Helper()
 	server, input := launchRequestFixture(t)
 	input.Harness = "claude"
+	if mode == "codex trust" || mode == "command approval" {
+		input.Harness = "codex"
+	}
+	t.Setenv("CHECKPOINT_HARNESS", input.Harness)
 	input.Worktree = t.TempDir()
 	t.Setenv("CHECKPOINT_WORKTREE", input.Worktree)
 	t.Setenv("CHECKPOINT_MODE", mode)
@@ -63,10 +67,12 @@ case "$1 $2" in
  fi
  pane=p1
  [ "$CHECKPOINT_MODE" != 'wrong agent' ] || pane=other
- printf '{"result":{"agent":{"pane_id":"%s","agent":"claude","agent_status":"%s"}}}' "$pane" "$state" ;;
+ printf '{"result":{"agent":{"pane_id":"%s","agent":"%s","agent_status":"%s"}}}' "$pane" "$CHECKPOINT_HARNESS" "$state" ;;
 'agent read')
  case "$CHECKPOINT_MODE" in
  trust) printf '%s\n' 'Accessing workspace:' 'Quick safety check' 'No, exit' 'Yes, I trust this folder' 'Enter to confirm · Esc to cancel' ;;
+ 'codex trust') printf 'Folder access\n%s\nTrust this folder?\n1. Trust and continue\n2. Quit\nenter continue · esc quit\n' "$CHECKPOINT_WORKTREE" ;;
+ 'command approval') printf '%s\n' 'Would you like to run the following command?' '$ git fetch origin main' '1. Yes, proceed (y)' '2. No, and tell Codex what to do differently (esc)' 'Press enter to confirm or esc to cancel' ;;
  'read unavailable') exit 73 ;;
  *) printf '%s\n' 'Permission needed' 'Enter to confirm · Esc to cancel' ;;
  esac ;;
@@ -77,6 +83,58 @@ esac
 		t.Fatal(err)
 	}
 	return server, input
+}
+
+func TestCodexCheckpointNamesFolderTrustAndCommandApproval(t *testing.T) {
+	for _, mode := range []string{"codex trust", "command approval"} {
+		t.Run(mode, func(t *testing.T) {
+			server, input := checkpointLaunchFixture(t, mode)
+			checkpoint, err := server.launchNativeCheckpoint(t.Context(), input.TaskID)
+			want := "folder_trust"
+			if mode == "command approval" {
+				want = "command_approval"
+			}
+			if err != nil || checkpoint == nil || checkpoint.Kind != want {
+				t.Fatalf("wrong Codex checkpoint: %+v %v", checkpoint, err)
+			}
+			messages, _ := inbox.New(server.config.MessageRoot)
+			pending, err := messages.List(server.config.Recipient)
+			if err != nil || len(pending) != 1 {
+				t.Fatalf("missing checkpoint notice: %v", err)
+			}
+			var notice struct {
+				Help string `json:"help"`
+			}
+			if err := json.Unmarshal([]byte(pending[0].Body), &notice); err != nil {
+				t.Fatal(err)
+			}
+			detail := input.Worktree
+			if mode == "command approval" {
+				detail = "git fetch origin main"
+			}
+			if !strings.Contains(notice.Help, detail) {
+				t.Fatalf("checkpoint omitted its scope: %s", notice.Help)
+			}
+			label := "Folder-trust dialog"
+			if mode == "command approval" {
+				label = "Command-approval dialog"
+			}
+			if !strings.Contains(notice.Help, label) {
+				t.Fatalf("checkpoint omitted its dialog type: %s", notice.Help)
+			}
+		})
+	}
+}
+
+func TestCheckpointCommandPreservesMultilineIndentation(t *testing.T) {
+	screen := "  $ echo previous command\nold output\nWould you like to run the following command?\n\n  $ python - <<'PY'\n  if True:\n      print('hello')\n  PY\n\n› 1. Yes, proceed (y)\n  2. No\n"
+	want := "python - <<'PY'\nif True:\n    print('hello')\nPY"
+	if command := checkpointCommand(screen); command != want {
+		t.Fatalf("changed displayed command: %q", command)
+	}
+	if command := checkpointCommand(strings.ReplaceAll(screen, "print('hello')", "…")); command != "" {
+		t.Fatal("reported a clipped command as complete")
+	}
 }
 
 func TestBlockedLaunchPublishesNativeCheckpoint(t *testing.T) {
@@ -296,5 +354,24 @@ func TestCheckpointClearedBeforeProgressReadRemainsValid(t *testing.T) {
 	}
 	if err := validateResponse(response, Request{Operation: Launch, Launch: &input}); err != nil {
 		t.Fatalf("checkpoint race produced an invalid host response: %v", err)
+	}
+}
+
+func TestRemoteCheckpointHelpNamesTheSavedMachine(t *testing.T) {
+	for _, machine := range []string{"machine-one", "machine-two"} {
+		intent := &taskstate.LaunchIntent{
+			Machine:  machine,
+			Session:  "default",
+			Worktree: "/remote/slot",
+			Endpoint: &taskstate.LaunchEndpoint{Pane: "same-pane"},
+		}
+		help := NativeCheckpointHelp(intent)
+		if !strings.Contains(
+			help,
+			`herdr --machine "`+machine+`" agent read "same-pane" --source visible`,
+		) ||
+			strings.Contains(help, "--session") {
+			t.Fatalf("wrong remote read command: %s", help)
+		}
 	}
 }

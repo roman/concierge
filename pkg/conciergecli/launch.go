@@ -161,7 +161,7 @@ func writeLaunchProgress(output io.Writer, taskID string, response hostservice.R
 	}
 	if response.Checkpoint != nil {
 		intent := snapshot.LaunchIntent
-		if _, err := fmt.Fprintf(output, "checkpoint: %s\nnotification: %s\nsession: %s\npane: %s\nworktree: %s\ncheckpoint_help: %s\n", response.Checkpoint.Kind, response.Checkpoint.Notification, quote(intent.Session), quote(intent.Endpoint.Pane), quote(intent.Worktree), quote(hostservice.NativeCheckpointHelp(intent))); err != nil {
+		if _, err := fmt.Fprintf(output, "checkpoint: %s\nnotification: %s\nsession: %s\npane: %s\nworktree: %s\ncheckpoint_help: %s\n", response.Checkpoint.Kind, response.Checkpoint.Notification, quote(intent.Session), quote(intent.Endpoint.Pane), quote(intent.Worktree), quote(response.Checkpoint.Help(intent))); err != nil {
 			return 1
 		}
 	}

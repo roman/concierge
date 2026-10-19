@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/taskstate"
@@ -18,17 +20,40 @@ import (
 type NativeCheckpoint struct {
 	Kind         string `json:"kind"`
 	Notification string `json:"notification"`
+	Command      string `json:"command,omitempty"`
 }
 
 // NativeCheckpointHelp requires an operator decision in the existing native dialog.
 func NativeCheckpointHelp(intent *taskstate.LaunchIntent) string {
-	return fmt.Sprintf(
-		"Review the native dialog in session %q, pane %q. Ask the operator before accepting folder trust or changing permissions. Inspect with concierge control --session %q status %q. After the dialog is resolved, retry the exact original launch; automatic reconciliation remains active.",
-		intent.Session,
-		intent.Endpoint.Pane,
+	inspect := fmt.Sprintf(
+		"concierge control --session %q status %q",
 		intent.Session,
 		intent.Endpoint.Pane,
 	)
+	if intent.Machine != "" {
+		inspect = fmt.Sprintf(
+			"herdr --machine %q agent read %q --source visible",
+			intent.Machine,
+			intent.Endpoint.Pane,
+		)
+	}
+	return fmt.Sprintf(
+		"Review the native dialog in session %q, pane %q. Ask the operator before accepting folder trust or changing permissions. Inspect with %s. After the dialog is resolved, retry the exact original launch; automatic reconciliation remains active.",
+		intent.Session,
+		intent.Endpoint.Pane,
+		inspect,
+	)
+}
+
+func (checkpoint NativeCheckpoint) Help(intent *taskstate.LaunchIntent) string {
+	detail := ""
+	switch checkpoint.Kind {
+	case "folder_trust":
+		detail = fmt.Sprintf("Folder-trust dialog for %q. ", intent.Worktree)
+	case "command_approval":
+		detail = fmt.Sprintf("Command-approval dialog. Displayed command: %q. ", checkpoint.Command)
+	}
+	return detail + NativeCheckpointHelp(intent)
 }
 
 func (server *Server) launchNativeCheckpoint(
@@ -74,14 +99,26 @@ func (server *Server) launchNativeCheckpoint(
 		return nil, nil
 	}
 	kind := "native_input"
-	if screen, err := client.VisibleScreen(inspection, intent.Endpoint.Pane); err == nil &&
-		intent.Harness == "claude" {
+	command := ""
+	if screen, err := client.VisibleScreen(inspection, intent.Endpoint.Pane); err == nil {
 		text := strings.ToLower(strings.Join(strings.Fields(screen), " "))
-		if strings.Contains(text, "accessing workspace:") &&
+		if intent.Harness == "claude" && strings.Contains(text, "accessing workspace:") &&
 			strings.Contains(text, "yes, i trust this folder") &&
 			strings.Contains(text, "no, exit") &&
 			strings.Contains(text, "enter to confirm") {
 			kind = "folder_trust"
+		}
+		if intent.Harness == "codex" {
+			if strings.Contains(text, "folder access") &&
+				strings.Contains(text, "trust this folder?") &&
+				strings.Contains(text, "trust and continue") &&
+				strings.Contains(text, "quit") {
+				kind = "folder_trust"
+			}
+			command = checkpointCommand(screen)
+			if command != "" {
+				kind = "command_approval"
+			}
 		}
 	}
 	// A changed agent or a completed dialog invalidates the captured screen.
@@ -89,7 +126,7 @@ func (server *Server) launchNativeCheckpoint(
 	if err != nil || !blockedLaunchAgent(agent, intent) {
 		return nil, nil
 	}
-	checkpoint := &NativeCheckpoint{Kind: kind, Notification: "failed"}
+	checkpoint := &NativeCheckpoint{Kind: kind, Notification: "failed", Command: command}
 	body, err := json.Marshal(struct {
 		Kind       string `json:"kind"`
 		State      string `json:"state"`
@@ -101,7 +138,7 @@ func (server *Server) launchNativeCheckpoint(
 		Pane       string `json:"pane"`
 		Worktree   string `json:"worktree"`
 		Help       string `json:"help"`
-	}{"task-native-checkpoint", filepath.Join(server.config.Root, "tasks"), taskID, intent.Generation, kind, intent.Harness, intent.Session, intent.Endpoint.Pane, intent.Worktree, NativeCheckpointHelp(intent)})
+	}{"task-native-checkpoint", filepath.Join(server.config.Root, "tasks"), taskID, intent.Generation, kind, intent.Harness, intent.Session, intent.Endpoint.Pane, intent.Worktree, checkpoint.Help(intent)})
 	if err != nil {
 		return checkpoint, err
 	}
@@ -136,10 +173,51 @@ func validateNativeCheckpoint(response Response) error {
 	intent := response.Transition.LaunchIntent
 	if response.Outcome != Blocked || intent == nil || intent.Endpoint == nil ||
 		intent.Phase != taskstate.LaunchAgentRequested ||
-		(checkpoint.Kind != "native_input" && checkpoint.Kind != "folder_trust") ||
-		(checkpoint.Kind == "folder_trust" && intent.Harness != "claude") ||
+		(checkpoint.Kind != "native_input" && checkpoint.Kind != "folder_trust" && checkpoint.Kind != "command_approval") ||
+		(checkpoint.Kind == "command_approval" && (intent.Harness != "codex" || !validCheckpointCommand(checkpoint.Command))) ||
+		(checkpoint.Kind != "command_approval" && checkpoint.Command != "") ||
 		(checkpoint.Notification != "sent" && checkpoint.Notification != "failed") {
 		return errors.New("host returned an invalid native checkpoint")
 	}
 	return nil
+}
+
+func validCheckpointCommand(command string) bool {
+	return strings.TrimSpace(command) != "" && len(command) <= 4096 && utf8.ValidString(command) &&
+		strings.IndexFunc(command, func(character rune) bool {
+			return unicode.IsControl(character) && character != '\n' && character != '\t'
+		}) < 0
+}
+
+func checkpointCommand(screen string) string {
+	const heading = "Would you like to run the following command?"
+	position := strings.LastIndex(screen, heading)
+	if position < 0 {
+		return ""
+	}
+	screen = screen[position+len(heading):]
+	if !strings.Contains(screen, "Yes, proceed") {
+		return ""
+	}
+	var command []string
+	indent := ""
+	for _, line := range strings.Split(screen, "\n") {
+		if command == nil {
+			if position := strings.Index(line, "$ "); position >= 0 &&
+				strings.TrimSpace(line[:position]) == "" {
+				indent = line[:position]
+				command = []string{line[position+2:]}
+			}
+			continue
+		}
+		if strings.Contains(line, "1. Yes, proceed") {
+			text := strings.TrimRight(strings.Join(command, "\n"), "\n ")
+			if validCheckpointCommand(text) && !strings.ContainsAny(text, "…") {
+				return text
+			}
+			return ""
+		}
+		command = append(command, strings.TrimPrefix(line, indent))
+	}
+	return ""
 }
