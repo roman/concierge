@@ -20,6 +20,16 @@ func socketFixture(t *testing.T, configure func(*Server)) (string, Request, cont
 	if configure != nil {
 		configure(server)
 	}
+	path, _, cancel := serveSocketFixture(t, server, "")
+	return path, request, cancel
+}
+
+func serveSocketFixture(
+	t *testing.T,
+	server *Server,
+	task string,
+) (string, Request, context.CancelFunc) {
+	t.Helper()
 	directory, err := os.MkdirTemp("", "worker-socket-")
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +42,13 @@ func socketFixture(t *testing.T, configure func(*Server)) (string, Request, cont
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- server.Serve(ctx, listener) }()
+	go func() {
+		if task != "" {
+			done <- server.ServeTask(ctx, listener, task)
+			return
+		}
+		done <- server.Serve(ctx, listener)
+	}()
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -44,7 +60,66 @@ func socketFixture(t *testing.T, configure func(*Server)) (string, Request, cont
 			t.Error("worker socket did not stop after cancellation")
 		}
 	})
-	return path, request, cancel
+	return path, Request{}, cancel
+}
+
+func TestTaskSocketKeepsNoisyTaskAdmissionSeparate(t *testing.T) {
+	server, _, _, request := dispatchFixture(t)
+	noisy, _, _ := serveSocketFixture(t, server, "noisy")
+	quiet, _, _ := serveSocketFixture(t, server, request.Task)
+	request.Operation, request.MessageID = workeraccess.ListPending, ""
+	data, _ := json.Marshal(request)
+	for range workerBurst {
+		if response := socketExchange(t, noisy, data); response.Outcome != Denied {
+			t.Fatalf("socket accepted another task: %+v", response)
+		}
+	}
+	connection, err := net.Dial("unix", noisy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(time.Second))
+	var response Response
+	if err := decodeBounded(connection, &response); err != nil || response.Outcome != Busy {
+		t.Fatalf("rate-rejected socket waited for a request: %+v %v", response, err)
+	}
+	if response := socketExchange(t, quiet, data); response.Outcome != Completed {
+		t.Fatalf("noisy task starved unrelated worker: %+v", response)
+	}
+}
+
+func TestTaskSocketBoundsUnfinishedConnections(t *testing.T) {
+	server, _, _, request := dispatchFixture(t)
+	noisy, _, _ := serveSocketFixture(t, server, "noisy")
+	quiet, _, _ := serveSocketFixture(t, server, request.Task)
+	for range 2 {
+		connection, err := net.Dial("unix", noisy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer connection.Close()
+		if _, err := connection.Write([]byte(`{"task":`)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	connection, err := net.Dial("unix", noisy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	_ = connection.SetReadDeadline(time.Now().Add(time.Second))
+	var byte [1]byte
+	if _, err := connection.Read(byte[:]); err == nil {
+		t.Fatal("task exceeded its connection limit")
+	} else if timeout, ok := err.(net.Error); ok && timeout.Timeout() {
+		t.Fatal("task retained excess unfinished connection")
+	}
+	request.Operation, request.MessageID = workeraccess.ListPending, ""
+	data, _ := json.Marshal(request)
+	if response := socketExchange(t, quiet, data); response.Outcome != Completed {
+		t.Fatalf("unfinished noisy requests blocked another task: %+v", response)
+	}
 }
 
 func socketExchange(t *testing.T, path string, data []byte) Response {

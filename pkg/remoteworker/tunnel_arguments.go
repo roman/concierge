@@ -60,7 +60,7 @@ func tunnelOptions(spec TunnelSpec, localSocket string) ([]string, error) {
 		return nil, err
 	}
 	if _, err := taskmeta.ParseAbsolutePath(localSocket); err != nil ||
-		filepath.Base(localSocket) != "worker.sock" {
+		(filepath.Base(localSocket) != "worker.sock" && localSocket != spec.PrimaryWorkerSocket) {
 		return nil, ErrTunnelOwnership
 	}
 	for _, path := range []string{localSocket, spec.Tools.TaskDirectory} {

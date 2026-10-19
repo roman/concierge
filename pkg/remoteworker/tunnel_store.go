@@ -173,7 +173,7 @@ func (lease *TunnelLease) Save(record TunnelRecord) error {
 		return err
 	}
 	if previous != nil && previous.Spec != record.Spec &&
-		!agentDestinationUpdate(*previous, record) &&
+		!tunnelDestinationUpdate(*previous, record) &&
 		(previous.Phase != TunnelClosed || previous.Spec.Owner.Generation == record.Spec.Owner.Generation) {
 		return ErrTunnelOwnership
 	}
@@ -207,9 +207,10 @@ func (lease *TunnelLease) Save(record TunnelRecord) error {
 	return nil
 }
 
-func agentDestinationUpdate(previous, next TunnelRecord) bool {
+func tunnelDestinationUpdate(previous, next TunnelRecord) bool {
 	identity := previous.Spec
 	identity.PrimaryAgentSocket = next.Spec.PrimaryAgentSocket
+	identity.PrimaryWorkerSocket = next.Spec.PrimaryWorkerSocket
 	return identity == next.Spec && previous.Phase == TunnelRetry && next.Phase == TunnelRetry &&
 		previous.Process == nil && next.Process == nil
 }

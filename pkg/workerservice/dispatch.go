@@ -20,9 +20,10 @@ type Config struct {
 }
 
 type Server struct {
-	config    Config
-	service   *taskops.Service
-	admission admissionLimiter
+	config     Config
+	service    *taskops.Service
+	admission  admissionLimiter
+	operations chan struct{}
 }
 
 func New(config Config) (*Server, error) {
@@ -38,7 +39,11 @@ func New(config Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{config: config, service: service}, nil
+	return &Server{
+		config:     config,
+		service:    service,
+		operations: make(chan struct{}, workerConnections),
+	}, nil
 }
 
 func (server *Server) perform(ctx context.Context, request Request) Response {

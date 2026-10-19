@@ -6,9 +6,15 @@ import (
 	"net"
 	"sync"
 
+	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/stateversion"
 	"github.com/roman/concierge/pkg/workerservice"
 )
+
+type taskWorkerSocket struct {
+	listener *net.UnixListener
+	cancel   context.CancelFunc
+}
 
 func (server *Server) listenWorkerSocket(version *stateversion.Guard) (*net.UnixListener, error) {
 	selected, err := version.Version()
@@ -40,6 +46,10 @@ func (server *Server) startWorkerSocket(
 		close(done)
 		return done
 	}
+	server.workerTaskMu.Lock()
+	server.workerTaskContext, server.workerTaskCancel = ctx, cancel
+	server.workerTaskListeners = make(map[string]taskWorkerSocket)
+	server.workerTaskMu.Unlock()
 	running.Add(1)
 	go func() {
 		defer running.Done()
@@ -50,6 +60,59 @@ func (server *Server) startWorkerSocket(
 		}
 	}()
 	return done
+}
+
+func (server *Server) ensureTaskWorkerSocket(task string) error {
+	server.workerTaskMu.Lock()
+	defer server.workerTaskMu.Unlock()
+	if server.workerServer == nil {
+		return nil
+	}
+	if server.workerTaskContext == nil || server.workerTaskContext.Err() != nil {
+		return remoteworker.ErrTunnelUnreachable
+	}
+	if server.workerTaskListeners[task].listener != nil {
+		return nil
+	}
+	listener, err := workerservice.ListenPath(
+		remoteworker.PrimaryWorkerSocketPath(server.config.Root, task),
+	)
+	if err != nil {
+		return err
+	}
+	ctx, stop := context.WithCancel(server.workerTaskContext)
+	server.workerTaskListeners[task] = taskWorkerSocket{listener: listener, cancel: stop}
+	server.workerTaskRunning.Add(1)
+	cancel := server.workerTaskCancel
+	go func() {
+		defer server.workerTaskRunning.Done()
+		if err := server.workerServer.ServeTask(ctx, listener, task); err != nil {
+			server.report(err)
+			cancel()
+		}
+	}()
+	return nil
+}
+
+func (server *Server) closeTaskWorkerSockets() {
+	server.workerTaskMu.Lock()
+	server.workerTaskContext = nil
+	for _, socket := range server.workerTaskListeners {
+		socket.cancel()
+		_ = socket.listener.Close()
+	}
+	server.workerTaskMu.Unlock()
+	server.workerTaskRunning.Wait()
+}
+
+func (server *Server) closeTaskWorkerSocket(task string) {
+	server.workerTaskMu.Lock()
+	defer server.workerTaskMu.Unlock()
+	if socket, found := server.workerTaskListeners[task]; found {
+		socket.cancel()
+		_ = socket.listener.Close()
+		delete(server.workerTaskListeners, task)
+	}
 }
 
 func closeUnixListener(listener *net.UnixListener) error {

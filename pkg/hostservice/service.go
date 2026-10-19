@@ -101,6 +101,11 @@ type Server struct {
 	tunnels             *remoteworker.TunnelManager
 	workerServer        *workerservice.Server
 	workerListener      *net.UnixListener
+	workerTaskMu        sync.Mutex
+	workerTaskContext   context.Context
+	workerTaskCancel    context.CancelFunc
+	workerTaskListeners map[string]taskWorkerSocket
+	workerTaskRunning   sync.WaitGroup
 	shutdownMu          sync.Mutex
 	shutdownLease       *os.File
 	shutdownCancel      context.CancelFunc
@@ -187,6 +192,7 @@ func (server *Server) ServeReady(
 	var workerResult <-chan error
 	defer func() {
 		cancel()
+		server.closeTaskWorkerSockets()
 		_ = closeUnixListener(server.workerListener)
 		running.Wait()
 		select {

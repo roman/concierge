@@ -3,9 +3,12 @@ package workerservice
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/roman/concierge/pkg/taskmeta"
 )
 
 const workerConnections = 8
@@ -43,6 +46,29 @@ func (limiter *admissionLimiter) allow() bool {
 
 // Serve accepts only the worker protocol. It never applies host caller rules.
 func (server *Server) Serve(ctx context.Context, listener *net.UnixListener) error {
+	return server.serve(ctx, listener, "", workerConnections, &server.admission)
+}
+
+// ServeTask gives a task its own admission budget before reading request bytes.
+func (server *Server) ServeTask(
+	ctx context.Context,
+	listener *net.UnixListener,
+	task string,
+) error {
+	if _, err := taskmeta.ParseTaskID(task); err != nil {
+		return err
+	}
+	admission := &admissionLimiter{now: server.admission.now}
+	return server.serve(ctx, listener, task, 2, admission)
+}
+
+func (server *Server) serve(
+	ctx context.Context,
+	listener *net.UnixListener,
+	task string,
+	connectionLimit int,
+	admission *admissionLimiter,
+) error {
 	lifetime, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stop := context.AfterFunc(lifetime, func() { _ = listener.Close() })
@@ -50,7 +76,7 @@ func (server *Server) Serve(ctx context.Context, listener *net.UnixListener) err
 	defer listener.Close()
 	var running sync.WaitGroup
 	defer running.Wait()
-	slots := make(chan struct{}, workerConnections)
+	slots := make(chan struct{}, connectionLimit)
 	for {
 		connection, err := listener.AcceptUnix()
 		if err != nil {
@@ -69,7 +95,7 @@ func (server *Server) Serve(ctx context.Context, listener *net.UnixListener) err
 				defer connection.Close()
 				stop := context.AfterFunc(lifetime, func() { _ = connection.Close() })
 				defer stop()
-				server.handle(lifetime, connection)
+				server.handle(lifetime, connection, task, admission)
 			}()
 		default:
 			_ = connection.Close()
@@ -77,20 +103,51 @@ func (server *Server) Serve(ctx context.Context, listener *net.UnixListener) err
 	}
 }
 
-func (server *Server) handle(ctx context.Context, connection *net.UnixConn) {
-	admitted := server.admission.allow()
-	_ = connection.SetReadDeadline(time.Now().Add(workerIOTimeout))
-	var request Request
-	err := decodeBounded(connection, &request)
+func (server *Server) handle(
+	ctx context.Context,
+	connection *net.UnixConn,
+	task string,
+	admission *admissionLimiter,
+) {
+	admitted := admission.allow()
 	if !admitted {
 		server.respond(
 			connection,
 			Response{Outcome: Busy, Error: "worker request rate limit reached; retry later"},
 		)
+		// Send EOF before discarding unread bytes so close cannot replace the
+		// busy response with a reset. Neither decoding nor dispatch occurs here.
+		_ = connection.CloseWrite()
+		_ = connection.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		_, _ = io.CopyN(io.Discard, connection, maxWireBytes+1)
 		return
 	}
+	_ = connection.SetReadDeadline(time.Now().Add(workerIOTimeout))
+	var request Request
+	err := decodeBounded(connection, &request)
 	if err != nil {
 		server.respond(connection, Response{Outcome: Invalid, Error: ErrInvalidRequest.Error()})
+		return
+	}
+	if request.validate() != nil {
+		server.respond(connection, Response{Outcome: Invalid, Error: ErrInvalidRequest.Error()})
+		return
+	}
+	if task != "" && request.Task != task {
+		server.respond(
+			connection,
+			Response{Outcome: Denied, Error: "worker request belongs to another task"},
+		)
+		return
+	}
+	select {
+	case server.operations <- struct{}{}:
+		defer func() { <-server.operations }()
+	default:
+		server.respond(
+			connection,
+			Response{Outcome: Busy, Error: "worker operation limit reached; retry later"},
+		)
 		return
 	}
 	operation, cancel := context.WithTimeout(ctx, workerOperationTimeout)

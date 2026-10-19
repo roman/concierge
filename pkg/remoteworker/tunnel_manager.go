@@ -68,6 +68,7 @@ func (manager *TunnelManager) Ensure(ctx context.Context, spec TunnelSpec) error
 		}
 		identity := record.Spec
 		identity.PrimaryAgentSocket = spec.PrimaryAgentSocket
+		identity.PrimaryWorkerSocket = spec.PrimaryWorkerSocket
 		if identity != spec {
 			return ErrTunnelOwnership
 		}
@@ -116,7 +117,7 @@ func (manager *TunnelManager) reconcile(
 		// uncertain. A second process could create another listener.
 		return ErrTunnelOwnership
 	}
-	if err := manager.refreshAgentDestination(ctx, lease, record); err != nil {
+	if err := manager.refreshDestinations(ctx, lease, record); err != nil {
 		return err
 	}
 	now := manager.Now().UTC()
@@ -147,7 +148,7 @@ func (manager *TunnelManager) reconcile(
 		if err := lease.Save(*record); err != nil {
 			return err
 		}
-		process, err := manager.processes.Start(ctx, record.Spec, manager.localSocket)
+		process, err := manager.processes.Start(ctx, record.Spec, record.Spec.PrimaryWorkerSocket)
 		if errors.Is(err, ErrTunnelNotStarted) {
 			record.Phase = TunnelRetry
 			return errors.Join(tunnelRetry(lease, record, now), err)
@@ -170,18 +171,21 @@ func (manager *TunnelManager) reconcile(
 	return lease.Save(*record)
 }
 
-func (manager *TunnelManager) refreshAgentDestination(
+func (manager *TunnelManager) refreshDestinations(
 	ctx context.Context,
 	lease *TunnelLease,
 	record *TunnelRecord,
 ) error {
-	if record.Spec.Authentication != sshcommand.ForwardedAgent {
-		return nil
-	}
 	desired := record.Spec
-	desired.PrimaryAgentSocket = os.Getenv("SSH_AUTH_SOCK")
-	if desired.PrimaryAgentSocket == "" || desired.Validate() != nil {
-		return sshcommand.ErrPrimaryAgent
+	desired.PrimaryWorkerSocket = PrimaryWorkerSocketPath(
+		filepath.Dir(manager.localSocket),
+		record.Spec.Owner.Task,
+	)
+	if record.Spec.Authentication == sshcommand.ForwardedAgent {
+		desired.PrimaryAgentSocket = os.Getenv("SSH_AUTH_SOCK")
+		if desired.PrimaryAgentSocket == "" || desired.Validate() != nil {
+			return sshcommand.ErrPrimaryAgent
+		}
 	}
 	if desired == record.Spec {
 		return nil
@@ -201,8 +205,8 @@ func (manager *TunnelManager) refreshAgentDestination(
 			return ErrTunnelOwnership
 		}
 	}
-	// An old record can omit the destination. Replace only the token-owned
-	// process before publishing the new destination and preparing its sockets.
+	// Persist confirmed quiescence before changing a destination. Recovery can
+	// then prepare sockets without guessing whether the old process still runs.
 	record.Process, record.Phase = nil, TunnelRetry
 	record.Failures, record.NextRetry = 0, time.Time{}
 	if err := lease.Save(*record); err != nil {

@@ -138,7 +138,7 @@ func TestHostRestartServesWorkerSocketBeforeTunnelRecovery(t *testing.T) {
 			connection, err := (&net.Dialer{}).DialContext(
 				ctx,
 				"unix",
-				filepath.Join(server.config.Root, "worker.sock"),
+				remoteworker.PrimaryWorkerSocketPath(server.config.Root, spec.Owner.Task),
 			)
 			if err == nil {
 				defer connection.Close()

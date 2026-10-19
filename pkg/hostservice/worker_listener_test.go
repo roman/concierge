@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/workeraccess"
@@ -76,6 +77,23 @@ func TestHostOwnsSeparateWorkerListenerForVersionThree(t *testing.T) {
 		workeraccess.ErrDenied,
 	) {
 		t.Fatalf("worker listener did not apply grant authorization: %v", err)
+	}
+	if err := server.ensureTaskWorkerSocket(request.Task); err != nil {
+		t.Fatal(err)
+	}
+	taskPath := remoteworker.PrimaryWorkerSocketPath(server.config.Root, request.Task)
+	if info, err := os.Lstat(taskPath); err != nil || info.Mode().Perm() != 0600 {
+		t.Fatalf("task listener unavailable: %v", err)
+	}
+	server.closeTaskWorkerSocket(request.Task)
+	if _, err := os.Lstat(taskPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("retirement retained task listener: %v", err)
+	}
+	if _, err := workerservice.Call(ctx, workerPath, request); !errors.Is(
+		err,
+		workeraccess.ErrDenied,
+	) {
+		t.Fatalf("task listener retirement stopped the host service: %v", err)
 	}
 	cancel()
 	select {

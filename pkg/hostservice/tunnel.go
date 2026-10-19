@@ -32,6 +32,9 @@ func (server *Server) probeTaskTunnel(ctx context.Context, taskID, generation st
 	if server.tunnels == nil {
 		return remoteworker.ErrTunnelUnreachable
 	}
+	if err := server.ensureTaskWorkerSocket(taskID); err != nil {
+		return err
+	}
 	return server.tunnels.Probe(ctx, remoteworker.SocketOwner{
 		Task: taskID, Generation: generation, Verifier: bound.Access.Verifier,
 	}, bound.Machine)

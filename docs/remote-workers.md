@@ -130,6 +130,16 @@ change it. Zero selects the default. The primary checks the bounded result
 header before writing bundle bytes and stops the SSH producer on overflow.
 A failed transfer does not select or import a result.
 
+Each task's tunnel connects to a separate worker listener on the primary.
+That listener admits at most two connections and has its own request budget.
+The service also limits concurrent operations across tasks to eight. Excess
+requests receive a busy response before request decoding. A noisy task cannot
+consume another task's connection slots or request budget. The listener also
+rejects requests naming a different task; normal generation and secret checks
+still apply. Retirement closes the task listener after grant revocation and
+tunnel shutdown. Recovery replaces a positively identified older tunnel that
+still targets the shared worker listener. It preserves its worker and grant.
+
 `concierge worker show TASK_ID` reports Herdr and tunnel reachability separately,
 including retry times. A failed probe means unreachable. It does not free a
 lease, change a generation, or consume the worker's restart tolerance. The host

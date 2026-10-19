@@ -96,6 +96,7 @@ func (server *Server) revokeRemoteWorkerTransportLocked(
 	}); err != nil {
 		return err
 	}
+	server.closeTaskWorkerSocket(taskID)
 	if err := locked.CheckCurrent(); err != nil {
 		return err
 	}

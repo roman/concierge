@@ -166,6 +166,40 @@ func TestTunnelManagerReusesPersistedProcessAfterPrimaryRestart(t *testing.T) {
 	}
 }
 
+func TestTunnelManagerRepairsLegacySharedWorkerEndpoint(t *testing.T) {
+	root, spec := tunnelFixture(t)
+	processes := &tunnelProcesses{status: primary.ProcessRunning}
+	process, err := processes.Start(t.Context(), spec, "/primary/worker.sock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, _ := NewTunnelStore(root)
+	if err := store.WithTask(t.Context(), spec.Owner.Task, func(lease *TunnelLease) error {
+		return lease.Save(TunnelRecord{Format: 1, Spec: spec, Phase: TunnelRunning, Process: &process})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	manager, _ := NewTunnelManager(root, processes, &tunnelRemote{})
+	if err := manager.Ensure(t.Context(), spec); err != nil {
+		t.Fatal(err)
+	}
+	if processes.starts.Load() != 2 || processes.stops.Load() != 1 {
+		t.Fatal("shared tunnel was not replaced exactly once")
+	}
+	if err := store.WithTask(t.Context(), spec.Owner.Task, func(lease *TunnelLease) error {
+		record, err := lease.Read()
+		if err != nil {
+			return err
+		}
+		if record.Spec.PrimaryWorkerSocket != PrimaryWorkerSocketPath(root, spec.Owner.Task) || record.Spec.Owner != spec.Owner {
+			t.Fatal("lost worker identity or task listener destination")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTunnelManagerPersistsBackoffWithoutReplacingUnreachableProcess(t *testing.T) {
 	root, spec := tunnelFixture(t)
 	processes := &tunnelProcesses{status: primary.ProcessRunning}

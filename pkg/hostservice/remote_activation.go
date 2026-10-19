@@ -185,6 +185,9 @@ func (server *Server) activateRemoteWorkerLocked(
 		Tools:          tools,
 		Authentication: request.Worktree.Location.Authentication,
 	}
+	if err := server.ensureTaskWorkerSocket(taskID); err != nil {
+		return err
+	}
 	if err := server.tunnels.Ensure(ctx, spec); err != nil {
 		return err
 	}

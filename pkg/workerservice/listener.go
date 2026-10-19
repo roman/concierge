@@ -20,6 +20,14 @@ func Listen(root string) (*net.UnixListener, error) {
 		return nil, err
 	}
 	path := filepath.Join(root, "worker.sock")
+	return ListenPath(path)
+}
+
+// ListenPath requires the caller to hold the primary host lease for its root.
+func ListenPath(path string) (*net.UnixListener, error) {
+	if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
+		return nil, err
+	}
 	info, err := os.Lstat(path)
 	if err == nil {
 		if info.Mode()&os.ModeSocket == 0 {

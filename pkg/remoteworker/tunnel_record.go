@@ -1,7 +1,9 @@
 package remoteworker
 
 import (
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -26,15 +28,26 @@ const (
 )
 
 type TunnelSpec struct {
-	Owner              SocketOwner               `json:"owner"`
-	MachineID          string                    `json:"machine_id"`
-	Target             string                    `json:"target"`
-	Authentication     sshcommand.Authentication `json:"authentication,omitempty"`
-	Tools              Tools                     `json:"tools"`
-	PrimaryAgentSocket string                    `json:"primary_agent_socket,omitempty"`
+	Owner               SocketOwner               `json:"owner"`
+	MachineID           string                    `json:"machine_id"`
+	Target              string                    `json:"target"`
+	Authentication      sshcommand.Authentication `json:"authentication,omitempty"`
+	Tools               Tools                     `json:"tools"`
+	PrimaryAgentSocket  string                    `json:"primary_agent_socket,omitempty"`
+	PrimaryWorkerSocket string                    `json:"primary_worker_socket,omitempty"`
+}
+
+func PrimaryWorkerSocketPath(root, task string) string {
+	digest := sha256.Sum256([]byte(task))
+	return filepath.Join(root, fmt.Sprintf("w-%x.sock", digest[:16]))
 }
 
 func (spec TunnelSpec) Validate() error {
+	if spec.PrimaryWorkerSocket != "" && (!filepath.IsAbs(spec.PrimaryWorkerSocket) ||
+		spec.PrimaryWorkerSocket != PrimaryWorkerSocketPath(filepath.Dir(spec.PrimaryWorkerSocket), spec.Owner.Task) ||
+		strings.ContainsRune(spec.PrimaryWorkerSocket, ':') || strings.IndexFunc(spec.PrimaryWorkerSocket, unicode.IsControl) >= 0) {
+		return ErrTunnelOwnership
+	}
 	if spec.PrimaryAgentSocket != "" && (spec.Authentication != sshcommand.ForwardedAgent ||
 		!filepath.IsAbs(spec.PrimaryAgentSocket) || strings.ContainsRune(spec.PrimaryAgentSocket, ':') ||
 		strings.IndexFunc(spec.PrimaryAgentSocket, unicode.IsControl) >= 0) {
