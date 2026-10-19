@@ -10,6 +10,10 @@ import (
 )
 
 func (command *taskCommands) report(ctx context.Context, root string, output io.Writer) int {
+	if command.Report.Format == "body" && command.Report.ReplyID == "" {
+		return fail(output, 2, fmt.Errorf("body format requires a reply ID"),
+			"use concierge task report TASK_ID REPLY_ID --format body > reply.md")
+	}
 	service, err := taskops.New(root)
 	if err != nil {
 		return fail(output, 2, err, "use an initialized Concierge state root")
@@ -42,6 +46,12 @@ func (command *taskCommands) report(ctx context.Context, root string, output io.
 			err,
 			"use concierge task report TASK_ID to list saved reply IDs",
 		)
+	}
+	if command.Report.Format == "body" {
+		if _, err := io.WriteString(output, report.Body); err != nil {
+			return 1
+		}
+		return 0
 	}
 	if _, err := fmt.Fprintf(output, "status: archived\ntask: %s\ngeneration: %s\nbody: %s\n", quote(report.Task), quote(report.SpawnGeneration), quote(report.Body)); err != nil {
 		return 1

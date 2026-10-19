@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +57,24 @@ func TestReportCommandReadsHistoricalEvidence(t *testing.T) {
 				t.Fatalf("report code %d: %s", code, &output)
 			}
 			output.Reset()
+			bodyArgs := []string{
+				"--root",
+				root,
+				"task",
+				"report",
+				"scout-1",
+				message.ID.String(),
+				"--format",
+				"body",
+			}
+			code = Run(context.Background(), bodyArgs, nil, &output, io.Discard)
+			if code != 0 || output.String() != "Findings\nwith evidence" {
+				t.Fatalf("body report code %d: %q", code, output.String())
+			}
+			if code := Run(context.Background(), bodyArgs, nil, failedSettingsWriter{}, io.Discard); code != 1 {
+				t.Fatalf("failed body output code %d", code)
+			}
+			output.Reset()
 			code = Run(context.Background(), []string{"--root", root, "task", "report", "scout-1"},
 				nil, &output, io.Discard)
 			want = "count: 1\nreports[1]{reply_id,created_at}:\n  " + quote(
@@ -66,6 +85,23 @@ func TestReportCommandReadsHistoricalEvidence(t *testing.T) {
 				) + "\n"
 			if code != 0 || output.String() != want {
 				t.Fatalf("list code %d: %s", code, &output)
+			}
+		})
+	}
+}
+
+func TestTaskReportRejectsBodyFormatWithoutReply(t *testing.T) {
+	for _, format := range []string{"body", "invalid"} {
+		t.Run(format, func(t *testing.T) {
+			var output bytes.Buffer
+			code := Run(context.Background(), []string{
+				"--root", t.TempDir(), "task", "report", "task-1", "--format", format,
+			}, nil, &output, io.Discard)
+			if code != 2 || !strings.Contains(output.String(), "error:") {
+				t.Fatalf("code %d: %s", code, &output)
+			}
+			if format == "body" && !strings.Contains(output.String(), "reply ID") {
+				t.Fatalf("missing reply ID guidance: %s", &output)
 			}
 		})
 	}

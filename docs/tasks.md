@@ -144,6 +144,16 @@ concierge task stop task-1 --generation GEN
 concierge backlog cleanup task-1 --generation GEN
 ```
 
+Saved reports remain readable after worker cleanup. List them with
+`concierge task report TASK_ID`. Read a selected report with
+`concierge task report TASK_ID REPLY_ID`. The default `--format toon` includes
+archive metadata and a quoted body. Use `--format body` with a reply ID to
+write only the exact reply text, without headers, quoting, or an added newline:
+
+```sh
+concierge task report TASK_ID REPLY_ID --format body > reply.md
+```
+
 Act on a reply only when `check` reports `status: current`. Resolution verifies
 its assignment and worker generation, records acceptance, and acknowledges the
 reply. Close requires an explicit valid closing date. Retry the same reply ID,
