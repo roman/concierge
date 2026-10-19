@@ -1,0 +1,195 @@
+# Set up remote workers
+
+Concierge runs coding workers on a saved Herdr machine over SSH. The primary
+stays on your development machine and owns task state, supervision, result
+acceptance, and delivery. The supported remote platform is Apple Silicon macOS.
+`baker` below is an example saved machine name; use your own machine name.
+
+For the component and protocol design, read [remote architecture](remote-architecture.md).
+For disconnects, retained replies, and cleanup, read [remote operations](remote-workers.md).
+
+## 1. Prepare the primary and remote
+
+On the primary, install Concierge through the [development shell](development-shell.md).
+Select a Concierge revision with the remote machine commands. Remote workers
+require format-three state. Fresh `state init` creates version-two state, so
+upgrade it before starting a host or launching workers. From the project shell,
+with a new backup path outside the state root:
+
+```sh
+concierge state init
+concierge state upgrade --backup /absolute/path/concierge-before-remotes
+concierge
+```
+
+For existing state, follow the full
+[remote state upgrade procedure](state.md#upgrade-local-state-for-remote-records).
+It requires retiring workers and stopping state writers first. Start a native
+primary session through the project's root hooks after the upgrade.
+The primary must hold an active ownership claim before machine preparation or
+worker launch.
+
+On the remote, install these tools declaratively through your Nix configuration:
+
+- Nix with flakes enabled.
+- Herdr 0.9.5 or newer, with a compatible server already running.
+- The selected native agent, Codex or Claude.
+- The project's development tools and dependencies.
+
+Nix and Herdr must be available to non-interactive SSH commands. Concierge does
+not install or replace the remote Herdr server. Project shells that run native
+Codex workers also need Python 3 for Herdr's session hook. The Concierge shell
+module declares this dependency; custom shells must declare it themselves.
+
+Complete the agent login on the remote:
+
+```sh
+# Choose the agent you intend to run.
+codex login
+codex login status
+
+# Or:
+claude auth login
+claude auth status
+```
+
+Concierge preserves native agent permissions and login configuration. Resolve
+folder trust and other native dialogs on the remote when they appear.
+
+## 2. Register the SSH machine
+
+Configure SSH login from the primary and verify the remote host key. Use an SSH
+host entry without existing `LocalForward`, `RemoteForward`, `DynamicForward`,
+or `Tunnel` settings. Concierge manages its own socket forwards.
+
+Register the machine with `herdr machine add`, then inspect the saved profile:
+
+```sh
+herdr machine list --json
+```
+
+Keep the stable machine ID and SSH target from that profile. The configuration
+key in the next step is the stable ID. The `target` value is its saved SSH target.
+Herdr owns the machine registration and remote session selection.
+
+## 3. Choose repository authentication
+
+| Mode | Where repository credentials live | Operator setup |
+| --- | --- | --- |
+| `remote` (default) | Remote machine | Provision repository credentials there; a read-only deploy key is sufficient. |
+| `agent-forwarding` | Primary SSH agent | Load the key on the primary and let the Concierge host inherit `SSH_AUTH_SOCK`. |
+
+In either mode, verify the Git server's host key on the remote. Check repository
+access there with `git ls-remote -- URL`. Preparation checks access without
+interactive prompts. Concierge does not provision keys or copy agent logins.
+
+For forwarding, load and inspect the primary's agent before starting the host:
+
+```sh
+ssh-add /path/to/repository-key
+ssh-add -l
+```
+
+An agent started in another terminal does not update an already running host's
+environment. Ensure the host inherits the working socket. A missing agent or an
+agent without usable keys blocks preparation.
+
+Choose forwarding only for a trusted remote and trusted worker processes.
+Processes with access to the remote agent socket can request authentication
+with your loaded keys. Private keys and passphrases stay on the primary.
+Workers receive a fixed socket in their private generation directory, which
+survives tunnel reconnection without changing the worker's environment.
+
+## 4. Declare the machine and repositories
+
+Create `config/machines.json` under the Concierge state root, normally
+`.concierge/config/machines.json` in the adopting project:
+
+```json
+{
+  "SAVED_MACHINE_ID": {
+    "target": "baker",
+    "base": "/Users/roman/concierge",
+    "agent": "codex",
+    "authentication": "agent-forwarding",
+    "repositories": [
+      {"name": "concierge", "url": "git@github.com:roman/concierge.git"},
+      {"name": "my-project", "url": "git@github.com:owner/my-project.git"}
+    ]
+  }
+}
+```
+
+Replace the profile ID, target, paths, and repository URLs. Use an absolute,
+private remote base directory that is empty before first preparation. Include
+the Concierge repository, the task repository, and every dependency repository.
+Repository names match the names used by `backlog add --repo`. The primary
+project's `origin` must match its declared URL.
+
+Omit `authentication` or select `remote` for credentials stored on the remote.
+Forwarding requires an explicit selection for each saved machine.
+
+## 5. Check and prepare
+
+Run these commands from the primary's project shell and state root:
+
+```sh
+concierge machine check baker
+concierge machine prepare baker --client-source /path/to/clean/concierge
+concierge machine status baker
+```
+
+`check` reports missing prerequisites and the corresponding operator action.
+`prepare` creates owned repository checkouts under the remote base. It clones
+or fetches their declared origins. It transfers a Git bundle from the clean
+Concierge source checkout's committed HEAD and builds that client with remote
+Nix. Unpublished commits can be prepared without pushing them. Local Git
+configuration and uncommitted files are excluded from the transfer.
+
+The source checkout's origin must match the declared Concierge URL. Repeating
+preparation reuses owned directories. A foreign directory or a changed origin
+stops preparation. `status` verifies the prepared client executable as well as
+the machine setup.
+
+## 6. Launch a task
+
+Queue a task through the normal [task workflow](tasks.md). Add `--machine` to
+the usual [launch command](launch.md):
+
+```sh
+concierge launch task-1 --machine baker --harness codex \
+  --project /absolute/primary/my-project --branch task/task-1 \
+  --base-commit FULL_COMMIT_ID --body-file brief.txt
+```
+
+Use the primary project path, a full commit ID, and a new task branch. Concierge
+selects the remote checkout and launches the agent through Herdr. The recorded
+launch captures the machine, authentication mode, and prepared client revision.
+An interrupted launch must retain those settings on retry.
+
+Codex keeps its native approval policy. To select native automatic review for
+one launch, append `--agent-arg=-c --agent-arg=approvals_reviewer=auto_review`.
+This does not change the user's configuration or disable the sandbox. Any
+remaining native input appears in the recorded remote pane.
+
+Inspect the worker with `concierge worker show task-1`. Accept its result through
+the normal task workflow, then use `concierge land task-1` under the project's
+merge authority. For remote workers, the primary imports and publishes the
+selected commit in both fast-forward and PR delivery modes. The remote needs
+no repository write credentials.
+
+## Optional end-to-end acceptance
+
+From a native primary session in the clean, committed Concierge checkout:
+
+```sh
+bash scripts/acceptance-remote.sh baker /tmp/concierge-remote-report.md
+```
+
+The report path must not already exist. The workflow needs a loaded primary
+SSH agent and an existing remote Codex login. It creates isolated state and
+owned remote directories, runs real scout and ship workers, tests primary
+restart and tunnel recovery, and lands into a temporary local Git origin.
+It does not push to the source repository. Resolve native trust dialogs in the
+pane reported by the run. See the [README](../README.md#remote-workers) for
+the acceptance worker's native approval settings and runtime effects.

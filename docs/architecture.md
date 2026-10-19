@@ -1,5 +1,8 @@
 # Architecture
 
+For remote execution, see [remote architecture](remote-architecture.md) for
+component boundaries, protocol flows, result delivery, and connection recovery.
+
 Concierge owns task state and worker lifecycle. Tincan owns durable message
 delivery. Herdr owns terminal sessions and agent processes. Treehouse owns
 worktree leases. The host coordinates those external effects through recorded

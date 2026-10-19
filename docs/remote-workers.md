@@ -1,8 +1,12 @@
-# Remote workers
+# Remote worker operations
 
 One primary host manages local and remote workers. A remote worker uses its own
 checkout and calls the primary through a separate, task-scoped worker socket.
 The primary host socket stays local. Local workers keep their existing paths.
+
+Start with [remote setup](remote-setup.md) for a step-by-step installation and
+first launch. Read [remote architecture](remote-architecture.md) for the
+components and protocol diagrams.
 
 ## Operator setup
 

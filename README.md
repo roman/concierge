@@ -59,7 +59,9 @@ Verify the SSH host keys on both machines before running unattended commands.
 Declare the saved machine ID, its SSH target, a private remote base directory,
 the agent, and repository URLs in `config/machines.json` under the state root.
 Include the `concierge` repository and every project or dependency repository.
-See the [remote worker guide](docs/remote-workers.md) for the configuration.
+See the [remote setup guide](docs/remote-setup.md) for the configuration and
+first launch. The [remote architecture guide](docs/remote-architecture.md)
+explains the components and execution flow with Mermaid diagrams.
 Set `authentication` to `agent-forwarding` to use keys loaded in the primary's
 SSH agent. Omit it or select `remote` to use the remote's own credentials.
 
@@ -130,6 +132,8 @@ architectures on each platform.
 - [Task lifecycle and lease cleanup](docs/tasks.md)
 - [Worker launch and native checkpoints](docs/launch.md)
 - [Remote workers and reply recovery](docs/remote-workers.md)
+- [Remote setup and first launch](docs/remote-setup.md)
+- [Remote architecture and protocol flow](docs/remote-architecture.md)
 - [Supervision and root hooks](docs/supervision.md)
 - [State roots and migration](docs/state.md)
 - [Development shell integration](docs/development-shell.md)
