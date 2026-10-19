@@ -119,6 +119,12 @@ published branch stops landing.
 
 ## Connection and reply recovery
 
+Remote result bundles have a default limit of 1 GiB. Set `max_result_bytes`
+to a positive byte count in the machine's `config/machines.json` entry to
+change it. Zero selects the default. The primary checks the bounded result
+header before writing bundle bytes and stops the SSH producer on overflow.
+A failed transfer does not select or import a result.
+
 `concierge worker show TASK_ID` reports Herdr and tunnel reachability separately,
 including retry times. A failed probe means unreachable. It does not free a
 lease, change a generation, or consume the worker's restart tolerance. The host

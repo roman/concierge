@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"os"
 	"slices"
 	"testing"
 
@@ -20,6 +22,48 @@ type resultSSHFixture struct {
 	header  WorktreeResult
 	payload []byte
 	failure error
+}
+
+func TestRemoteResultRejectsOversizedBundleAndRemovesSpool(t *testing.T) {
+	_, held := remoteReturnFixture(t)
+	request := WorktreeResultRequest{
+		Worktree: held.Worktree,
+		Lease:    held.Lease,
+		Commit:   held.Worktree.BaseCommit,
+	}
+	profile := herdr.SavedMachine{
+		ID:      held.Worktree.Location.Machine,
+		Target:  held.Worktree.Location.Target,
+		Enabled: true,
+	}
+	for _, size := range []int{16, 17} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			directory := t.TempDir()
+			t.Setenv("TMPDIR", directory)
+			fixture := &resultSSHFixture{t: t, profile: profile, request: request,
+				header: WorktreeResult{
+					Lease:  held.Lease,
+					Commit: request.Commit,
+				}, payload: bytes.Repeat([]byte("x"), size)}
+			var output bytes.Buffer
+			_, err := (WorktreeTransport{Runner: fixture, MaxResultBytes: 16}).ExportResult(
+				context.Background(),
+				profile,
+				request,
+				&output,
+			)
+			if size == 16 && (err != nil || output.Len() != size) {
+				t.Fatalf("bounded result: bytes=%d err=%v", output.Len(), err)
+			}
+			if size > 16 && (!errors.Is(err, sshcommand.ErrOutputLimit) || output.Len() != 0) {
+				t.Fatalf("oversized result published: bytes=%d err=%v", output.Len(), err)
+			}
+			entries, err := os.ReadDir(directory)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("result spool retained: %v %v", entries, err)
+			}
+		})
+	}
 }
 
 func (fixture *resultSSHFixture) Run(context.Context, []string, io.Reader) ([]byte, []byte, error) {

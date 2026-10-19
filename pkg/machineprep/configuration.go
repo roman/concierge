@@ -19,6 +19,7 @@ type Configuration struct {
 	Agent          string                    `json:"agent"`
 	Authentication sshcommand.Authentication `json:"authentication,omitempty"`
 	Repositories   []Repository              `json:"repositories"`
+	MaxResultBytes int64                     `json:"max_result_bytes,omitempty"`
 }
 
 // DecodeConfiguration binds operator-owned preparation settings to the saved ID
@@ -48,6 +49,9 @@ func DecodeConfiguration(data []byte, machine herdr.SavedMachine) (Configuration
 }
 
 func (configuration Configuration) Validate() error {
+	if configuration.MaxResultBytes < 0 {
+		return errors.New("max_result_bytes must be zero for the default or a positive byte limit")
+	}
 	if err := configuration.Authentication.Validate(); err != nil {
 		return err
 	}

@@ -2,9 +2,11 @@ package sshcommand
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBatchArgumentsQuoteCommandsAndDisableForwarding(t *testing.T) {
@@ -32,6 +34,21 @@ func TestBatchArgumentsQuoteCommandsAndDisableForwarding(t *testing.T) {
 		if _, err := BatchArguments(target, "true"); err == nil {
 			t.Fatalf("unsafe SSH target accepted: %q", target)
 		}
+	}
+}
+
+type rejectingWriter struct{}
+
+func (rejectingWriter) Write([]byte) (int, error) { return 0, ErrOutputLimit }
+
+func TestStreamingRunnerStopsProducerOnRejectedOutput(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	started := time.Now()
+	_, err := (SystemRunner{Executable: "/bin/sh"}).RunTo(ctx,
+		[]string{"-c", "while :; do printf 'unbounded output'; done"}, nil, rejectingWriter{})
+	if !errors.Is(err, ErrOutputLimit) || ctx.Err() != nil || time.Since(started) > 3*time.Second {
+		t.Fatalf("producer did not stop on overflow: %v (context: %v)", err, ctx.Err())
 	}
 }
 

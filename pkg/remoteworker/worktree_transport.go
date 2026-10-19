@@ -13,7 +13,10 @@ import (
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
-type WorktreeTransport struct{ Runner sshcommand.Runner }
+type WorktreeTransport struct {
+	Runner         sshcommand.Runner
+	MaxResultBytes int64
+}
 
 // DecodeWorktreeRequest accepts only the bounded native setup protocol.
 func DecodeWorktreeRequest(input io.Reader) (WorktreeRequest, error) {

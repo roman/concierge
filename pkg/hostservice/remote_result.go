@@ -64,8 +64,9 @@ func (exporter hostRemoteResultExporter) Export(
 			if err := locked.CheckCurrent(); err != nil {
 				return err
 			}
-			result, err := (hostRemoteLeases{server: exporter.server}).transport().
-				ExportResult(ctx, profile, request, output)
+			transport := (hostRemoteLeases{server: exporter.server}).transport()
+			transport.MaxResultBytes = configuration.MaxResultBytes
+			result, err := transport.ExportResult(ctx, profile, request, output)
 			if err != nil {
 				return err
 			}

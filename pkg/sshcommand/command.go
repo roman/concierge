@@ -98,17 +98,38 @@ func (runner SystemRunner) RunTo(
 	if executable == "" {
 		executable = "ssh"
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	command := exec.CommandContext(ctx, executable, arguments...)
 	command.Env = ConnectionEnvironment(os.Environ())
 	command.Stdin = input
 	command.WaitDelay = time.Second
 	var stderr limitedBuffer
-	command.Stdout, command.Stderr = output, &stderr
+	stdout := &cancelOnWriteError{output: output, cancel: cancel}
+	command.Stdout, command.Stderr = stdout, &stderr
 	err := command.Run()
+	if stdout.failure != nil {
+		return stderr.Bytes(), stdout.failure
+	}
 	if stderr.overflow {
 		return nil, ErrOutputLimit
 	}
 	return stderr.Bytes(), err
+}
+
+type cancelOnWriteError struct {
+	output  io.Writer
+	cancel  context.CancelFunc
+	failure error
+}
+
+func (writer *cancelOnWriteError) Write(data []byte) (int, error) {
+	n, err := writer.output.Write(data)
+	if err != nil {
+		writer.failure = err
+		writer.cancel()
+	}
+	return n, err
 }
 
 func ConnectionEnvironment(environment []string) []string {
