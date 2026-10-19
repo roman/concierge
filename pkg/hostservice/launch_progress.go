@@ -47,6 +47,7 @@ func (server *Server) trackedLaunchResult(
 			errors.Is(cause, herdr.ErrResponse) || errors.Is(cause, herdr.ErrAgentPresent) ||
 			errors.Is(cause, taskops.ErrInitialLaunchIdentity) ||
 			errors.Is(cause, taskops.ErrNativeCheckpoint) ||
+			errors.Is(cause, herdr.ErrNativeStartup) ||
 			errors.Is(cause, worktree.ErrIdentity) ||
 			errors.Is(cause, taskstate.ErrInvalidTransition) ||
 			(intent.Endpoint == nil && intent.Phase == taskstate.LaunchPaneRequested && errors.Is(cause, herdr.ErrNotFound)) {

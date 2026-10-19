@@ -163,7 +163,7 @@ func (c Client) startWithEnvironment(
 	if len(agentArgs) > 0 {
 		args = append(append(args, "--"), agentArgs...)
 	}
-	if _, err := c.shared().Run(ctx, args...); err != nil {
+	if err := c.runNativeStart(ctx, paneID, args); err != nil {
 		return err
 	}
 	agent, err := c.Get(ctx, name)

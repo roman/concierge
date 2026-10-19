@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/primary"
 	"github.com/roman/concierge/pkg/taskstate"
 )
@@ -116,6 +117,10 @@ func TestLaunchProgressRequiresMatchingRecoveryAdmission(t *testing.T) {
 	response, err := server.trackedLaunchResult(ctx, input, cause)
 	if err != nil || response.Outcome != Pending {
 		t.Fatalf("matching tracked launch: %+v, %v", response, err)
+	}
+	response, err = server.trackedLaunchResult(ctx, input, herdr.ErrNativeStartup)
+	if err != nil || response.Outcome != Blocked {
+		t.Fatalf("failed native startup still pending: %+v %v", response, err)
 	}
 }
 

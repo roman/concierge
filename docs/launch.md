@@ -116,6 +116,15 @@ default read-only permissions cannot add the private task directory as a
 writable root. Captured launches retain their original arguments on recovery.
 Local launches and Claude launches keep their existing permission settings.
 
+A remote native startup can fail before Herdr registers the worker. Concierge
+reports a fresh native error after two shell-only process samples. It cancels
+the startup wait and releases its task and endpoint reservations. An
+unreachable endpoint or an old screen error does not establish startup failure.
+Inspect the recorded pane, close its launch resources, then run
+`concierge task abandon TASK_ID --generation GENERATION`. Abandonment still
+requires confirmed resource absence and retains the worktree lease. `task stop`
+reports this recovery step for an initial launch without a confirmed worker.
+
 A blocked initial worker remains an unadopted launch intent. Concierge reports
 `checkpoint: folder_trust` for a recognized Claude workspace trust dialog and
 `checkpoint: native_input` for other blocked input or unavailable screen text.

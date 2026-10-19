@@ -170,6 +170,10 @@ func TestHostRemoteLaunchConnectsNativeWorktreeActivationAndDispatch(t *testing.
 	}
 }
 
+func TestFailedRemoteNativeStartupReleasesLaunchAndAllowsAbandonment(t *testing.T) {
+	testHostRemoteLaunchBridge(t, "native startup failed")
+}
+
 func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	t.Helper()
 	server, input, _ := remoteHostLaunchFixture(t)
@@ -265,6 +269,62 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	script := fmt.Sprintf(remoteLaunchBridgeHerdr, tools)
 	if err := os.WriteFile(server.config.HerdrExecutable, []byte(script), 0700); err != nil {
 		t.Fatal(err)
+	}
+	if mode == "native startup failed" {
+		if err := os.WriteFile(filepath.Join(tools, "fail-native-start"), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		response, err := server.launch(ctx, input)
+		if err != nil || response.Outcome != Blocked ||
+			!strings.Contains(response.Error, "effective permissions reject /remote/task") ||
+			ctx.Err() != nil {
+			t.Fatalf("native failure: %+v %v", response, err)
+		}
+		intent := response.Transition.LaunchIntent
+		if intent == nil || intent.Phase != taskstate.LaunchAgentRequested ||
+			response.Transition.Worker != nil {
+			t.Fatal("native failure changed the captured launch")
+		}
+		release, err := server.controllers.reserveInitialLaunch(
+			controllerKey{kind: taskController, id: input.TaskID},
+		)
+		if err != nil {
+			t.Fatalf("failed startup retained its reservation: %v", err)
+		}
+		release()
+		_, err = server.perform(
+			ctx,
+			Request{
+				Operation:  Stop,
+				Transition: &TransitionRequest{TaskID: input.TaskID, Generation: intent.Generation},
+			},
+		)
+		if errors.Is(err, errControllerBusy) {
+			t.Fatal("stop retained the startup reservation")
+		}
+		if err == nil || !strings.Contains(err.Error(), "task abandon") {
+			t.Fatalf("unbound stop omitted abandonment guidance: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(tools, "gone"), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+		abandoned, err := server.perform(
+			ctx,
+			Request{
+				Operation:  AbandonLaunch,
+				Transition: &TransitionRequest{TaskID: input.TaskID, Generation: intent.Generation},
+			},
+		)
+		if err != nil || abandoned.Abandoned == nil || abandoned.Abandoned.Lease != intent.Lease {
+			t.Fatalf(
+				"failed launch could not be abandoned with its lease retained: %+v %v",
+				abandoned,
+				err,
+			)
+		}
+		return
 	}
 	response, err := server.executeInitialLaunch(context.Background(), input, operatorLaunch)
 	expectedCopies := 1
@@ -559,6 +619,7 @@ fi
 [ "$1 $2" = '--machine saved-id' ] || exit 73
 shift 2
 case "$1 $2" in
+'workspace list') if [ -f "$state/gone" ]; then printf '%%s' '{"result":{"workspaces":[]}}'; else exit 73; fi ;;
 'workspace create')
  shift 2
  while [ "$#" -gt 0 ]; do
@@ -571,14 +632,19 @@ case "$1 $2" in
  if [ -f "$state/gone" ]; then printf '%%s' '{"error":{"code":"pane_not_found"}}' >&2; exit 1; fi
  printf '{"result":{"pane":{"workspace_id":"w1","tab_id":"w1:t1","pane_id":"w1:p1","foreground_cwd":"%%s"}}}' "$(cat "$state/cwd")"
  ;;
-'pane process-info') printf '%%s' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"w1:p1","shell_pid":100,"foreground_processes":[{"pid":101,"name":"codex","argv0":"codex"}]}}}' ;;
+'pane process-info')
+ if [ -f "$state/fail-native-start" ]; then printf '%%s' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"w1:p1","shell_pid":100,"foreground_processes":[{"pid":100,"name":"zsh","argv0":"zsh"}]}}}';
+ else printf '%%s' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"w1:p1","shell_pid":100,"foreground_processes":[{"pid":101,"name":"codex","argv0":"codex"}]}}}'; fi ;;
+'agent read')
+ if [ -f "$state/fail-native-start" ] && [ -f "$state/started" ]; then printf 'Error adding directories: effective permissions reject /remote/task\nshell prompt\n'; else printf 'shell prompt\n'; fi ;;
 'agent get')
- if [ -f "$state/missing" ] || [ ! -f "$state/started" ]; then printf '%%s' '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi
+ if [ -f "$state/fail-native-start" ] || [ -f "$state/missing" ] || [ ! -f "$state/started" ]; then printf '%%s' '{"error":{"code":"agent_not_found"}}' >&2; exit 1; fi
  printf '%%s' '{"result":{"agent":{"pane_id":"w1:p1","agent":"codex","agent_status":"idle","agent_session":{"source":"herdr:codex","agent":"codex","kind":"id","value":"native-session"}}}}'
  ;;
 'agent start')
  rm -f "$state/missing"
  printf 'start\n' >> "$state/started"
+ if [ -f "$state/fail-native-start" ]; then exec sleep 60; fi
  if [ -f "$state/lose-start" ]; then rm "$state/lose-start"; exit 72; fi
  printf '%%s' '{"result":{}}'
  ;;

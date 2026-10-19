@@ -2,6 +2,7 @@ package taskops
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/presentation"
@@ -58,6 +59,15 @@ func CheckStop(task taskstate.Task, generation string) error {
 		return nil
 	}
 	worker := task.Snapshot().Worker
+	if intent := task.Snapshot().LaunchIntent; worker == nil && intent != nil &&
+		intent.Generation == generation {
+		return fmt.Errorf(
+			"%w: the initial launch has no confirmed worker; inspect and close its recorded pane, then use concierge task abandon %s --generation %s",
+			taskstate.ErrInvalidTransition,
+			task.ID(),
+			generation,
+		)
+	}
 	if worker == nil || worker.Generation != generation || worker.PendingAdoption ||
 		worker.PendingGeneration != "" ||
 		worker.PendingLaunch != "" ||
