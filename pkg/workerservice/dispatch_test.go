@@ -38,7 +38,7 @@ func dispatchFixture(t *testing.T) (*Server, *taskstate.Store, *inbox.Store, Req
 		t.Fatal(err)
 	}
 	if _, err := store.ReserveAdoption(ctx, "task-1", taskstate.Worker{
-		Machine: "baker", Name: "worker", Harness: "codex", Session: "work", Pane: "pane-1",
+		Machine: "dev-remote", Name: "worker", Harness: "codex", Session: "work", Pane: "pane-1",
 		Project: "/remote/repo", Worktree: "/remote/worktree", Generation: "gen-1",
 		AgentArgs: []string{"resume", "thread"},
 	}); err != nil {

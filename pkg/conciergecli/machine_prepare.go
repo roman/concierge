@@ -24,8 +24,8 @@ client source with Nix. Its Git bundle contains no local Git configuration.
 Commit source changes first. Supply repository keys and the agent login by hand.
 
 Examples:
-  concierge machine prepare baker
-  concierge machine prepare baker --client-source /path/to/concierge`
+  concierge machine prepare dev-remote
+  concierge machine prepare dev-remote --client-source /path/to/concierge`
 }
 
 func (command machinePrepareCommand) run(

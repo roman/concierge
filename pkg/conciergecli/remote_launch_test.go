@@ -21,7 +21,7 @@ func TestLaunchResolvesMachineLabelAndSendsPrimaryProject(t *testing.T) {
 	herdr := filepath.Join(t.TempDir(), "herdr")
 	script := `#!/bin/sh
 [ "$1 $2" = 'machine list' ] || exit 73
-printf '%s' '[{"id":"saved-id","label":"baker","target":"synthetic-target","session":"remote-session","enabled":true}]'
+printf '%s' '[{"id":"saved-id","label":"dev-remote","target":"synthetic-target","session":"remote-session","enabled":true}]'
 `
 	if err := os.WriteFile(herdr, []byte(script), 0700); err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ printf '%s' '[{"id":"saved-id","label":"baker","target":"synthetic-target","sess
 			Outcome: hostservice.Pending, Error: "import confirmation pending", Transition: &snapshot,
 		})
 	}()
-	arguments := append(launchArguments(root), "--machine", "baker", "--herdr", herdr)
+	arguments := append(launchArguments(root), "--machine", "dev-remote", "--herdr", herdr)
 	var output bytes.Buffer
 	code := Run(ctx, arguments, strings.NewReader("Work remotely."), &output, io.Discard)
 	if code != 0 || !strings.Contains(output.String(), "launch: pending") ||

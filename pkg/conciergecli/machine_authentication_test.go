@@ -26,7 +26,7 @@ func TestMachineCheckUsesConfiguredForwardingMode(t *testing.T) {
 	code := runMachineCheck(
 		context.Background(),
 		root,
-		"baker",
+		"dev-remote",
 		preparationMachines{
 			herdr.SavedMachine{
 				ID:      "saved-id",

@@ -57,7 +57,7 @@ func remoteProjectAt(t *testing.T, base string) (Worktrees, taskstate.RemoteLeas
 	remoteProjectGit(t, git, bare, "remote", "set-head", "origin", "--auto")
 	location := taskstate.RemoteLease{
 		Machine:        "machine-1",
-		Target:         "baker",
+		Target:         "dev-remote",
 		PrimaryRoot:    "/primary/metadata-only",
 		PrimaryProject: "/primary/never-open",
 		Base:           base,

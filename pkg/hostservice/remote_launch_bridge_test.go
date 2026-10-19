@@ -199,7 +199,7 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		authentication = sshcommand.ForwardedAgent
 	}
 	configuration := map[string]machineprep.Configuration{"saved-id": {
-		Target: "baker", Base: base, Agent: "codex",
+		Target: "dev-remote", Base: base, Agent: "codex",
 		Authentication: authentication,
 		Repositories: []machineprep.Repository{
 			{Name: "concierge", URL: "ssh://git.test/concierge.git"},
@@ -518,7 +518,7 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 const remoteLaunchBridgeHerdr = `#!/bin/sh
 state='%s'
 if [ "$1 $2" = 'machine list' ]; then
- printf '%%s' '[{"id":"saved-id","label":"baker","target":"baker","session":"default","enabled":true}]'
+ printf '%%s' '[{"id":"saved-id","label":"dev-remote","target":"dev-remote","session":"default","enabled":true}]'
  exit 0
 fi
 [ "$1 $2" = '--machine saved-id' ] || exit 73

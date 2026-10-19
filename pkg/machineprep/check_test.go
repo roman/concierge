@@ -149,8 +149,8 @@ func TestCheckRejectsInvalidInputsBeforeSSH(t *testing.T) {
 func testMachine() herdr.SavedMachine {
 	return herdr.SavedMachine{
 		ID:      "machine-id",
-		Label:   "baker",
-		Target:  "baker",
+		Label:   "dev-remote",
+		Target:  "dev-remote",
 		Session: "default",
 		Enabled: true,
 	}

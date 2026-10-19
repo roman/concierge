@@ -66,13 +66,13 @@ Set `authentication` to `agent-forwarding` to use keys loaded in the primary's
 SSH agent. Omit it or select `remote` to use the remote's own credentials.
 
 ```sh
-concierge machine check baker
-concierge machine prepare baker --client-source /path/to/clean/concierge
-concierge machine status baker
+concierge machine check dev-remote
+concierge machine prepare dev-remote --client-source /path/to/clean/concierge
+concierge machine status dev-remote
 ```
 
 Preparation builds the committed client with the remote Nix installation.
-Launch a queued task with the usual launch arguments plus `--machine baker`.
+Launch a queued task with the usual launch arguments plus `--machine dev-remote`.
 The primary owns supervision, result acceptance, landing, and lease cleanup.
 It imports a ship worker's immutable commit into a primary worktree before
 acceptance. Fast-forward delivery needs no remote push. PR delivery publishes
@@ -89,10 +89,10 @@ Run the optional acceptance workflow against a saved Apple Silicon macOS
 machine from a native primary session:
 
 ```sh
-bash scripts/acceptance-remote.sh baker /tmp/concierge-remote-report.md
+bash scripts/acceptance-remote.sh dev-remote /tmp/concierge-remote-report.md
 ```
 
-Replace `baker` with the saved machine to test. Ordinary integration tests do
+Replace `dev-remote` with the saved machine to test. Ordinary integration tests do
 not connect to a remote machine. The workflow requires committed, clean source,
 a loaded primary SSH agent, and an existing Codex login on the remote. It uses
 temporary state roots and an owned remote directory. It starts real scout and

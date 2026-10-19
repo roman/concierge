@@ -18,7 +18,7 @@ func TestMachineCommandsDropLocalSelection(t *testing.T) {
 		"HERDR_TAB_ID",
 		"HERDR_PANE_ID",
 	}
-	script := "#!/bin/sh\nif [ \"$1\" = machine ] && [ \"$2\" = list ]; then printf '%s\\n' '[{\"id\":\"baker\",\"label\":\"baker\",\"target\":\"fake-target\",\"session\":\"default\",\"enabled\":true}]'; exit 0; fi\n"
+	script := "#!/bin/sh\nif [ \"$1\" = machine ] && [ \"$2\" = list ]; then printf '%s\\n' '[{\"id\":\"dev-remote\",\"label\":\"dev-remote\",\"target\":\"fake-target\",\"session\":\"default\",\"enabled\":true}]'; exit 0; fi\n"
 	for _, variable := range variables {
 		t.Setenv(variable, "local-selection")
 		script += "if [ \"${" + variable + "+set}\" = set ]; then printf 'inherited=" + variable + "\\n'; fi\n"
@@ -33,7 +33,7 @@ func TestMachineCommandsDropLocalSelection(t *testing.T) {
 	if err := os.WriteFile(executable, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
-	client, err := NewClient(executable).ForMachine("baker")
+	client, err := NewClient(executable).ForMachine("dev-remote")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,14 +46,14 @@ func TestMachineCommandsDropLocalSelection(t *testing.T) {
 	}
 	if !strings.HasSuffix(
 		string(output),
-		"argument=--machine\nargument=baker\nargument=pane\nargument=list\n",
+		"argument=--machine\nargument=dev-remote\nargument=pane\nargument=list\n",
 	) {
 		t.Fatalf("missing machine routing: %s", output)
 	}
 }
 
 func TestMachineBindingValidation(t *testing.T) {
-	for _, label := range []string{"", "--session", "baker other", "baker;true", "baker/other"} {
+	for _, label := range []string{"", "--session", "dev-remote other", "dev-remote;true", "dev-remote/other"} {
 		t.Run(label, func(t *testing.T) {
 			if _, err := NewClient("herdr").ForMachine(label); err == nil {
 				t.Fatal("accepted invalid machine label")
@@ -108,7 +108,7 @@ func TestRemoteHealthUsesMachineProcessInfo(t *testing.T) {
 				{out: pane}, {out: agent}, {out: test.process},
 			}}
 			client := Client{MachineRunner: runner, Processes: forbiddenLocalProcesses{t}}
-			target, err := ParseMachineTarget("baker", "pane-1")
+			target, err := ParseMachineTarget("dev-remote", "pane-1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -116,9 +116,9 @@ func TestRemoteHealthUsesMachineProcessInfo(t *testing.T) {
 				t.Fatalf("health = %+v, want %s", status, test.want)
 			}
 			want := []machineCall{
-				{"baker", []string{"pane", "get", "pane-1"}},
-				{"baker", []string{"agent", "get", "pane-1"}},
-				{"baker", []string{"pane", "process-info", "--pane", "pane-1"}},
+				{"dev-remote", []string{"pane", "get", "pane-1"}},
+				{"dev-remote", []string{"agent", "get", "pane-1"}},
+				{"dev-remote", []string{"pane", "process-info", "--pane", "pane-1"}},
 			}
 			if !reflect.DeepEqual(runner.calls, want) {
 				t.Fatalf("calls = %+v, want %+v", runner.calls, want)
@@ -132,7 +132,7 @@ func TestRemoteProbeFailureDoesNotClassifyWorkerAbsent(t *testing.T) {
 		{err: errors.New("SSH connection failed")},
 		{out: `{"server":{"running":false}}`},
 	}}
-	target, err := ParseMachineTarget("baker", "pane-1")
+	target, err := ParseMachineTarget("dev-remote", "pane-1")
 	if err != nil {
 		t.Fatal(err)
 	}

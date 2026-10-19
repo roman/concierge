@@ -40,7 +40,7 @@ func TestSSHRemoteChecksUseFixedCommandsAndDeadline(t *testing.T) {
 				Machines: fixedMachineResolver{
 					SavedMachine{
 						ID:      "machine-1",
-						Target:  "user@baker",
+						Target:  "user@dev-remote",
 						Session: "work",
 						Enabled: true,
 					},
@@ -73,7 +73,7 @@ func TestSSHRemoteChecksUseFixedCommandsAndDeadline(t *testing.T) {
 				"-o",
 				"SetEnv=CONCIERGE_SSH_TRANSPORT=1",
 				"--",
-				"user@baker",
+				"user@dev-remote",
 				test.command,
 			}
 			if !reflect.DeepEqual(runner.args, want) {
@@ -96,11 +96,16 @@ func TestSSHRemoteCheckFailureIsUnreachable(t *testing.T) {
 		}
 		checks := SSHRemoteChecks{
 			Machines: fixedMachineResolver{
-				SavedMachine{Target: "baker", Session: "work", Enabled: true},
+				SavedMachine{Target: "dev-remote", Session: "work", Enabled: true},
 			},
 			Runner: runner,
 		}
-		stdout, _, err := checks.RunCheck(context.Background(), "baker", "work", ForegroundViewer)
+		stdout, _, err := checks.RunCheck(
+			context.Background(),
+			"dev-remote",
+			"work",
+			ForegroundViewer,
+		)
 		if !errors.Is(err, ErrUnreachable) || len(stdout) != 0 {
 			t.Fatalf("ambiguous response accepted: %s, %v", stdout, err)
 		}
@@ -117,11 +122,16 @@ func TestSSHRemoteChecksRejectChangedSessionAndUnknownOperation(t *testing.T) {
 		runner := &remoteCheckRunner{}
 		checks := SSHRemoteChecks{
 			Machines: fixedMachineResolver{
-				SavedMachine{Target: "baker", Session: "work", Enabled: true},
+				SavedMachine{Target: "dev-remote", Session: "work", Enabled: true},
 			},
 			Runner: runner,
 		}
-		if _, _, err := checks.RunCheck(context.Background(), "baker", test.session, test.check); err == nil ||
+		if _, _, err := checks.RunCheck(
+			context.Background(),
+			"dev-remote",
+			test.session,
+			test.check,
+		); err == nil ||
 			runner.args != nil {
 			t.Fatalf("invalid check executed: %q %v", runner.args, err)
 		}

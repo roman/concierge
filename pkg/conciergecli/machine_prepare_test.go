@@ -39,7 +39,7 @@ func TestMachinePrepareUsesPrimaryHostAndReportsBuiltCommit(t *testing.T) {
 		}
 		received <- request
 		_ = json.NewEncoder(connection).
-			Encode(hostservice.Response{Outcome: hostservice.Completed, PreparedMachine: &hostservice.PreparedMachineResult{MachineID: "saved-id", Target: "baker", Client: machineprep.Client{Commit: commit, Executable: "/remote/base/client/bin/concierge"}}})
+			Encode(hostservice.Response{Outcome: hostservice.Completed, PreparedMachine: &hostservice.PreparedMachineResult{MachineID: "saved-id", Target: "dev-remote", Client: machineprep.Client{Commit: commit, Executable: "/remote/base/client/bin/concierge"}}})
 	}()
 	t.Cleanup(func() { _ = listener.Close(); <-done })
 	source := t.TempDir()
@@ -48,7 +48,7 @@ func TestMachinePrepareUsesPrimaryHostAndReportsBuiltCommit(t *testing.T) {
 	var output bytes.Buffer
 	code := Run(
 		ctx,
-		[]string{"--root", root, "machine", "prepare", "baker", "--client-source", source},
+		[]string{"--root", root, "machine", "prepare", "dev-remote", "--client-source", source},
 		nil,
 		&output,
 		&output,
@@ -59,7 +59,7 @@ func TestMachinePrepareUsesPrimaryHostAndReportsBuiltCommit(t *testing.T) {
 	select {
 	case request := <-received:
 		if request.Operation != hostservice.PrepareMachine || request.MachinePreparation == nil ||
-			request.MachinePreparation.Label != "baker" ||
+			request.MachinePreparation.Label != "dev-remote" ||
 			request.MachinePreparation.ClientSource != source {
 			t.Fatalf("changed preparation request: %+v", request)
 		}

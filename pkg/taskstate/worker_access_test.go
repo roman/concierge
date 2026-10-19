@@ -12,7 +12,7 @@ func remoteAccessTask(t *testing.T) Task {
 	t.Helper()
 	snapshot := taskForTransition(t).Snapshot()
 	worker := workerForTransition()
-	worker.Machine, worker.Workspace, worker.Tab = "baker", "workspace-1", "tab-1"
+	worker.Machine, worker.Workspace, worker.Tab = "dev-remote", "workspace-1", "tab-1"
 	snapshot.State, snapshot.Worker = InFlight, &worker
 	task, err := NewMigrated(snapshot)
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 
 func TestRemoteWorkerShowsIndependentConnections(t *testing.T) {
 	worker := viewWorker()
-	worker.Machine = "baker"
+	worker.Machine = "dev-remote"
 	task := viewTask(t, "remote", taskstate.InFlight, worker, nil)
 	now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
 	var err error
@@ -39,7 +39,7 @@ func TestRemoteWorkerShowsIndependentConnections(t *testing.T) {
 	if err := WriteWorker(&output, task); err != nil {
 		t.Fatal(err)
 	}
-	want := "machine: \"baker\"\n" +
+	want := "machine: \"dev-remote\"\n" +
 		"herdr_reachability:\n  status: reachable\n  last_success: \"2026-10-17T12:00:00Z\"\n  last_error: null\n  next_retry: null\n" +
 		"tunnel_reachability:\n  status: unreachable\n  last_success: \"2026-10-17T12:00:00Z\"\n  last_error: \"SSH disconnected\"\n  next_retry: \"2026-10-17T12:00:02Z\"\n"
 	if !strings.Contains(output.String(), want) {
@@ -49,7 +49,7 @@ func TestRemoteWorkerShowsIndependentConnections(t *testing.T) {
 
 func TestUnprobedRemoteWorkerReportsUnknownConnections(t *testing.T) {
 	worker := viewWorker()
-	worker.Machine = "baker"
+	worker.Machine = "dev-remote"
 	var output bytes.Buffer
 	if err := WriteWorker(&output, viewTask(t, "remote", taskstate.InFlight, worker, nil)); err != nil {
 		t.Fatal(err)

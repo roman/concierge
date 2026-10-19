@@ -19,7 +19,7 @@ func TestClientBuildImportsExactUnpublishedCommitAndPreservesSource(t *testing.T
 	gitCommand(t, source, "init", "-b", "main")
 	commitFixture(t, source, "published")
 	configuration := Configuration{
-		Target:       "baker",
+		Target:       "dev-remote",
 		Base:         filepath.Join(t.TempDir(), "remote owner's base"),
 		Agent:        "codex",
 		Repositories: []Repository{{Name: "concierge", URL: "ssh://git.test/concierge.git"}},
@@ -120,7 +120,7 @@ if [ ! -L "$output" ]; then ln -s "$FAKE_CLIENT" "$output"; fi
 func TestClientBuildRejectsInvalidCommitBeforeSSH(t *testing.T) {
 	runner := &probeRunner{t: t}
 	configuration := Configuration{
-		Target:       "baker",
+		Target:       "dev-remote",
 		Base:         "/remote/base",
 		Agent:        "codex",
 		Repositories: []Repository{{Name: "concierge", URL: "ssh://git.test/concierge.git"}},

@@ -3,7 +3,7 @@
 Concierge runs coding workers on a saved Herdr machine over SSH. The primary
 stays on your development machine and owns task state, supervision, result
 acceptance, and delivery. The supported remote platform is Apple Silicon macOS.
-`baker` below is an example saved machine name; use your own machine name.
+`dev-remote` below is an example saved machine name; use your own machine name.
 
 For the component and protocol design, read [remote architecture](remote-architecture.md).
 For disconnects, retained replies, and cleanup, read [remote operations](remote-workers.md).
@@ -108,8 +108,8 @@ Create `config/machines.json` under the Concierge state root, normally
 ```json
 {
   "SAVED_MACHINE_ID": {
-    "target": "baker",
-    "base": "/Users/roman/concierge",
+    "target": "dev-remote",
+    "base": "/Users/developer/concierge",
     "agent": "codex",
     "authentication": "agent-forwarding",
     "repositories": [
@@ -134,9 +134,9 @@ Forwarding requires an explicit selection for each saved machine.
 Run these commands from the primary's project shell and state root:
 
 ```sh
-concierge machine check baker
-concierge machine prepare baker --client-source /path/to/clean/concierge
-concierge machine status baker
+concierge machine check dev-remote
+concierge machine prepare dev-remote --client-source /path/to/clean/concierge
+concierge machine status dev-remote
 ```
 
 `check` reports missing prerequisites and the corresponding operator action.
@@ -157,7 +157,7 @@ Queue a task through the normal [task workflow](tasks.md). Add `--machine` to
 the usual [launch command](launch.md):
 
 ```sh
-concierge launch task-1 --machine baker --harness codex \
+concierge launch task-1 --machine dev-remote --harness codex \
   --project /absolute/primary/my-project --branch task/task-1 \
   --base-commit FULL_COMMIT_ID --body-file brief.txt
 ```
@@ -183,7 +183,7 @@ no repository write credentials.
 From a native primary session in the clean, committed Concierge checkout:
 
 ```sh
-bash scripts/acceptance-remote.sh baker /tmp/concierge-remote-report.md
+bash scripts/acceptance-remote.sh dev-remote /tmp/concierge-remote-report.md
 ```
 
 The report path must not already exist. The workflow needs a loaded primary

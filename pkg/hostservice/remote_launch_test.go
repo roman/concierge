@@ -63,7 +63,7 @@ func remoteHostLaunchFixture(t *testing.T) (*Server, LaunchRequest, *interrupted
 	if err := os.MkdirAll(filepath.Join(server.config.Root, "config"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	configuration := `{"saved-id":{"target":"baker","base":"/remote/base","agent":"codex","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"},{"name":"` + definition.Repo + `","url":"ssh://git.test/project.git"}]}}`
+	configuration := `{"saved-id":{"target":"dev-remote","base":"/remote/base","agent":"codex","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"},{"name":"` + definition.Repo + `","url":"ssh://git.test/project.git"}]}}`
 	if err := os.WriteFile(filepath.Join(server.config.Root, "config", "machines.json"), []byte(configuration), 0600); err != nil {
 		t.Fatal(err)
 	}

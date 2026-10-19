@@ -52,7 +52,7 @@ func TestRepositoryPreparationClonesAndFetchesWithoutMovingTaskBranches(t *testi
 	gitCommand(t, source, "init", "-b", "main")
 	commitFixture(t, source, "first")
 	configuration := Configuration{
-		Target:       "baker",
+		Target:       "dev-remote",
 		Base:         filepath.Join(t.TempDir(), "remote owner's base"),
 		Agent:        "codex",
 		Repositories: []Repository{{Name: "concierge", URL: "ssh://git.test/concierge.git"}},
@@ -130,7 +130,7 @@ func TestRepositoryPreparationPreservesForeignPaths(t *testing.T) {
 				}
 			}
 			configuration := Configuration{
-				Target: "baker",
+				Target: "dev-remote",
 				Base:   base,
 				Agent:  "codex",
 				Repositories: []Repository{

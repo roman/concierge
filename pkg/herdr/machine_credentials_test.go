@@ -23,7 +23,7 @@ func machineCredentialFixture(t *testing.T, policy string) string {
 	}
 	herdrScript := `#!/bin/sh
 if [ "$1" = machine ] && [ "$2" = list ]; then
-    printf '%s\n' '[{"id":"saved-id","label":"baker","target":"fake-target","session":"default","enabled":true}]'
+    printf '%s\n' '[{"id":"saved-id","label":"dev-remote","target":"fake-target","session":"default","enabled":true}]'
     exit 0
 fi
 printf 'native-call\n'

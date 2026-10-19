@@ -48,7 +48,7 @@ func (runner *preparationSSH) Run(
 }
 
 func TestMachineConfigurationBindsSavedIdentityAndDestination(t *testing.T) {
-	valid := `{"machine-id":{"target":"baker","base":"/Users/roman/concierge","agent":"codex","repositories":[{"name":"concierge","url":"git@example.org:roman/concierge.git"}]}}`
+	valid := `{"machine-id":{"target":"dev-remote","base":"/Users/developer/concierge","agent":"codex","repositories":[{"name":"concierge","url":"git@example.org:roman/concierge.git"}]}}`
 	for _, test := range []struct {
 		name, config string
 		code         int
@@ -56,9 +56,9 @@ func TestMachineConfigurationBindsSavedIdentityAndDestination(t *testing.T) {
 		{"configured", valid, 0},
 		{"missing", "", 1},
 		{"different identity", strings.ReplaceAll(valid, "machine-id", "other-id"), 1},
-		{"different target", strings.ReplaceAll(valid, `"target":"baker"`, `"target":"other"`), 1},
-		{"relative base", strings.ReplaceAll(valid, "/Users/roman/concierge", "relative"), 1},
-		{"root base", strings.ReplaceAll(valid, "/Users/roman/concierge", "/"), 1},
+		{"different target", strings.ReplaceAll(valid, `"target":"dev-remote"`, `"target":"other"`), 1},
+		{"relative base", strings.ReplaceAll(valid, "/Users/developer/concierge", "relative"), 1},
+		{"root base", strings.ReplaceAll(valid, "/Users/developer/concierge", "/"), 1},
 		{"unknown field", strings.ReplaceAll(valid, `"agent":`, `"unknown":`), 1},
 		{"trailing object", valid + ` {}`, 1},
 		{"missing client repository", strings.ReplaceAll(valid, `"name":"concierge"`, `"name":"other"`), 1},
@@ -77,15 +77,15 @@ func TestMachineConfigurationBindsSavedIdentityAndDestination(t *testing.T) {
 			var output bytes.Buffer
 			machine := herdr.SavedMachine{
 				ID:      "machine-id",
-				Label:   "baker",
-				Target:  "baker",
+				Label:   "dev-remote",
+				Target:  "dev-remote",
 				Session: "default",
 				Enabled: true,
 			}
 			code := runMachineCheck(
 				context.Background(),
 				root,
-				"baker",
+				"dev-remote",
 				preparationMachines{machine},
 				runner,
 				&output,
@@ -133,14 +133,14 @@ func TestMachineStatusRequiresAConfirmedPreparedClient(t *testing.T) {
 		if err := os.Mkdir(filepath.Join(root, "config"), 0700); err != nil {
 			t.Fatal(err)
 		}
-		configuration := `{"machine-id":{"target":"baker","base":"/remote/base","agent":"codex","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"}]}}`
+		configuration := `{"machine-id":{"target":"dev-remote","base":"/remote/base","agent":"codex","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"}]}}`
 		if err := os.WriteFile(filepath.Join(root, "config", "machines.json"), []byte(configuration), 0600); err != nil {
 			t.Fatal(err)
 		}
 		machine := herdr.SavedMachine{
 			ID:      "machine-id",
-			Label:   "baker",
-			Target:  "baker",
+			Label:   "dev-remote",
+			Target:  "dev-remote",
 			Session: "default",
 			Enabled: true,
 		}
@@ -148,7 +148,7 @@ func TestMachineStatusRequiresAConfirmedPreparedClient(t *testing.T) {
 		code := runMachineStatus(
 			context.Background(),
 			root,
-			"baker",
+			"dev-remote",
 			preparationMachines{machine},
 			&preparationSSH{clientCommit: commit},
 			&output,

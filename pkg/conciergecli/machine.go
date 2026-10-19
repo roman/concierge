@@ -20,7 +20,7 @@ func (machineLabelCommand) Help() string {
 Use the ID from herdr machine list --json as the key. Pin the saved SSH target.
 Example (replace the ID, paths, and repository URL):
 
-{"SAVED_MACHINE_ID":{"target":"baker","base":"/Users/roman/concierge","agent":"codex","repositories":[{"name":"concierge","url":"git@github.com:roman/concierge.git"}]}}
+{"SAVED_MACHINE_ID":{"target":"dev-remote","base":"/Users/developer/concierge","agent":"codex","repositories":[{"name":"concierge","url":"git@github.com:roman/concierge.git"}]}}
 
 The agent must be codex or claude. Include every dependency and project repository.
 The concierge entry supplies the client source. Configuration changes create no credentials.
@@ -30,8 +30,8 @@ SSH agent with ssh-add and make SSH_AUTH_SOCK available to the Concierge process
 Private keys stay on the primary. Remote processes can use the forwarded agent.
 
 Examples:
-  concierge machine check baker
-  concierge machine status baker`
+  concierge machine check dev-remote
+  concierge machine status dev-remote`
 }
 
 type machineCommands struct {

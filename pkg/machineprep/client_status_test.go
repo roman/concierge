@@ -48,7 +48,7 @@ func TestReadPreparedClientRequiresOwnedMetadataAndUsableBinary(t *testing.T) {
 				}
 			}
 			configuration := Configuration{
-				Target: "baker",
+				Target: "dev-remote",
 				Base:   base,
 				Agent:  "codex",
 				Repositories: []Repository{

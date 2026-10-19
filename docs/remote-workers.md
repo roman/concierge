@@ -48,8 +48,8 @@ Use a format-three state root and an active primary claim. Follow the existing
 ```json
 {
   "SAVED_MACHINE_ID": {
-    "target": "baker",
-    "base": "/Users/roman/concierge",
+    "target": "dev-remote",
+    "base": "/Users/developer/concierge",
     "agent": "codex",
     "authentication": "agent-forwarding",
     "repositories": [
@@ -70,9 +70,9 @@ captures its authentication mode with its destination and immutable client.
 An interrupted launch refuses a retry that changes those captured settings.
 
 ```sh
-concierge machine check baker
-concierge machine prepare baker --client-source /path/to/clean/concierge
-concierge machine status baker
+concierge machine check dev-remote
+concierge machine prepare dev-remote --client-source /path/to/clean/concierge
+concierge machine status dev-remote
 ```
 
 `check` reports missing prerequisites and the exact operator step for each.
@@ -85,7 +85,7 @@ the owned directories. `status` also verifies the prepared client executable.
 
 ## Launch and delivery
 
-Queue a task as usual. Add `--machine baker` to the existing `concierge launch`
+Queue a task as usual. Add `--machine dev-remote` to the existing `concierge launch`
 command. Supply the primary project path and full base commit ID. Concierge
 creates a remote worktree with Treehouse when available, or Git otherwise.
 It binds the saved machine identity and starts the agent through Herdr.

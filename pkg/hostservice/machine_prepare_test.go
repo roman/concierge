@@ -19,8 +19,8 @@ type preparationCatalog struct{}
 func (preparationCatalog) Resolve(context.Context, string) (herdr.SavedMachine, error) {
 	return herdr.SavedMachine{
 		ID:      "saved-id",
-		Label:   "baker",
-		Target:  "baker",
+		Label:   "dev-remote",
+		Target:  "dev-remote",
 		Session: "default",
 		Enabled: true,
 	}, nil
@@ -79,7 +79,7 @@ func TestMachinePreparationChecksCredentialsBeforeMutationAndBuildsExactSource(t
 			if err := os.MkdirAll(filepath.Join(server.config.Root, "config"), 0700); err != nil {
 				t.Fatal(err)
 			}
-			configuration := `{"saved-id":{"target":"baker","base":"/remote/base","agent":"codex","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"}]}}`
+			configuration := `{"saved-id":{"target":"dev-remote","base":"/remote/base","agent":"codex","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"}]}}`
 			if err := os.WriteFile(filepath.Join(server.config.Root, "config", "machines.json"), []byte(configuration), 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -107,7 +107,7 @@ func TestMachinePreparationChecksCredentialsBeforeMutationAndBuildsExactSource(t
 			)
 			response, err := server.prepareMachine(
 				context.Background(),
-				MachinePreparationRequest{Label: "baker", ClientSource: source},
+				MachinePreparationRequest{Label: "dev-remote", ClientSource: source},
 			)
 			if kind == "missing login" {
 				if err == nil || !strings.Contains(err.Error(), "codex login") ||
@@ -134,7 +134,7 @@ func TestMachinePreparationRequiresPrimaryAuthority(t *testing.T) {
 		Request{
 			Operation: PrepareMachine,
 			MachinePreparation: &MachinePreparationRequest{
-				Label:        "baker",
+				Label:        "dev-remote",
 				ClientSource: "/primary/concierge",
 			},
 		},
@@ -148,7 +148,7 @@ func TestMachinePreparationRejectsUnrelatedPayloadsAndResults(t *testing.T) {
 	request := Request{
 		Operation: PrepareMachine,
 		MachinePreparation: &MachinePreparationRequest{
-			Label:        "baker",
+			Label:        "dev-remote",
 			ClientSource: "/primary/concierge",
 		},
 	}
@@ -159,7 +159,7 @@ func TestMachinePreparationRejectsUnrelatedPayloadsAndResults(t *testing.T) {
 		Outcome: Completed,
 		PreparedMachine: &PreparedMachineResult{
 			MachineID: "saved-id",
-			Target:    "baker",
+			Target:    "dev-remote",
 			Client: machineprep.Client{
 				Commit:     strings.Repeat("a", 40),
 				Executable: "/remote/base/clients/client/bin/concierge",

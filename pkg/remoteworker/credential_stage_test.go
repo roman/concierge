@@ -20,7 +20,7 @@ func credentialStageRequest(t *testing.T) LaunchSiteRequest {
 	}
 	location := taskstate.RemoteLease{
 		Machine:        "machine-1",
-		Target:         "baker",
+		Target:         "dev-remote",
 		PrimaryRoot:    root,
 		PrimaryProject: "/primary/project-metadata",
 		Base:           "/r",

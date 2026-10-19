@@ -10,14 +10,14 @@ func TestMachineCatalogResolvesSavedIdentity(t *testing.T) {
 		name, selector, body string
 		valid                bool
 	}{
-		{"label", "baker", `[{"id":"machine-1","label":"baker","target":"user@baker","session":"work","enabled":true}]`, true},
-		{"identity", "machine-1", `[{"id":"machine-1","label":"baker","target":"user@baker","session":"work","enabled":true}]`, true},
+		{"label", "dev-remote", `[{"id":"machine-1","label":"dev-remote","target":"user@dev-remote","session":"work","enabled":true}]`, true},
+		{"identity", "machine-1", `[{"id":"machine-1","label":"dev-remote","target":"user@dev-remote","session":"work","enabled":true}]`, true},
 		{"missing", "other", `[]`, false},
-		{"disabled", "baker", `[{"id":"machine-1","label":"baker","target":"user@baker","session":"work","enabled":false}]`, false},
-		{"ambiguous", "baker", `[{"id":"machine-1","label":"baker","target":"user@baker","session":"work","enabled":true},{"id":"machine-2","label":"baker","target":"other","session":"work","enabled":true}]`, false},
-		{"null", "baker", `null`, false},
-		{"wrong shape", "baker", `{"machines":[]}`, false},
-		{"duplicate identity", "machine-1", `[{"id":"machine-1","label":"baker","target":"user@baker","session":"work","enabled":true},{"id":"machine-1","label":"other","target":"other","session":"work","enabled":true}]`, false},
+		{"disabled", "dev-remote", `[{"id":"machine-1","label":"dev-remote","target":"user@dev-remote","session":"work","enabled":false}]`, false},
+		{"ambiguous", "dev-remote", `[{"id":"machine-1","label":"dev-remote","target":"user@dev-remote","session":"work","enabled":true},{"id":"machine-2","label":"dev-remote","target":"other","session":"work","enabled":true}]`, false},
+		{"null", "dev-remote", `null`, false},
+		{"wrong shape", "dev-remote", `{"machines":[]}`, false},
+		{"duplicate identity", "machine-1", `[{"id":"machine-1","label":"dev-remote","target":"user@dev-remote","session":"work","enabled":true},{"id":"machine-1","label":"other","target":"other","session":"work","enabled":true}]`, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			runner := &fakeRunner{responses: []runResponse{{stdout: []byte(test.body)}}}
@@ -29,7 +29,7 @@ func TestMachineCatalogResolvesSavedIdentity(t *testing.T) {
 				t.Fatalf("resolved %+v, error %v", machine, err)
 			}
 			if test.valid &&
-				(machine.ID != "machine-1" || machine.Target != "user@baker" || machine.Session != "work") {
+				(machine.ID != "machine-1" || machine.Target != "user@dev-remote" || machine.Session != "work") {
 				t.Fatalf("wrong saved identity: %+v", machine)
 			}
 			if len(runner.calls) != 1 || len(runner.calls[0]) != 3 ||

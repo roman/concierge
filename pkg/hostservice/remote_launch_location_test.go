@@ -33,11 +33,11 @@ func (catalog launchLocationCatalog) Resolve(context.Context, string) (herdr.Sav
 
 func TestRemoteLaunchLocationPinsPreparedClientAndDeclaredRepository(t *testing.T) {
 	server := workerHost(t, 3)
-	profile, _ := (preparationCatalog{}).Resolve(context.Background(), "baker")
+	profile, _ := (preparationCatalog{}).Resolve(context.Background(), "dev-remote")
 	server.preparationMachines = launchLocationCatalog{profile}
 	runner := &launchLocationSSH{}
 	server.preparationSSH = runner
-	configuration := `{"saved-id":{"target":"baker","base":"/remote/base","agent":"codex","authentication":"agent-forwarding","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"},{"name":"project","url":"ssh://git.test/project.git"}]}}`
+	configuration := `{"saved-id":{"target":"dev-remote","base":"/remote/base","agent":"codex","authentication":"agent-forwarding","repositories":[{"name":"concierge","url":"ssh://git.test/concierge.git"},{"name":"project","url":"ssh://git.test/project.git"}]}}`
 	if err := os.MkdirAll(filepath.Join(server.config.Root, "config"), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestRemoteLaunchLocationPinsPreparedClientAndDeclaredRepository(t *testing.
 			case "local intent":
 				candidate.Machine = ""
 			case "label":
-				selector = "baker"
+				selector = "dev-remote"
 			}
 			_, _, err := server.resolveRemoteLaunchLocation(
 				context.Background(),

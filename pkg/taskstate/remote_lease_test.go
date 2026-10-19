@@ -19,7 +19,7 @@ func remoteLeaseFixture() WorktreeLease {
 		State:      LeaseHeld,
 		Remote: RemoteLease{
 			Machine:        "machine-1",
-			Target:         "baker",
+			Target:         "dev-remote",
 			PrimaryRoot:    "/primary/state",
 			PrimaryProject: "/primary/repo",
 			Base:           "/remote/base",
