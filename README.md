@@ -50,9 +50,9 @@ Existing state requires the [migration procedure](docs/state.md).
 
 ## Remote workers
 
-Register an SSH machine with Herdr once. Remote machines can run x86_64 Linux,
-aarch64 Linux, or Apple Silicon macOS. Install Nix with flakes, Herdr, and the
-selected agent on the remote.
+Register an SSH machine with Herdr once. Install Nix with flakes, Herdr, and
+the selected agent on the remote. The [setup prerequisites](docs/remote-setup.md#1-prepare-the-primary-and-remote)
+describe the supported machines.
 Choose remote repository keys or SSH agent forwarding to a trusted machine.
 Complete the agent login on the remote by hand.
 Verify the SSH host keys on both machines before running unattended commands.

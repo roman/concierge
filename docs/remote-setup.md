@@ -2,8 +2,7 @@
 
 Concierge runs coding workers on a saved Herdr machine over SSH. The primary
 stays on your development machine and owns task state, supervision, result
-acceptance, and delivery. Supported remote platforms are x86_64 Linux, aarch64
-Linux, and Apple Silicon macOS.
+acceptance, and delivery.
 `dev-remote` below is an example saved machine name; use your own machine name.
 
 For the component and protocol design, read [remote architecture](remote-architecture.md).
@@ -36,6 +35,10 @@ On the remote, install these tools declaratively through your Nix configuration:
 - Herdr 0.9.5 or newer, with a compatible server already running.
 - The selected native agent, Codex or Claude.
 - The project's development tools and dependencies.
+
+The remote client supports x86_64 Linux, aarch64 Linux, and Apple Silicon macOS.
+`concierge machine check` verifies compatibility before preparation. Native
+acceptance has passed on x86_64 Linux and Apple Silicon macOS.
 
 Nix and Herdr must be available to non-interactive SSH commands. Concierge does
 not install or replace the remote Herdr server. Project shells that run native
@@ -195,7 +198,7 @@ It does not push to the source repository. Resolve native trust dialogs in the
 pane reported by the run. See the [README](../README.md#remote-workers) for
 the acceptance worker's native approval settings and runtime effects.
 
-## Use a local Linux VM as the remote
+## Use a local VM as the remote
 
 A VM on the primary machine uses the same SSH transport and worker protocol as
 a separate physical machine. Provision its Nix installation, Herdr service,
