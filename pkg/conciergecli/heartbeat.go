@@ -14,9 +14,10 @@ import (
 	"github.com/roman/concierge/pkg/stateversion"
 )
 
-const heartbeatHelp = "concierge heartbeat show | set [--interval 5m] [--quiet-limit 5] | enable | pause --reason REASON | resume | register codex --socket PATH --thread UUID | claim EVENT --generation GEN | ack EVENT --generation GEN --token TOKEN --output REFERENCE | activity < HOOK_JSON | wait [--timeout 7h59m] < STOP_JSON; check is host-owned after activation"
+const heartbeatHelp = "concierge heartbeat show | set [--interval 5m] [--quiet-limit 5] | enable | pause --reason REASON | resume | start < SESSION_START_JSON | register codex --socket PATH --thread UUID | claim EVENT --generation GEN | ack EVENT --generation GEN --token TOKEN --output REFERENCE | activity < HOOK_JSON | wait [--timeout 7h59m] < STOP_JSON; check is host-owned after activation"
 
 type heartbeatCommands struct {
+	Start    struct{} `cmd:"" help:"Register and activate Codex delivery from the adopted native SessionStart hook on stdin; preserve operator pauses."`
 	Activity struct{} `cmd:"" help:"Record a synchronous native Claude lifecycle hook from stdin."`
 	Wait     struct {
 		Timeout time.Duration `default:"7h59m" help:"Registered Stop consumer lifetime; at most 7h59m."`

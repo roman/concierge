@@ -77,14 +77,29 @@ func (store Store) Enable(ctx context.Context, now time.Time) error {
 		if state.Enabled {
 			return errors.New("scheduler already enabled; use explicit resume to clear a pause")
 		}
-		state.Enabled = true
-		if state.PauseReason == "activation required" {
-			state.Paused, state.PauseReason = false, ""
-		}
-		state.Revision++
-		state.Next = now.UTC()
+		enableScheduler(state, now)
 		return nil
 	})
+}
+
+// EnableForStartup applies the adopted module's activation choice once. Later
+// starts must preserve operator pauses, quiet counts, and the existing clock.
+func (store Store) EnableForStartup(ctx context.Context, now time.Time) error {
+	return store.update(ctx, func(state *State) error {
+		if !state.Enabled {
+			enableScheduler(state, now)
+		}
+		return nil
+	})
+}
+
+func enableScheduler(state *State, now time.Time) {
+	state.Enabled = true
+	if state.PauseReason == "activation required" {
+		state.Paused, state.PauseReason = false, ""
+	}
+	state.Revision++
+	state.Next = now.UTC()
 }
 
 func (store Store) Pause(ctx context.Context, reason string) error {

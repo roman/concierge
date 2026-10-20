@@ -98,6 +98,52 @@ func (store Store) Register(
 	verify func(primary.Identity) error,
 	now time.Time,
 ) (Binding, error) {
+	return store.registerVerified(ctx, destination, nativeDestination, verify, now)
+}
+
+// RegisterCodexHook binds the exact server that ran the native SessionStart
+// hook. Hooks receive a native payload before tool environments exist.
+func (store Store) RegisterCodexHook(
+	ctx context.Context,
+	hook primary.Identity,
+	destination Destination,
+	verify func(primary.Identity) error,
+	now time.Time,
+) (Binding, error) {
+	return store.registerVerified(
+		ctx,
+		destination,
+		func(owner primary.Identity, candidate Destination) error {
+			return validateCodexHook(owner, hook, candidate)
+		},
+		verify,
+		now,
+	)
+}
+
+func validateCodexHook(owner, hook primary.Identity, destination Destination) error {
+	server := primary.ProcessToken{
+		PID:          hook.PID,
+		StartTicks:   hook.StartTicks,
+		BootID:       hook.BootID,
+		PIDNamespace: hook.PIDNamespace,
+	}
+	if hook.Kind != "codex" || hook != owner || destination.Mode != Push ||
+		destination.Thread != hook.SessionID || destination.Server != server {
+		return errors.New(
+			"Codex startup destination differs from the native owning hook and server",
+		)
+	}
+	return nil
+}
+
+func (store Store) registerVerified(
+	ctx context.Context,
+	destination Destination,
+	validateNative func(primary.Identity, Destination) error,
+	verify func(primary.Identity) error,
+	now time.Time,
+) (Binding, error) {
 	var result Binding
 	if verify == nil {
 		return result, errors.New("native destination verification is required")
@@ -109,7 +155,7 @@ func (store Store) Register(
 			if err := destination.validate(owner, now); err != nil {
 				return err
 			}
-			if err := nativeDestination(owner, destination); err != nil {
+			if err := validateNative(owner, destination); err != nil {
 				return err
 			}
 			if err := verify(owner); err != nil {
