@@ -126,30 +126,52 @@ Opt-in native tests create private roots and new processes. They never discover
 or restart an existing daemon. The model responses come from local deterministic
 HTTP fixtures. Native approval checks remain active.
 
-* Codex 0.162.1: exact Unix peer and UUID registration passes. A separate
-  `historyMode: legacy` thread passes idle queue dispatch, client-ID history
-  reconciliation, and TUI capture of the queued input and second response.
-* Codex 0.162.1 default history store: after a completed turn, both paginated
-  history and full-history hydration return RPC -32601,
-  `list_turns is not supported yet`. The default-store acceptance test fails.
-  Delivery remains unavailable because the adapter cannot verify readiness.
-  The legacy trial does not establish default-store compatibility. Concierge
-  does not change an operator thread's history mode.
+* Codex 0.162.1: exact Unix peer and UUID registration passes. Default history
+  passes idle queue dispatch, client-ID history reconciliation, and native TUI
+  capture of the queued input and response. A fresh
+  peer-verified connection also finds dispatched input after the submitting
+  connection never reads its queue receipt. The native queue must be empty
+  before that history check. Ten fresh default-history trials pass.
+* Native turn admission can precede execution and history materialization.
+  During startup, both paginated and full-history reads can return RPC -32601,
+  `list_turns is not supported yet`. That result does not establish permanent
+  incompatibility. The acceptance driver waits for provider execution before
+  checking completion. Subsequent readiness errors still fail the test.
+  Production read errors retain the pending event and defer delivery until a
+  later host check. These results require no history migration or Codex upgrade.
+* A separate `historyMode: legacy` trial also passes dispatch, reconciliation,
+  and TUI capture. Concierge does not change an operator thread's history mode.
 * Claude Code 2.1.296: a private native streaming session runs the synchronous
   busy and ready hooks. Its asyncRewake Stop consumer produces a second visible
-  response for a published supervisor event. The unacknowledged event remains
-  pending. This trial uses the supplied generated hook bodies and a temporary
-  built Concierge executable.
+  stream response for a supervisor event published by the leased host. The
+  unacknowledged event remains pending. This trial uses the supplied generated
+  hook bodies and a temporary built Concierge executable. A stream response
+  does not establish output in an interactive terminal.
+
+Full native claim, operator output, and acknowledgement acceptance remains
+incomplete on both platforms. A new private Codex SessionStart hook requires
+native trust approval before ownership registration. The disposable output
+trial stops at its reported `untrusted` status. A Claude Bash claim attempt
+reaches the native automatic permission check. The deterministic fixture model
+cannot provide its classifier; native execution reports `Classifier unavailable`
+and denies the tool. The event remains pending without a claim or receipt.
+The trials do not grant hook trust, answer approval requests, alter permission
+mode, or manufacture classifier approvals.
+
+Complete the output gate in disposable sessions with an operator-approved
+Codex hook and a working Claude permission classifier. Observe the actual
+operator output before acknowledging its reference. Real-model compliance,
+original-UI output on both platforms, and live activation acceptance remain
+separate requirements. Transport success does not establish deployment readiness.
 
 Run the optional trials with explicit installed binary paths:
 
 ```sh
 CONCIERGE_NATIVE_CODEX=/path/to/codex nix develop -c go test -run '^TestNativeCodexQueueDispatch$' -v ./pkg/codexqueue
-CONCIERGE_NATIVE_CODEX=/path/to/codex CONCIERGE_NATIVE_UI_LOOP=/path/to/ui-loop nix develop -c go test -run '^TestNativeCodexLegacyQueueDispatch$' -v ./pkg/codexqueue
+CONCIERGE_NATIVE_CODEX=/path/to/codex CONCIERGE_NATIVE_UI_LOOP=/path/to/ui-loop nix develop -c go test -run '^TestNativeCodexQueueDispatch$' -v ./pkg/codexqueue
 CONCIERGE_NATIVE_CLAUDE=/path/to/claude CONCIERGE_NATIVE_CONCIERGE=/path/to/built/concierge nix develop -c go test -run '^TestNativeClaudeStopConsumer$' -v ./pkg/conciergecli
 ```
 
-The first trial intentionally exposes incompatible default stores. Normal CI
-uses protocol fixtures and skips native trials without their explicit paths.
+Normal CI uses protocol fixtures and skips native trials without explicit paths.
 Native acceptance confirms transport and lifecycle behavior. The deterministic
 responses do not claim model compliance with the claim/post/ack instructions.

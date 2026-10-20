@@ -10,13 +10,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/roman/concierge/pkg/heartbeat"
-	"github.com/roman/tincan/pkg/inbox"
 )
 
 func TestNativeClaudeStopConsumer(t *testing.T) {
@@ -32,7 +32,7 @@ func TestNativeClaudeStopConsumer(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	project := t.TempDir()
+	project := nativeProject(t)
 	root := taskRoot(t, filepath.Join(project, ".concierge"))
 	messageRoot := filepath.Join(project, ".tincan")
 	store := heartbeat.Store{Root: root}
@@ -219,20 +219,27 @@ func TestNativeClaudeStopConsumer(t *testing.T) {
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
-	state, err := store.Schedule(
-		ctx,
-		time.Now(),
-		heartbeat.Observation{Active: true, Text: "Native isolated supervisor event"},
-		heartbeat.Settings{Interval: "1m"},
-	)
-	if err != nil {
-		t.Fatal(err)
+	nativeStartHost(t, ctx, root, messageRoot, concierge)
+	messageID := nativeSendWork(t, messageRoot)
+	var state heartbeat.State
+	for {
+		state, err = store.Read(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.Pending != nil && state.Pending.MessageID != "" {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	if state.Pending.Kind != heartbeat.Inbox || !slices.Contains(state.Pending.Replies, messageID) {
+		t.Fatalf("host event lost the triggering inbox message %s: %+v", messageID, state.Pending)
 	}
 	id := state.Pending.ID
-	recipient, _ := inbox.ParseRecipient("concierge")
-	if err := store.Publish(ctx, messageRoot, recipient); err != nil {
-		t.Fatal(err)
-	}
 	for {
 		data, _ := os.ReadFile(stdout.Name())
 		if requests.Load() >= 2 && strings.Contains(string(data), "CLAUDE_NATIVE_FIXTURE_2") {
@@ -249,7 +256,7 @@ func TestNativeClaudeStopConsumer(t *testing.T) {
 		t.Fatalf("native offer consumed unreported output: %+v, %v", state, err)
 	}
 	t.Logf(
-		"native Claude PID %d, exact session %s: asyncRewake Stop produced a second visible fixture response; event %s retained without output ACK",
+		"native Claude PID %d, exact session %s: host event reached asyncRewake Stop and a second stream response; event %s retained without output ACK",
 		command.Process.Pid,
 		state.Binding.Destination.Session,
 		id,
