@@ -43,6 +43,7 @@ type Receipt struct {
 }
 
 type State struct {
+	Binding      *Binding  `json:"binding,omitempty"`
 	Version      int       `json:"version"`
 	Enabled      bool      `json:"enabled"`
 	Paused       bool      `json:"paused"`
