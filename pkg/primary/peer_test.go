@@ -1,4 +1,4 @@
-package hostservice
+package primary
 
 import (
 	"context"
@@ -48,7 +48,7 @@ func TestPeerCallerUsesKernelProcessIdentity(t *testing.T) {
 	if err := json.NewDecoder(connection).Decode(&forged); err != nil {
 		t.Fatal(err)
 	}
-	caller, err := peerCaller(connection)
+	caller, err := PeerCaller(connection)
 	if err != nil {
 		t.Fatal(err)
 	}

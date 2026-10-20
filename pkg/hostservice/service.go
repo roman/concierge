@@ -274,7 +274,7 @@ func decodeBounded(reader io.Reader, target any) error {
 }
 
 func (server *Server) handle(ctx context.Context, connection *net.UnixConn) {
-	caller, err := peerCaller(connection)
+	caller, err := primary.PeerCaller(connection)
 	if err != nil {
 		server.respond(
 			connection,
