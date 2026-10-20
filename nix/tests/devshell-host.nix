@@ -55,7 +55,9 @@ pkgs.runCommand "concierge-devshell-host"
     jq -n --arg cwd "$PWD" '{cwd:$cwd,session_id:"module-root",hook_event_name:"SessionStart"}' > payload
     ./.agents/hooks/concierge-session-start < payload > start-output
     grep -F 'Concierge root supervisor context' start-output
-    grep -F 'The primary reads projects and never changes them.' start-output
+    grep -F 'The primary reads projects and delegates project changes.' start-output
+    grep -F 'The primary may directly create and update only its own Concierge session handoff.' start-output
+    grep -F 'All other project and vault edits remain delegated.' start-output
     grep -F 'Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.' start-output
     ${conciergePackage}/bin/concierge project show fixture > default-project
     grep -qx 'merge: off' default-project

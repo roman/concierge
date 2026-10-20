@@ -13,7 +13,9 @@ fi
 
 output="$(TEST_HOST_STATUS=0 TEST_RECOVERY_READY="$TMPDIR/recovered" ./.agents/hooks/concierge-session-start <<< "$payload")"
 [[ "$output" == *'workers: 2 registered'* ]]
-[[ "$output" == *'The primary reads projects and never changes them.'* ]]
+[[ "$output" == *'The primary reads projects and delegates project changes.'* ]]
+[[ "$output" == *'The primary may directly create and update only its own Concierge session handoff.'* ]]
+[[ "$output" == *'All other project and vault edits remain delegated.'* ]]
 [[ "$output" == *'Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.'* ]]
 [[ "$output" == *'Concierge revisions: host revision-b, binary revision-b.'* ]]
 

@@ -171,8 +171,9 @@ Worker reply -> saved report -> vault worker -> import -> commit -> land
 The project worker includes a handoff and any gaps, learnings, or artifacts in
 its reply. The launch instructions supply the exact headings and field formats.
 The project worker never writes into a vault. The primary accepts the result
-and saves its body with the report command above. The primary does not edit
-the vault.
+and saves its body with the report command above. The primary delegates these
+imports. Its own Concierge session handoff is a narrow direct-write exception.
+All unrelated vault edits remain delegated.
 
 Assign the saved report to a separate vault worker in its own worktree on a
 branch of the vault repository. The vault worker uses the same options for
