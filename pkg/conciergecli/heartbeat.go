@@ -14,7 +14,7 @@ import (
 	"github.com/roman/concierge/pkg/stateversion"
 )
 
-const heartbeatHelp = "concierge heartbeat show | set [--interval 5m] [--quiet-limit 5] | enable | pause --reason REASON | resume | register codex --socket PATH --thread UUID | claim EVENT --generation GEN | ack EVENT --generation GEN --token TOKEN --output REFERENCE; check is host-owned after activation"
+const heartbeatHelp = "concierge heartbeat show | set [--interval 5m] [--quiet-limit 5] | enable | pause --reason REASON | resume | register codex --socket PATH --thread UUID | claim EVENT --generation GEN | ack EVENT --generation GEN --token TOKEN --output REFERENCE | activity < HOOK_JSON | wait [--timeout 7h59m] < STOP_JSON; check is host-owned after activation"
 
 type heartbeatCommands struct {
 	Activity struct{} `cmd:"" help:"Record a synchronous native Claude lifecycle hook from stdin."`
@@ -44,7 +44,7 @@ type heartbeatCommands struct {
 	Show struct{} `cmd:"" help:"Show the operator-owned heartbeat interval and quiet limit."`
 	Set  struct {
 		Interval   *time.Duration `help:"Positive interval between primary heartbeats."`
-		QuietLimit *int           `help:"Pause after this many unchanged heartbeats or reminders (default 5). Use 0 to disable pausing."`
+		QuietLimit *int           `help:"Suppress unchanged periodic output after this many reported updates (default 5). Use 0 to disable quiet suppression."`
 	} `cmd:"" help:"Set the operator-approved heartbeat interval or quiet limit."`
 	Check struct {
 		Wake  string `default:"checkpoint" enum:"checkpoint,inbox,reminder" help:"Use inbox or reminder to defer a heartbeat after another wake."`

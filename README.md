@@ -47,6 +47,8 @@ Start a root Claude or Codex session inside that shell. The root hooks claim
 primary ownership and start the host. Ask the primary to queue and launch work.
 Inspect progress with `concierge backlog list` and `concierge worker list`.
 Existing state requires the [migration procedure](docs/state.md).
+The [shared supervisor scheduler](docs/heartbeats.md) starts disabled and
+requires explicit activation and a verified native delivery destination.
 
 ## Remote workers
 

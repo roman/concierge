@@ -15,7 +15,8 @@
 | `concierge primary` | Claim, verify, and release root ownership from native lifecycle hooks. |
 | `concierge operator ask ID TEXT` / `resolve ID` / `list` | Record requests for operator input and resolve answered requests. |
 | `concierge operator remind [--interval 15m]` | Report due operator requests and unfinished worker retirement. |
-| `concierge heartbeat show` / `set [--interval 5m] [--quiet-limit 5]` / `check` | Configure and claim periodic primary status updates. |
+| `concierge heartbeat show` / `set` / `enable` / `pause` / `resume` | Configure and inspect the durable host scheduler. |
+| `concierge heartbeat register codex` / `claim` / `ack` | Bind native delivery, claim fresh state, and record posted output. |
 | `concierge control` | Inspect, start, and interrupt live Herdr agents. |
 | `concierge supervise` | Monitor a manual pane or supervise a task with inbox delivery and worker recovery. |
 | `concierge brief` | Show pending primary messages, queued work, workers, and unfinished completions. |
@@ -52,26 +53,16 @@ open requests. Accepted worker completions stay in the pending report until
 worker retirement and completion finish. Acceptance does not establish that
 the worker is currently idle; inspect its pane and agent status before stopping it.
 
-`operator remind` returns `status: due` with the requests to repeat, or
-`status: quiet`. `open_items` counts open requests and pending completions.
-Reminder times persist across command invocations. Each item has a 15-minute
-interval by default. `--interval` accepts a positive duration. A new request
-can cause a reminder even during another request's interval. A worker keeps
-its reminder interval through all completion phases. Finishing the completion
-removes it from future reminders.
+The shared host scheduler includes open requests and unfinished worker
+retirement in supervisor events. The primary repeats unresolved requests in
+its **Waiting on you** list and uses the harness notification tool when a
+claim requests a notification. Notifications do not resolve requests.
 
-After five reminder deliveries for the same item set, reminders pause. The last
-delivery announces the pause. A changed item set resets the count, including a
-change in a worker's completion phase. Resolving or re-asking an action also
-resets the count. Existing per-item intervals still apply. The heartbeat
-`--quiet-limit` setting controls this limit too; `0` disables pausing.
-
-The Claude Stop hook checks reminders every 30 seconds during its inbox wait.
-The owning Codex primary runs `operator remind` after each inbox checkpoint.
-The supervisor repeats open requests in a short **Waiting on you** list at
-the end of every reply. A reminder without an operator answer also calls for
-a desktop notification through the harness tool when available. Claude uses
-`PushNotification`. Notifications do not resolve requests.
+After scheduler activation or an explicit operator pause, `operator remind`
+returns `status: quiet` and `scheduler: host_owned`. It does not maintain a
+second reminder clock. Its older 15-minute per-item behavior remains for
+inactive legacy callers. See the [shared scheduler](heartbeats.md) for the
+operator pause, quiet limit, native delivery, and output receipt protocol.
 
 ## Supervisor delegation and settings
 
@@ -229,31 +220,28 @@ executable.
 
 ## Primary heartbeat
 
-`concierge heartbeat show` reports the operator-owned interval (default `5m`)
-and quiet limit (default `5`). `concierge heartbeat set --interval 2m
---quiet-limit 5` changes them in `$CONCIERGE_HOME/config/heartbeat.json`.
-Either flag can be used alone. The other setting is preserved. Intervals must
-be positive. The quiet limit must be nonnegative. `0` disables pausing for both
-heartbeats and operator reminders. Older interval-only settings use a limit of 5.
+`concierge heartbeat show` reports the interval, quiet limit, activation,
+operator pause, native binding, pending delivery, attempts, and output receipt.
+`heartbeat set --interval 2m --quiet-limit 5` changes the operator-owned
+configuration. Either flag preserves the other setting. `0` disables automatic
+quiet suppression. An explicit operator pause still requires `resume`.
 
-`concierge heartbeat check` claims one due status update at an inbox wait
-checkpoint. The first check arms the timer. A quiet result includes `active`
-and the remaining time. A due result includes worker states from Herdr, pending
-reply counts, accepted workers awaiting cleanup, and open operator actions.
-An unchanged status includes `no changes since last heartbeat`.
+The scheduler starts disabled. `heartbeat enable` activates it intentionally.
+`heartbeat pause --reason REASON` persists an operator pause. `heartbeat resume`
+clears the pause only after activation. Registration and host restart preserve
+those settings.
 
-After an initial status update, five consecutive unchanged heartbeats pause
-further heartbeats. The fifth unchanged heartbeat announces that heartbeats
-are pausing until something changes. Paused checks return `status: quiet`,
-`active: yes`, and `paused: yes`, without a remaining time. Keep checking at
-inbox checkpoints. A change in worker state, pending replies, cleanup, or
-operator actions resets the count and resumes the regular interval. Re-asking
-an action also resets the count. Pending replies and cleanup keep checks active
-even when there are no bound workers or open actions.
+`heartbeat register codex --socket PATH --thread UUID` binds the exact native
+primary destination. Claude's generated activity and Stop hooks register its
+native pull consumer. `heartbeat claim EVENT --generation GEN` fetches fresh
+state and grants a two-minute processing claim. After posting the operator
+update, use `heartbeat ack EVENT --generation GEN --token TOKEN --output REF`.
 
-Use `concierge heartbeat check --wake inbox` after an inbox wake, or
-`concierge heartbeat check --wake reminder` after a reminder wake. Both defer
-the heartbeat for one configured interval. The Claude Stop hook does this
-automatically. Codex follows the supervisor skill at each inbox wait checkpoint.
-These wakes preserve the quiet count. Inbox delivery and inbox wakes continue
-while heartbeats and reminders are paused.
+`heartbeat activity` and `heartbeat wait [--timeout 7h59m]` consume native Claude
+hook JSON on stdin. They require the owning native process, matching project,
+and verified hook settings. They do not schedule independent periodic events.
+After activation or an explicit pause, the compatibility `heartbeat check`
+command reports the host-owned scheduler.
+
+The [shared supervisor guide](heartbeats.md) documents migration, native
+compatibility limits, claim fencing, and acceptance tests.

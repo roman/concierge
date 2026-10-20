@@ -21,7 +21,7 @@ import (
 var version = "dev"
 var revision = "dev"
 
-const cliHelp = "commands: host serve|status|stop|restart, launch TASK_ID, land TASK_ID [--operator-approved], land-recovered TASK_ID --generation GENERATION --commit COMMIT --operator-approved, project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover|upgrade|recover-upgrade, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon|discard; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
+const cliHelp = "commands: host serve|status|stop|restart, launch TASK_ID, land TASK_ID [--operator-approved], land-recovered TASK_ID --generation GENERATION --commit COMMIT --operator-approved, project show|set REPO, operator ask|resolve|list|remind, heartbeat show|set|enable|pause|resume|register|claim|ack|activity|wait|check, brief-include set --file FILE|clear, state init|backup|migrate|recover|upgrade|recover-upgrade, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon|discard; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
 type cli struct {
 	hostExpectations        hostservice.Expectations

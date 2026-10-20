@@ -35,6 +35,14 @@ or unreadable ledgers stop the command. Resolved requests are removed; pending
 worker retirement is derived from task records. Back up this ledger with the
 state root to preserve outstanding requests and reminder intervals.
 
+`supervisor.json` stores shared scheduler activation, the explicit operator
+pause, native destination binding, consumer identity and expiry, pending event,
+delivery attempt, processing claim, and primary-reported output receipt. Its
+private `.supervisor.lock` serializes changes. Writes replace the record
+atomically. Missing state starts disabled and paused for intentional activation.
+Registration and migration cannot enable it. Back up the record with the root.
+See the [supervisor event protocol](heartbeats.md) before activation.
+
 ### Migrate existing task state
 
 Stop all legacy task writers and controllers first. Keep them stopped until

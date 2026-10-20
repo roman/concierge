@@ -145,60 +145,62 @@ that needs an operator command or approval also requires an action.
 Pending completions include accepted workers awaiting stop and cleanup.
 Verify their current pane content and status before stopping them.
 
-`concierge operator remind` reports due actions and unfinished worker retirement.
-It records reminder times durably, at most once per item per 15 minutes.
-An unchanged `ask` retry preserves the reminder time. Resolving the action
-stops its reminders. A worker keeps its reminder interval through all completion
-phases. Cleanup removes the worker reminder when the completion is finished.
-After five reminder deliveries for an unchanged item set, reminders pause.
-The last delivery announces the pause. A changed item set, a completion phase
-change, or a resolved or re-asked action resets the count. Per-item intervals
-still apply. The heartbeat quiet limit also controls this reminder limit.
+The root host owns the shared supervisor schedule. Inspect it with
+`concierge heartbeat show`. The scheduler starts disabled. Activate it only
+when the operator authorizes activation. A package update, session start, or
+native registration does not grant that authority.
 
-When a reminder wakes the primary, repeat the due requests to the operator.
-If the operator has not replied, send a desktop notification through the
-harness's notification tool when one exists. Claude uses `PushNotification`.
-Keep the action open after sending a notification.
+The operator configures the interval and quiet limit with `concierge heartbeat
+set --interval 5m --quiet-limit 5`. `heartbeat pause --reason REASON` persists
+an explicit pause. Only `heartbeat resume` clears it. Quiet suppression counts
+acknowledged periodic output and cannot clear an operator pause. New pending
+messages remain eligible during both forms of suppression.
 
-The primary heartbeat defaults to five minutes. The operator sets its interval
-with `concierge heartbeat set --interval 5m` and inspects it with
-`concierge heartbeat show`. The setting lives in `$CONCIERGE_HOME/config/`.
-The quiet limit defaults to five. Set it with `concierge heartbeat set
---quiet-limit N`; `0` disables pausing. Either setting can be changed alone.
-Run `concierge heartbeat check` before the first wait to arm the timer.
-Heartbeats remain quiet when there are no workers, pending replies, cleanup,
-or open actions.
-Each heartbeat includes current Herdr worker states, pending replies, accepted
-workers awaiting cleanup, and open actions. It reports "no changes since last
-heartbeat" when the status is unchanged.
-After the initial status update, five consecutive unchanged heartbeats pause
-further heartbeats. The fifth unchanged heartbeat announces the pause. Tell
-the operator once. Paused checks return `status: quiet` and `paused: yes`.
-Keep checking at inbox checkpoints. A change in worker state, pending replies,
-cleanup, or operator actions resets the count and resumes heartbeats. Re-asking
-an action also resets the count. Inbox wakes continue during a pause.
+A native notification carries an event ID, binding generation, and exact claim
+command. Run that command with its explicit roots and recipient. Act only on
+`status: current`. The claim returns fresh worker states, pending messages,
+acceptance and cleanup work, open actions, and a two-minute claim token.
+Handle assignments and results through their normal verification protocols.
+A mailbox publication alone grants no processing authority.
 
-On every `status: due` heartbeat, post the status to the operator.
-End the reply with **Waiting on you**. State that no operator action is needed
-when the action list is empty. Send a desktop notification when a decision or an
-idle finished worker waits. Claude uses `PushNotification`.
+Post the operator update before recording its output receipt:
 
-While workers or operator actions remain open, a primary Codex session runs one
-foreground `tincan inbox wait concierge --timeout 30s` after handling its inbox.
-On `status: pending`, run `concierge heartbeat check --wake inbox`, then handle
-the messages. On `status: checkpoint`, check user requests and run
-`concierge operator remind`. If a reminder is due, run
-`concierge heartbeat check --wake reminder` and post the reminder. Otherwise run
-`concierge heartbeat check` and post any due heartbeat. The wake commands defer
-the next heartbeat by one configured interval to avoid duplicate updates.
-Repeat while workers or actions remain open. Keep one wait active.
+```sh
+concierge heartbeat ack EVENT --generation GENERATION --token CLAIM_TOKEN --output OUTPUT_REFERENCE
+```
 
-Claude's existing asyncRewake Stop hook checks reminders and heartbeats every
-30 seconds while it waits for primary messages. A new inbox message takes
-priority over a reminder or heartbeat. A reminder takes priority over a heartbeat.
-Each inbox or reminder wake defers the next heartbeat. An unhandled message
-cannot cause repeated inbox wakes. A Stop arms the next wait. The wait ends
-after eight hours; another turn arms it again.
+The output reference identifies the update already posted. End that update
+with the current **Waiting on you** list. State that no operator action is
+needed when the list is empty. Use the harness notification tool when the
+claim requests a notification for a waiting decision or finished worker.
+Claude uses `PushNotification`. Keep unresolved actions open.
+
+An `inbox` event authorizes processing the new pending messages and reporting
+that work. Do not use it to send a periodic reminder during an operator pause.
+An acknowledged event requires no repeated output. A stale, paused, expired,
+or in-progress claim requires fresh verification. Queue acceptance, hook exit,
+and a drained native queue do not acknowledge operator output.
+
+Codex requires explicit registration from the owning native tool context:
+
+```sh
+concierge heartbeat register codex --socket /absolute/owning.sock --thread NATIVE_UUID
+```
+
+Use the exact inherited native thread UUID and its owning app-server socket.
+Do not discover a default daemon or substitute `codex exec resume`. Inspect an
+unavailable destination through `heartbeat show` and the host log. Preserve its
+pending event. Do not send a fallback prompt through an unverified pane.
+
+Claude's generated synchronous activity hooks record busy and ready state.
+Its native asyncRewake Stop hook registers an expiring consumer of host events.
+A missing or expired consumer is unavailable. A later legitimate Stop can renew
+it. Do not create a generic replacement wake or answer a permission dialog.
+
+After activation or an explicit pause, `heartbeat check` and `operator remind`
+report the host-owned scheduler and cannot start a second clock. Do not run the
+old foreground heartbeat polling loop. Continue ordinary verified message
+processing. Leave activation and external hook settings to the operator.
 
 ## Intake and worker launch
 

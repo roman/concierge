@@ -26,7 +26,11 @@ stable command definitions in `.claude/settings.json`:
 {
   "hooks": {
     "SessionStart": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-session-start; fi", "timeout": 15}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-claude-stop; fi", "asyncRewake": true, "timeout": 28800}]}]
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-claude-activity; fi", "onFailure": "block"}]}],
+    "Stop": [{"hooks": [
+      {"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-claude-activity; fi"},
+      {"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-claude-stop; fi", "asyncRewake": true, "timeout": 28800}
+    ]}]
   }
 }
 ```
@@ -44,6 +48,12 @@ Use these definitions in `.codex/hooks.json`:
 
 Preserve unrelated native settings when adding the definitions. Review and
 approve the initial hook definitions through each harness's normal trust flow.
+Claude needs support for synchronous `UserPromptSubmit` failure blocking.
+The native acceptance trial uses Claude Code 2.1.296. The activity hooks mark
+the primary busy before a prompt and ready after a completed turn. A missing
+activity hook or incompatible settings leave pull delivery unavailable.
+Optional `PermissionRequest` and `StopFailure` calls to the same activity hook
+record permission and unknown states. They do not answer permission requests.
 A package update keeps the command definitions stable. Enter the development
 shell before launching a root session. Hooks act only in that shell's project
 root. The committed command guards skip worker sessions before accessing the
@@ -69,3 +79,7 @@ or unresponsive. Inspect `concierge host status --timeout 1s` and
 `.concierge/host.log`. Stop active writers and the verified old host manually
 before starting a fresh root. Do not start a second host or remove state to
 clear the warning. The module never restarts an older host automatically.
+
+The [shared supervisor scheduler](heartbeats.md) requires intentional
+activation. A shell refresh, state migration, or native hook registration does
+not activate it. Register Codex's exact native socket and thread separately.
