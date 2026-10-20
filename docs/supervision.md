@@ -1,5 +1,44 @@
 # Supervision
 
+## Primary session continuity
+
+The source supervisor protocol in `nix/skills/SKILL.md` requires a session
+handoff from the beginning of each non-trivial primary session. The devshell
+generates adopting repositories' skill copies from that source. Change the
+source and upgrade the adopting pin to distribute protocol updates.
+
+The `concierge` vault project owns the cross-project activity handoff. A primary
+running in a vault repository still records its supervision under `concierge`.
+Project worker reports retain their own project ownership. The session handoff
+connects task IDs, saved report IDs, decisions, delivery state, blockers, and
+open operator actions across those projects.
+
+The primary keeps a recoverable snapshot and persistence receipt under ignored
+`$CONCIERGE_HOME/session-handoffs/`. This is supervisor state. A separate vault
+worker owns all vault writes, validation, and commits. The primary lands that
+worker's result through the vault project's delivery and merge settings.
+
+Follow the [source protocol's handoff procedure](../nix/skills/SKILL.md#concierge-session-handoff)
+for startup recovery, explicit vault selection, update triggers, and serialized
+persistence. Recover local pending snapshots even when an earlier vault write
+failed. Import creates the first note. Subsequent updates edit the same note
+and preserve its full metadata. Vault worker replies are operational receipts;
+importing those receipts would cause recursive vault work.
+
+Locker keeps a session handoff `current` while its body can describe a pending
+outcome. It does not have a `pending` frontmatter status. A later native session
+creates a new handoff after recovering prior context. The vault worker preserves
+still-current guidance before superseding affected notes and linking their
+replacement. The initial handoff, checkpoint updates, and final report follow
+one lifecycle. A restart is not a prerequisite for creating the initial note.
+
+For example, an operator correction that changes delivery from a PR to a local
+landing belongs in the session snapshot at the next checkpoint. Record the
+decision, affected task, and next owner. After landing, update the same handoff
+with the actual commit and remaining cleanup. Import the project's accepted
+worker report separately through the [task report flow](tasks.md#import-accepted-notes-through-a-vault-worker).
+
+## Worker supervision
 
 ```sh
 concierge control --session work status worker-1

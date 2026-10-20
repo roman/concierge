@@ -158,6 +158,12 @@ concierge task report TASK_ID REPLY_ID --format body > reply.md
 
 Projects that record notes in a Locker vault use this flow:
 
+Vault workers return operational persistence receipts. Accept and save these
+receipts in Concierge, but exclude them from this import flow. Importing them
+would cause recursive vault work. Include substantive vault findings in the
+relevant pending handoff update. See the
+[session handoff protocol](../nix/skills/SKILL.md#concierge-session-handoff).
+
 ```text
 Worker reply -> saved report -> vault worker -> import -> commit -> land
 ```

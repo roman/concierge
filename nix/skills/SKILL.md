@@ -65,6 +65,97 @@ as setup gaps. Do not copy or edit a legacy backlog to initialize state. See
 the Concierge README for explicit fresh
 initialization and migration. Stop state writers before either operation.
 
+## Concierge session handoff
+
+Maintain a durable handoff for the primary's own activity from the start of
+each non-trivial session. The `concierge` vault project owns this handoff,
+including supervision across repositories. The repository hosting the primary
+does not change that ownership. Individual project worker reports still belong
+to their respective projects. Link those reports and handoffs from the session
+handoff instead of copying their implementation detail.
+
+After claiming the primary role, inspect `$CONCIERGE_HOME/session-handoffs/`
+for prior snapshots and unfinished persistence tasks. Recover their pending
+updates even when the vault has no note yet. Read the applicable vault/session
+rules and resolve one authoritative absolute vault path from those rules,
+recorded session context, and `ZENNOTES_VAULT`. Pass that explicit `--vault`
+selection to Locker navigation and every vault worker. If selection is missing
+or conflicting, record an open operator action and keep persistence pending.
+Do not guess a vault from the current working directory.
+
+Read current `concierge` handoffs through `locker nav`. Recover previous
+decisions, pending work, and open operator actions. Check them and local
+snapshots against current Concierge task records and saved reports before
+resuming. Recover existing vault worker results before retrying an import.
+Secondary sessions leave this handoff to the owning primary.
+
+Before dispatching project work, save an initial handoff snapshot in ignored
+supervisor state under `$CONCIERGE_HOME/session-handoffs/`. Identify the native
+primary session and record its project and selected vault or unresolved vault
+selection. Include the intended
+outcome marked pending, current state, and next actions. Use the Locker worker
+reply headings `## Handoff`, `### Outcome`, `### Current state`, and
+`### Next actions` in the snapshot. The primary may write this supervisor state;
+it never edits project files or vault notes.
+
+Commission a separate vault worker to persist that snapshot at session start.
+Use the vault's existing session and note rules. For Locker, the worker previews
+and imports the initial snapshot with `--project concierge`, an explicit
+`--vault`, and a session-specific `--task-id`. It returns the unique handoff
+basename and identifies the snapshot it applied. If the project is missing, the
+worker follows the vault's project setup rules or reports a blocker. Do not
+silently route the note to the host repository's project.
+
+Give each dispatched snapshot a unique immutable filename and keep it until
+its persistence finishes. Record that filename with its vault worker task,
+returned note identity, and pending persistence in supervisor state. Keep a
+separate pointer to the newest pending snapshot. Keep the initial snapshot durable
+even if vault access or worker launch fails. Report that blocker and keep vault
+persistence pending. Continue independent supervision. Never postpone the
+initial handoff until a restart, task completion, or final report.
+
+Refresh the snapshot when any of these changes its outcome, state, or next actions:
+
+- Intake or dispatch adds work, changes scope, or assigns an owner.
+- A task changes state, produces a result, lands, or awaits stop or cleanup.
+- A decision or operator correction changes the direction or an earlier claim.
+- A blocker or open operator action appears, changes, or resolves.
+- A natural work checkpoint produces a verified finding or changes the next step.
+- The primary is about to wait or end the session.
+
+Include task IDs, report IDs, delivery evidence, decisions and their reasons,
+blockers, open operator action IDs, and the next responsible owner as relevant.
+Group related changes at natural checkpoints. Before each wait or session end,
+save any material changes and dispatch pending vault persistence. An unchanged
+heartbeat, inbox poll, or wait does not require another write or vault task.
+
+Send changed snapshots to a separate vault worker for updates to the same note.
+Locker import always creates notes; do not re-import each snapshot. The vault
+worker reads the full note before editing it with `zn`. A `zn write` replaces
+the entire file, so preserve all frontmatter, lifecycle metadata,
+`learnings_used`, and still-current guidance in the replacement. Verify the
+result with `locker nav --vault VAULT show BASENAME --full`, run
+`locker check --vault VAULT`, and commit.
+Serialize vault updates. Keep one in-flight task and the newest pending
+snapshot. Send that pending snapshot after the prior update lands. Confirm
+which dispatched snapshot the worker applied and its landing before marking
+persistence complete. Routine persistence bookkeeping alone does not trigger
+another snapshot; a persistence failure does.
+
+Treat vault persistence replies as operational receipts. Save and accept them
+through Concierge, but do not import them as another project worker report.
+This also applies to vault workers importing individual project reports. Fold
+any substantive finding from a vault worker into the relevant pending handoff
+update instead of commissioning a recursive report import.
+
+The final report reconciles the same session handoff with verified outcomes and
+unfinished work marked pending. Report any unpersisted snapshot and its owner.
+It supplements the initial and checkpoint updates. On a new native session,
+create a new handoff after recovering the prior context. The vault worker
+preserves still-current guidance before superseding an affected older handoff
+and links its replacement under the existing vault lifecycle. `pending` belongs
+in the outcome text; it is not a new frontmatter status.
+
 ## Host readiness
 
 The owning root SessionStart hook checks the pinned host before printing the
@@ -313,8 +404,9 @@ not saved as reports.
 This command reads historical evidence; check a pending reply through
 `task reply check` before accepting its result.
 
-For an accepted result from a project with a Locker vault, save its reply with
+For an accepted project result with a Locker vault, save its reply with
 `concierge task report TASK_ID REPLY_ID --format body > reply.md`.
+Exclude vault persistence receipts as described in the session handoff procedure.
 Give that report to a separate vault worker on a branch of the vault repository
 in its own worktree. The primary does not edit the vault. The project's worker
 does not edit the vault. The vault worker runs `locker handoff preview REPORT`
