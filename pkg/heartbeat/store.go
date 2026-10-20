@@ -23,11 +23,14 @@ const maxStateBytes = 2 << 20
 type Store struct{ Root string }
 
 type Event struct {
-	ID       string    `json:"id"`
-	Created  time.Time `json:"created"`
-	Snapshot string    `json:"snapshot"`
-	Replies  []string  `json:"replies,omitempty"`
-	Claim    *Claim    `json:"claim,omitempty"`
+	Kind      EventKind     `json:"kind"`
+	MessageID string        `json:"message_id,omitempty"`
+	Interval  time.Duration `json:"interval,omitempty"`
+	ID        string        `json:"id"`
+	Created   time.Time     `json:"created"`
+	Snapshot  string        `json:"snapshot"`
+	Replies   []string      `json:"replies,omitempty"`
+	Claim     *Claim        `json:"claim,omitempty"`
 }
 
 type Claim struct {
@@ -36,13 +39,16 @@ type Claim struct {
 }
 
 type Receipt struct {
-	EventID string    `json:"event_id"`
-	Token   string    `json:"token"`
-	Output  string    `json:"output"`
-	At      time.Time `json:"at"`
+	MessageID string    `json:"message_id,omitempty"`
+	EventID   string    `json:"event_id"`
+	Token     string    `json:"token"`
+	Output    string    `json:"output"`
+	At        time.Time `json:"at"`
 }
 
 type State struct {
+	Delivery     string    `json:"delivery,omitempty"`
+	LastError    string    `json:"last_error,omitempty"`
 	Binding      *Binding  `json:"binding,omitempty"`
 	Version      int       `json:"version"`
 	Enabled      bool      `json:"enabled"`
@@ -68,7 +74,10 @@ func (store Store) Enable(ctx context.Context, now time.Time) error {
 		if state.Enabled {
 			return errors.New("scheduler already enabled; use explicit resume to clear a pause")
 		}
-		state.Enabled, state.Paused, state.PauseReason = true, false, ""
+		state.Enabled = true
+		if state.PauseReason == "activation required" {
+			state.Paused, state.PauseReason = false, ""
+		}
 		state.Revision++
 		state.Next = now.UTC()
 		return nil
@@ -82,7 +91,7 @@ func (store Store) Pause(ctx context.Context, reason string) error {
 	return store.update(ctx, func(state *State) error {
 		state.Paused, state.PauseReason = true, reason
 		state.Revision++
-		if state.Pending != nil {
+		if state.Pending != nil && state.Pending.Kind == Periodic {
 			state.Pending.Claim = nil
 		}
 		return nil
@@ -101,7 +110,7 @@ func (store Store) Resume(ctx context.Context) error {
 }
 
 func available(state *State) error {
-	if !state.Enabled || state.Paused {
+	if !state.Enabled || (state.Paused && (state.Pending == nil || state.Pending.Kind != Inbox)) {
 		return errors.New("supervisor scheduler is disabled or paused")
 	}
 	return nil
@@ -120,6 +129,7 @@ func (store Store) Stage(
 		}
 		if state.Pending == nil {
 			state.Pending = &Event{
+				Kind:     Periodic,
 				ID:       rand.Text(),
 				Created:  now.UTC(),
 				Snapshot: snapshot,
@@ -176,14 +186,26 @@ func (store Store) Acknowledge(ctx context.Context, id, token, output string, no
 			!now.Before(event.Claim.Until) {
 			return errors.New("claim is missing or expired")
 		}
-		if state.LastSnapshot == event.Snapshot {
-			state.QuietCount++
-		} else {
-			state.QuietCount = 0
+		if event.Kind == Periodic {
+			if state.LastSnapshot == event.Snapshot {
+				state.QuietCount++
+			} else {
+				state.QuietCount = 0
+			}
+			state.LastSnapshot = event.Snapshot
 		}
-		state.LastSnapshot = event.Snapshot
 		state.SeenReplies = append([]string(nil), event.Replies...)
-		state.Receipt = &Receipt{EventID: id, Token: token, Output: output, At: now.UTC()}
+		state.Receipt = &Receipt{
+			EventID:   id,
+			Token:     token,
+			Output:    output,
+			At:        now.UTC(),
+			MessageID: event.MessageID,
+		}
+		if event.Interval > 0 {
+			state.Next = now.Add(event.Interval).UTC()
+		}
+		state.Delivery, state.LastError = "output_reported", ""
 		state.Pending = nil
 		return nil
 	})

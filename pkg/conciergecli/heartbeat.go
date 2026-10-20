@@ -10,11 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/heartbeat"
 	"github.com/roman/concierge/pkg/stateversion"
-	"github.com/roman/concierge/pkg/taskstate"
-	"github.com/roman/concierge/pkg/taskview"
-	"github.com/roman/tincan/pkg/inbox"
 )
 
 const heartbeatHelp = "concierge heartbeat show | set [--interval 5m] [--quiet-limit 5] | check [--wake checkpoint|inbox|reminder]"
@@ -137,11 +134,7 @@ func (command *cli) runHeartbeat(ctx context.Context, root, selected string, out
 	return 0
 }
 
-type heartbeatStatus struct {
-	Active bool
-	Text   string
-	Notify bool
-}
+type heartbeatStatus = heartbeat.Observation
 
 type heartbeatLedger struct {
 	LastWake       time.Time `json:"last_wake"`
@@ -240,116 +233,5 @@ func collectHeartbeatStatus(
 	ctx context.Context,
 	root, messageRoot, recipientName, executable string,
 ) (heartbeatStatus, error) {
-	store, err := taskstate.NewStore(root)
-	if err != nil {
-		return heartbeatStatus{}, err
-	}
-	tasks, err := store.List(ctx)
-	if err != nil {
-		return heartbeatStatus{}, err
-	}
-	ledger, err := readOperatorLedger(filepath.Join(root, "operator-actions.json"))
-	if err != nil {
-		return heartbeatStatus{}, err
-	}
-	recipient, err := inbox.ParseRecipient(recipientName)
-	if err != nil {
-		return heartbeatStatus{}, err
-	}
-	messages, err := inbox.New(messageRoot)
-	if err != nil {
-		return heartbeatStatus{}, err
-	}
-	pending, err := messages.List(recipient)
-	if err != nil {
-		return heartbeatStatus{}, err
-	}
-	replies := 0
-	var replyRows strings.Builder
-	workerReplies := map[string]bool{}
-	for _, message := range pending {
-		if strings.HasPrefix(message.Key, "task-reply:"+root+":") {
-			replies++
-			fmt.Fprintf(&replyRows, "pending_reply: %s\n", message.ID.String())
-			identity := strings.TrimPrefix(message.Key, "task-reply:"+root+":")
-			if separator := strings.LastIndex(identity, ":"); separator >= 0 {
-				workerReplies[identity[:separator]] = true
-			}
-		}
-	}
-	var workers strings.Builder
-	bound, completions := 0, 0
-	launches := 0
-	notify := len(ledger.Actions) > 0
-	now := time.Now()
-	for _, task := range tasks {
-		snapshot := task.Snapshot()
-		if snapshot.LaunchIntent != nil && snapshot.Worker == nil {
-			launches++
-			if task.UnregisteredLaunchOverdue(now) {
-				notify = true
-			}
-		}
-		if snapshot.Completion != nil {
-			completions++
-			fmt.Fprintf(
-				&workers,
-				"cleanup: %s, %s, %s\n",
-				quote(task.ID()),
-				snapshot.Completion.Phase,
-				quote(snapshot.Completion.Generation),
-			)
-		}
-		worker := snapshot.Worker
-		if worker == nil {
-			continue
-		}
-		bound++
-		client, err := herdr.NewClient(executable).ForEndpoint(worker.Machine, worker.Session)
-		if err != nil {
-			return heartbeatStatus{}, err
-		}
-		statusCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		agent, err := client.Get(statusCtx, worker.Pane)
-		cancel()
-		state := agent.Status
-		if err != nil {
-			state = herdr.Unknown
-		}
-		fmt.Fprintf(
-			&workers,
-			"worker: %s, %s, %s\n",
-			quote(task.ID()),
-			state,
-			quote(worker.Generation),
-		)
-		finished := snapshot.Completion != nil || workerReplies[task.ID()+":"+worker.Generation]
-		if state == herdr.Done || (state == herdr.Idle && finished) {
-			notify = true
-		}
-	}
-	var view strings.Builder
-	fmt.Fprintf(
-		&view,
-		"workers: %d bound\npending_replies: %d\nawaiting_cleanup: %d\n",
-		bound,
-		replies,
-		completions,
-	)
-	view.WriteString(workers.String())
-	if launches > 0 {
-		fmt.Fprintf(&view, "unbound_launches: %d\n", launches)
-	}
-	if err := taskview.WriteStuckLaunches(&view, tasks, now); err != nil {
-		return heartbeatStatus{}, err
-	}
-	view.WriteString(replyRows.String())
-	writeOperatorActions(&view, ledger.Actions)
-	fmt.Fprintf(&view, "operator_revision: %d\n", ledger.ActionRevision)
-	return heartbeatStatus{
-		Active: bound > 0 || launches > 0 || len(ledger.Actions) > 0 || replies > 0 ||
-			completions > 0,
-		Text:   view.String(),
-		Notify: notify,
-	}, nil
+	return heartbeat.Collect(ctx, root, messageRoot, recipientName, executable)
 }

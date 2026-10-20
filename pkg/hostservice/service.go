@@ -220,6 +220,11 @@ func (server *Server) ServeReady(
 	running.Add(1)
 	go func() {
 		defer running.Done()
+		server.runPrimaryScheduler(ctx)
+	}()
+	running.Add(1)
+	go func() {
+		defer running.Done()
 		server.runInitialReconciliation(ctx)
 	}()
 	slots := make(chan struct{}, maxConnections)
