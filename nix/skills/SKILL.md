@@ -165,6 +165,14 @@ acceptance and cleanup work, open actions, and a two-minute claim token.
 Handle assignments and results through their normal verification protocols.
 A mailbox publication alone grants no processing authority.
 
+Native sandboxing can hide the owning process or deny access to its Unix
+socket. A claim failure with `process ownership cannot be confirmed` can
+require the normal native approval flow. Retry the exact claim command with
+Codex shell `sandbox_permissions=require_escalated` when it ran in that
+sandbox. Use the same approved access for acknowledgement after posting the
+update. Keep the configured permissions, trust, owner, and binding unchanged.
+A denied approval leaves the event pending. Report the actionable fault.
+
 Post the operator update before recording its output receipt:
 
 ```sh

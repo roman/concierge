@@ -33,6 +33,7 @@ pkgs.writeShellScript "concierge-codex-acceptance" ''
   export DEVENV_ROOT=${lib.escapeShellArg projectRoot}
   mkdir -p "$DEVENV_ROOT/.codex"
   cd "$DEVENV_ROOT"
+  export PATH=${lib.makeBinPath result.config.packages}:"$PATH"
   if [ ! -e .codex/hooks.json ]; then
     cp ${hooks} .codex/hooks.json
   fi

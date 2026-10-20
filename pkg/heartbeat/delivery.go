@@ -70,7 +70,7 @@ func Notification(
 	generation string,
 ) string {
 	return fmt.Sprintf(
-		"Concierge supervisor event %s. Recheck this event against fresh state before acting. Run %s --root %s --message-root %s --recipient %s heartbeat claim %s --generation %s. Act only on status: current. Read fresh pending messages through the normal bound task-reply protocol. Post the operator update before recording its output acknowledgement. If the claim is stale, paused, in progress, or acknowledged, do not repeat the update.",
+		"Concierge supervisor event %s. Recheck this event against fresh state before acting. Run %s --root %s --message-root %s --recipient %s heartbeat claim %s --generation %s. Act only on status: current. If the native sandbox hides process identity or blocks the owning Unix socket, retry the exact command through the normal native approval flow (Codex shell sandbox_permissions=require_escalated). Preserve the configured permissions, trust, owner, and binding. Use that same approved access for the later acknowledgement. Read fresh pending messages through the normal bound task-reply protocol. Post the operator update before recording its output acknowledgement. If the claim is stale, paused, in progress, or acknowledged, do not repeat the update.",
 		event.ID,
 		shellQuote(executable),
 		shellQuote(root),

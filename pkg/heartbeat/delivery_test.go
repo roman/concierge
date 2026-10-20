@@ -21,6 +21,26 @@ func TestNotificationCarriesExactClaimCommand(t *testing.T) {
 	}
 }
 
+func TestNotificationExplainsNativeSandboxRecovery(t *testing.T) {
+	notification := Notification(
+		"/bin/concierge",
+		"/private/.concierge",
+		"/private/.tincan",
+		"concierge",
+		Event{ID: "event"},
+		"generation",
+	)
+	for _, instruction := range []string{
+		"normal native approval flow",
+		"sandbox_permissions=require_escalated",
+		"Preserve the configured permissions, trust, owner, and binding",
+	} {
+		if !strings.Contains(notification, instruction) {
+			t.Fatalf("missing sandbox recovery instruction %q: %s", instruction, notification)
+		}
+	}
+}
+
 func TestDeliveryBudgetAndUncertainty(t *testing.T) {
 	now := time.Unix(1000, 0)
 	for _, trial := range []struct {

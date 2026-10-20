@@ -50,11 +50,22 @@ folder or hook trust dialog through the normal native UI. Restart the session
 after trust approval if Codex requires it. Record the exact dialog when a trial
 cannot continue. Do not press its trust option through an automation driver.
 
+The standalone fixture explicitly puts the module's configured packages on
+PATH before entering its shell hook. A shell hook alone does not install the
+managed launcher. Require the launched server to have the private explicit
+endpoint before counting registration or delivery as production-path evidence.
+
 After startup, inspect `$trial/work/.concierge/primary.json` and
 `supervisor.json`. Require an enabled scheduler, a live native primary, a Codex
 binding, an absolute private endpoint, and the exact native thread UUID.
 Require the endpoint's recorded server incarnation to match the owning native
 hook process. Do not manually register the destination to repair this check.
+
+Codex 0.162.1 allocates its native thread when the first ordinary task starts.
+Its blank welcome screen has no primary thread to register. For the trial,
+submit `Reply with READY.` as that ordinary task. It carries no Concierge setup
+instructions. Require the native SessionStart hook to register automatically,
+then wait for the completed response and idle prompt before creating the event.
 
 Wait until the native primary is idle. From a second terminal, create an action
 in the same private roots:
@@ -72,6 +83,14 @@ Require a real operator update about that current event. Then verify the native
 primary records its output receipt after the visible update. Check the durable
 receipt and the keyed publication acknowledgement. Final JSON, an empty queue,
 and a receipt without observed output are insufficient evidence.
+
+On Linux, the normal native sandbox can hide process identity and block Unix
+socket access. The generated notification and supervisor skill direct the
+primary to retry the exact command through the normal native approval flow.
+Codex uses `sandbox_permissions=require_escalated`. This preserves native
+permissions and the current binding. Handle any native approval request through
+the normal operator UI. Do not change permission mode or weaken identity checks
+to make the gate pass. Record a denied or unanswered approval as a remaining gap.
 
 Resolve the private action after observing output. Exit the first TUI. Start
 `"$acceptance_shell"` again without a setup prompt. Require automatic ownership
@@ -97,3 +116,43 @@ before removing its directory.
 Run `nix flake check` at the reported revision. Run the four heartbeat packages
 when iterating. Record actual native results separately from protocol tests.
 An unanswered trust dialog leaves the real output gate incomplete.
+
+## Recorded native acceptance
+
+On 2026-10-20, Codex 0.162.1 and the real GPT-6.1-Sol model pass the production
+module's output gate on Linux. The selected native package preserves Zoo's
+worktree launcher. The operator physically approves initial folder trust in the
+native TUI. Subsequent starts need no trust prompt, socket argument,
+registration command, or heartbeat bootstrap prompt. An ordinary `Reply with
+READY.` task allocates each native thread. The SessionStart hook then claims
+ownership, registers its private endpoint, and preserves the scheduler state.
+
+The first successful primary uses thread
+`01a15b76-1d5a-70b0-8923-4d94f82bce65` and generation
+`P44ZDXQ2VLGC54AM7T34MNTOVW`. It recovers pending event
+`Y4SLA5363N4VVYMZKMFHALZ54M` across a package upgrade and owner replacement.
+Its explicit pause survives startup. After the authorized trial resume, its
+claim returns `status: current`. Its visible commentary update appears at
+22:38:03.225 UTC. Its acknowledgement request follows at 22:38:06.258 UTC. The
+durable receipt records 22:38:08.084933946 UTC. The original TUI shows the update
+before the successful acknowledgement. The private publication is acknowledged.
+
+The second fresh primary uses thread
+`01a15b79-60db-7872-814c-d4116eac4b31` and generation
+`QJKDO54TNM67LDZMZHZUSMO5OH`. It registers automatically without activation,
+resume, registration, or setup instructions. The same host process, PID 253402,
+survives the first primary's exit. A new action created while the second primary
+is idle produces event `FLQLPDB46W7C2DHNMOSR25PLOB` on the preserved schedule.
+The native transcript contains one notification for that event. Its exact claim
+returns `status: current`. Its visible commentary update appears at
+22:43:34.507 UTC. Its acknowledgement request follows at 22:43:38.768 UTC. The
+durable receipt records 22:43:40.976621489 UTC. Its original TUI displays both the
+update and successful acknowledgement. The private inbox is empty afterward.
+
+Both sessions use the unchanged native workspace sandbox and `Approve for me`
+settings. Their first sandboxed claim cannot verify process ownership. Each
+primary follows the generated recovery guidance and retries its exact command
+through normal native approval. It uses the same approved access for the later
+acknowledgement. A separate harness notification tool is unavailable in these
+native trials. The operator updates are visible in the attached original TUIs.
+The trials do not establish a separate desktop notification channel.

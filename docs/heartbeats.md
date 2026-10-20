@@ -160,21 +160,23 @@ HTTP fixtures. Native approval checks remain active.
   hook bodies and a temporary built Concierge executable. A stream response
   does not establish output in an interactive terminal.
 
-Full native claim, operator output, and acknowledgement acceptance remains
-incomplete on both platforms. A new private Codex SessionStart hook requires
-native trust approval before ownership registration. The disposable output
-trial stops at its reported `untrusted` status. A Claude Bash claim attempt
-reaches the native automatic permission check. The deterministic fixture model
-cannot provide its classifier; native execution reports `Classifier unavailable`
-and denies the tool. The event remains pending without a claim or receipt.
-The trials do not grant hook trust, answer approval requests, alter permission
-mode, or manufacture classifier approvals.
+The production Codex startup path passes the full real-model claim, original
+TUI output, and durable acknowledgement gate. Two fresh primaries register
+automatically and reuse the same host. The operator handles initial folder
+trust through the normal native UI. The native workspace sandbox and
+`Approve for me` controls remain active. See the
+[recorded acceptance evidence](codex-startup-acceptance.md#recorded-native-acceptance).
 
-Complete the output gate in disposable sessions with an operator-approved
-Codex hook and a working Claude permission classifier. Observe the actual
-operator output before acknowledging its reference. Real-model compliance,
-original-UI output on both platforms, and live activation acceptance remain
-separate requirements. Transport success does not establish deployment readiness.
+Claude's full output gate remains incomplete. Its deterministic fixture cannot
+provide the native permission classifier. A Bash claim reports
+`Classifier unavailable` and retains the event without a claim or receipt.
+The trials do not grant trust, answer approval requests, change permission
+mode, or manufacture classifier approvals. Claude real-model compliance and
+original interactive UI output require their own acceptance gate.
+
+Live deployment remains separate from private acceptance. Observe actual
+operator output before acknowledging its reference. Transport success alone
+does not establish deployment readiness.
 
 Run the optional trials with explicit installed binary paths:
 
