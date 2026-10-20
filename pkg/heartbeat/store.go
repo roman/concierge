@@ -23,6 +23,8 @@ const maxStateBytes = 2 << 20
 type Store struct{ Root string }
 
 type Event struct {
+	Notify    bool          `json:"notify,omitempty"`
+	Attempt   *Attempt      `json:"attempt,omitempty"`
 	Kind      EventKind     `json:"kind"`
 	MessageID string        `json:"message_id,omitempty"`
 	Interval  time.Duration `json:"interval,omitempty"`
@@ -154,61 +156,18 @@ func pending(state *State, id string) (*Event, error) {
 
 func (store Store) Claim(ctx context.Context, id string, now time.Time) (Claim, error) {
 	var result Claim
-	err := store.update(ctx, func(state *State) error {
-		event, err := pending(state, id)
-		if err != nil {
-			return err
-		}
-		if event.Claim != nil && now.Before(event.Claim.Until) {
-			return errors.New("event processing is in progress")
-		}
-		result = Claim{Token: rand.Text(), Until: now.Add(ClaimLease).UTC()}
-		event.Claim = &result
-		return nil
-	})
+	err := store.update(
+		ctx,
+		func(state *State) error { var err error; result, err = claimEvent(state, id, now); return err },
+	)
 	return result, err
 }
 
 func (store Store) Acknowledge(ctx context.Context, id, token, output string, now time.Time) error {
-	if strings.TrimSpace(output) == "" {
-		return errors.New("post the operator update first; output evidence is required")
-	}
-	return store.update(ctx, func(state *State) error {
-		if state.Receipt != nil && state.Receipt.EventID == id && state.Receipt.Token == token &&
-			state.Receipt.Output == output {
-			return nil
-		}
-		event, err := pending(state, id)
-		if err != nil {
-			return err
-		}
-		if event.Claim == nil || token == "" || event.Claim.Token != token ||
-			!now.Before(event.Claim.Until) {
-			return errors.New("claim is missing or expired")
-		}
-		if event.Kind == Periodic {
-			if state.LastSnapshot == event.Snapshot {
-				state.QuietCount++
-			} else {
-				state.QuietCount = 0
-			}
-			state.LastSnapshot = event.Snapshot
-		}
-		state.SeenReplies = append([]string(nil), event.Replies...)
-		state.Receipt = &Receipt{
-			EventID:   id,
-			Token:     token,
-			Output:    output,
-			At:        now.UTC(),
-			MessageID: event.MessageID,
-		}
-		if event.Interval > 0 {
-			state.Next = now.Add(event.Interval).UTC()
-		}
-		state.Delivery, state.LastError = "output_reported", ""
-		state.Pending = nil
-		return nil
-	})
+	return store.update(
+		ctx,
+		func(state *State) error { return acknowledgeEvent(state, id, token, output, now) },
+	)
 }
 
 func (store Store) update(ctx context.Context, change func(*State) error) error {

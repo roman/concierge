@@ -208,6 +208,12 @@ func runOperatorReminder(
 	now time.Time,
 	output io.Writer,
 ) int {
+	if owned, err := hostOwnsHeartbeat(ctx, root); err != nil {
+		return fail(output, 1, err, operatorHelp)
+	} else if owned {
+		fmt.Fprintln(output, "status: quiet\nscheduler: host_owned")
+		return writeHeartbeatState(ctx, root, output)
+	}
 	if interval <= 0 {
 		return fail(output, 2, errors.New("reminder interval must be positive"), operatorHelp)
 	}

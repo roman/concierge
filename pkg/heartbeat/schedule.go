@@ -122,6 +122,7 @@ func (store Store) Schedule(
 			kind = Inbox
 		}
 		state.Pending = &Event{
+			Notify:   observation.Notify,
 			ID:       rand.Text(),
 			Kind:     kind,
 			Created:  now.UTC(),

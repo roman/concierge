@@ -14,9 +14,29 @@ import (
 	"github.com/roman/concierge/pkg/stateversion"
 )
 
-const heartbeatHelp = "concierge heartbeat show | set [--interval 5m] [--quiet-limit 5] | check [--wake checkpoint|inbox|reminder]"
+const heartbeatHelp = "concierge heartbeat show | set [--interval 5m] [--quiet-limit 5] | enable | pause --reason REASON | resume | register codex --socket PATH --thread UUID | claim EVENT --generation GEN | ack EVENT --generation GEN --token TOKEN --output REFERENCE; check is host-owned after activation"
 
 type heartbeatCommands struct {
+	Enable struct{} `cmd:"" help:"Explicitly activate the durable host scheduler; preserve an earlier operator pause."`
+	Pause  struct {
+		Reason string `required:"" help:"Operator reason for pausing periodic output and delivery."`
+	} `cmd:"" help:"Persist an operator pause independently of quiet suppression."`
+	Resume   struct{} `cmd:"" help:"Explicitly resume periodic events after an operator pause."`
+	Register struct {
+		Codex struct {
+			Socket string `required:"" help:"Explicit owning app-server Unix socket."`
+			Thread string `required:"" help:"Exact inherited native thread UUID."`
+		} `cmd:"" help:"Register the owning Codex server and thread."`
+	} `cmd:"" help:"Bind a native delivery destination to the current primary."`
+	Claim struct {
+		heartbeatEventSelection
+		Herdr string `default:"herdr" env:"TINCAN_HERDR" help:"Herdr executable for fresh worker status."`
+	} `cmd:"" help:"Claim a published current event and fetch fresh supervisor state."`
+	Ack struct {
+		heartbeatEventSelection
+		Token  string `required:"" help:"Token returned by heartbeat claim."`
+		Output string `required:"" help:"Reference to the operator update already posted."`
+	} `cmd:"" help:"Record output after posting; retain work on a stale or expired claim."`
 	Show struct{} `cmd:"" help:"Show the operator-owned heartbeat interval and quiet limit."`
 	Set  struct {
 		Interval   *time.Duration `help:"Positive interval between primary heartbeats."`
@@ -28,31 +48,15 @@ type heartbeatCommands struct {
 	} `cmd:"" help:"Claim a due heartbeat at an inbox wait checkpoint."`
 }
 
-type heartbeatSettings struct {
-	Interval   string `json:"interval"`
-	QuietLimit int    `json:"quiet_limit"`
+type heartbeatEventSelection struct {
+	EventID    string `arg:"" help:"Stable supervisor event ID."`
+	Generation string `required:"" help:"Primary binding generation from the native notification."`
 }
 
+type heartbeatSettings = heartbeat.Settings
+
 func readHeartbeatSettings(path string) (heartbeatSettings, error) {
-	settings := heartbeatSettings{Interval: "5m", QuietLimit: 5}
-	data, err := readOptionalConfiguration(path)
-	if err != nil {
-		return settings, err
-	}
-	if data == nil {
-		return settings, nil
-	}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return settings, err
-	}
-	interval, err := time.ParseDuration(settings.Interval)
-	if err != nil || interval <= 0 {
-		return settings, errors.New("heartbeat interval must be positive")
-	}
-	if settings.QuietLimit < 0 {
-		return settings, errors.New("heartbeat quiet limit must be nonnegative")
-	}
-	return settings, nil
+	return heartbeat.ReadSettings(path)
 }
 
 func (command *cli) runHeartbeat(ctx context.Context, root, selected string, output io.Writer) int {
@@ -103,9 +107,15 @@ func (command *cli) runHeartbeat(ctx context.Context, root, selected string, out
 		if err != nil {
 			return 1
 		}
-		return 0
+		return writeHeartbeatState(ctx, root, output)
 	}
 	wake := command.Heartbeat.Check.Wake
+	if owned, err := hostOwnsHeartbeat(ctx, root); err != nil {
+		return fail(output, 1, err, heartbeatHelp)
+	} else if owned {
+		fmt.Fprintln(output, "status: quiet\nscheduler: host_owned")
+		return writeHeartbeatState(ctx, root, output)
+	}
 	// Avoid live pane inspection when another wake already supplies the update.
 	if wake != "checkpoint" {
 		err = claimHeartbeat(

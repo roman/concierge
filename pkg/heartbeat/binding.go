@@ -77,6 +77,7 @@ func register(state *State, owner primary.Identity, destination Destination) Bin
 	state.Binding = &binding
 	if state.Pending != nil {
 		state.Pending.Claim = nil
+		state.Pending.Attempt = nil
 	}
 	return binding
 }
@@ -129,6 +130,20 @@ func bindingCurrent(state *State, owner primary.Identity, generation string, now
 	return nil
 }
 
+// CheckBinding reports current availability without changing a stale record.
+func (store Store) CheckBinding(ctx context.Context, generation string, now time.Time) error {
+	return primary.WithOwner(store.Root, func(owner primary.Identity) error {
+		state, err := store.Read(ctx)
+		if err != nil {
+			return err
+		}
+		if err := bindingCurrent(&state, owner, generation, now); err != nil {
+			return err
+		}
+		return store.verifyDestination(ctx, state.Binding.Destination)
+	})
+}
+
 func nativeDestination(owner primary.Identity, destination Destination) error {
 	if owner.Kind == "codex" &&
 		(os.Getenv("CODEX_THREAD_ID") == "" || os.Getenv("CODEX_THREAD_ID") != destination.Thread) {
@@ -152,6 +167,9 @@ func (store Store) withBinding(
 					return err
 				}
 				if err := nativeDestination(owner, state.Binding.Destination); err != nil {
+					return err
+				}
+				if err := store.verifyDestination(ctx, state.Binding.Destination); err != nil {
 					return err
 				}
 				return action(state)

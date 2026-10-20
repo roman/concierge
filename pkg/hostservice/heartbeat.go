@@ -12,7 +12,7 @@ func (server *Server) runPrimaryScheduler(ctx context.Context) {
 	defer ticker.Stop()
 	lastError := ""
 	for {
-		_, err := heartbeat.Tick(
+		state, err := heartbeat.Tick(
 			ctx,
 			server.config.Root,
 			server.config.MessageRoot,
@@ -20,6 +20,17 @@ func (server *Server) runPrimaryScheduler(ctx context.Context) {
 			server.config.HerdrExecutable,
 			time.Now(),
 		)
+		if err == nil && state.Enabled && state.Pending != nil {
+			delivery, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err = (heartbeat.Store{Root: server.config.Root}).DeliverCodex(
+				delivery,
+				server.config.WorkerCommands.Concierge,
+				server.config.MessageRoot,
+				server.config.Recipient.String(),
+				time.Now(),
+			)
+			cancel()
+		}
 		if err != nil && ctx.Err() == nil && err.Error() != lastError {
 			server.report(err)
 			lastError = err.Error()
