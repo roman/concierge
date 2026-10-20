@@ -80,6 +80,45 @@ or unresponsive. Inspect `concierge host status --timeout 1s` and
 before starting a fresh root. Do not start a second host or remove state to
 clear the warning. The module never restarts an older host automatically.
 
-The [shared supervisor scheduler](heartbeats.md) requires intentional
-activation. A shell refresh, state migration, or native hook registration does
-not activate it. Register Codex's exact native socket and thread separately.
+## Automatic Codex startup
+
+Adopt the launcher once in the existing shell module:
+
+```nix
+concierge.enable = true;
+concierge.codex.enable = true;
+concierge.codex.package = existingNativeCodexPackage;
+```
+
+Select the package already used for the normal Codex command. Preserve any
+native packaging that supplies worktree directories or other operator policy.
+The launcher requires explicit Unix listeners and `--remote` TUI attachment.
+The native acceptance target is Codex 0.162.1. A missing package selection is a
+configuration error. Do not configure the generated launcher as its own native
+package.
+
+This option authorizes initial scheduler activation. Each future `codex` start
+creates a private listener and attaches the original TUI to it. The existing
+SessionStart hook claims ownership, verifies the listener's same-user kernel
+peer against the native hook process incarnation, verifies its thread and cwd,
+and registers delivery. The operator supplies no socket or bootstrap prompt.
+Repeated hooks preserve the binding generation. Subsequent starts preserve the
+existing host clock, quiet count, and explicit operator pause. Only an explicit
+`heartbeat resume` clears that pause.
+
+Keep the committed hook definitions above unchanged. Approve project trust and
+hook trust through Codex's normal controls during deployment. The module does
+not grant trust or change native permissions. Enter the refreshed shell before
+starting the new primary. Verify that `command -v codex` selects the generated
+launcher. Run `concierge heartbeat show` after startup to inspect registration.
+The launcher stops its private native server when the TUI exits. The shared
+Concierge host survives and retains unacknowledged events.
+
+Worker and noninteractive commands use the selected native package directly.
+Explicit `--remote` and `--no-daemon` launches require the native package's
+command; the managed entry path reports a usage error for these options.
+The shared native daemon is never discovered, replaced, or restarted.
+
+Without this option, the [shared supervisor scheduler](heartbeats.md) requires
+explicit activation and explicit Codex destination registration. Shell entry,
+state migration, and ordinary registration preserve the inactive default.

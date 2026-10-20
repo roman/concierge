@@ -45,3 +45,10 @@ done
 CONCIERGE_WORKER=fixture bash "$launcher" resume worker-thread
 grep -Fx 'resume worker-thread' "$TEST_NATIVE_CALLS"
 test "$(wc -l < "$TEST_NATIVE_CALLS")" -eq 1
+
+: > "$TEST_NATIVE_CALLS"
+status=0
+bash "$launcher" -c 'features.hooks=true' -- queue || status=$?
+[[ "$status" == 7 ]]
+test "$(wc -l < "$TEST_NATIVE_CALLS")" -eq 2
+grep -E '^app-server .* -c features.hooks=true$' "$TEST_NATIVE_CALLS"

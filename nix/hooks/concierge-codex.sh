@@ -4,8 +4,23 @@ set -euo pipefail
 if [[ -n "${CONCIERGE_WORKER:-}" ]]; then
   exec "$native_codex" "$@"
 fi
-for argument in "$@"; do
+arguments=("$@")
+server_arguments=()
+for ((index = 0; index < ${#arguments[@]}; index++)); do
+  argument="${arguments[index]}"
   case "$argument" in
+    --) break ;;
+    -c|--config|--enable|--disable)
+      if ((index + 1 >= ${#arguments[@]})); then
+        exec "$native_codex" "$@"
+      fi
+      server_arguments+=("$argument" "${arguments[index+1]}")
+      index=$((index + 1))
+      ;;
+    --config=*|--enable=*|--disable=*) server_arguments+=("$argument") ;;
+    -p|--profile|-m|--model|-s|--sandbox|-a|--ask-for-approval|-C|--cd|--add-dir|-i|--image|--local-provider|--remote-auth-token-env)
+      index=$((index + 1))
+      ;;
     --remote|--remote=*|--no-daemon)
       printf 'Concierge Codex owns its native endpoint. Use the native binary for an explicit remote or no-daemon session.\n' >&2
       exit 2
@@ -13,6 +28,8 @@ for argument in "$@"; do
     --help|-h|--version|-V|exec|e|review|login|logout|mcp|plugin|app-server|remote-control|completion|update|doctor|sandbox|debug|apply|a|queue|archive|delete|migrate-rollouts|unarchive|cloud|exec-server|features|help|agents)
       exec "$native_codex" "$@"
       ;;
+    -*) ;;
+    *) break ;;
   esac
 done
 
@@ -33,7 +50,7 @@ trap 'exit 143' TERM
 
 # The launcher supplies only the transport. Native configuration, permissions,
 # credentials, project trust, and hook trust still apply.
-"$native_codex" app-server --listen "unix://$CONCIERGE_CODEX_SOCKET" >"$session_directory/server.log" 2>&1 &
+"$native_codex" app-server --listen "unix://$CONCIERGE_CODEX_SOCKET" "${server_arguments[@]}" >"$session_directory/server.log" 2>&1 &
 server_pid=$!
 for attempt in {1..100}; do
   [[ -S "$CONCIERGE_CODEX_SOCKET" ]] && break

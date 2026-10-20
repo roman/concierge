@@ -25,6 +25,12 @@ let
     [[ -z "''${CONCIERGE_WORKER:-}" ]] || exit 0
     concierge_command=${lib.escapeShellArg "${cfg.package}/bin/concierge"}
     tincan_command=${lib.escapeShellArg "${cfg.tincanPackage}/bin/tincan"}
+    automatic_codex_heartbeats=${if cfg.codex.enable then "1" else "0"}
+  '';
+  codexLauncher = pkgs.writeShellScriptBin "codex" ''
+    export PATH=${lib.makeBinPath [ pkgs.coreutils ]}:"$PATH"
+    native_codex=${lib.escapeShellArg "${cfg.codex.package}/bin/codex"}
+    ${builtins.readFile ./hooks/concierge-codex.sh}
   '';
   hook = name: pkgs.writeShellScript name (commonHook + builtins.readFile (./hooks + "/${name}.sh"));
   skill = pkgs.writeText "concierge-local-supervisor-skill" (
@@ -34,6 +40,13 @@ in
 {
   options.concierge = {
     enable = lib.mkEnableOption "Concierge root supervision";
+    codex = {
+      enable = lib.mkEnableOption "automatic Codex heartbeat startup through the normal codex command; authorizes initial scheduler activation and preserves explicit pauses";
+      package = lib.mkOption {
+        type = lib.types.package;
+        description = "Existing native Codex package behind the managed launcher. Set explicitly when enabling automatic startup. Requires explicit Unix listeners and remote TUI attachment (tested with 0.162.1).";
+      };
+    };
     package = lib.mkOption {
       type = lib.types.package;
       default = packages.concierge;
@@ -50,7 +63,7 @@ in
       cfg.package
       cfg.tincanPackage
       pkgs.python3
-    ];
+    ] ++ lib.optional cfg.codex.enable codexLauncher;
     files = {
       ".agents/hooks/concierge-session-start".source = hook "concierge-session-start";
       ".agents/hooks/concierge-session-end".source = hook "concierge-session-end";

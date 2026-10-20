@@ -147,8 +147,10 @@ Verify their current pane content and status before stopping them.
 
 The root host owns the shared supervisor schedule. Inspect it with
 `concierge heartbeat show`. The scheduler starts disabled. Activate it only
-when the operator authorizes activation. A package update, session start, or
-native registration does not grant that authority.
+when the operator authorizes activation. Adopting `concierge.codex.enable`
+authorizes initial activation through the managed Codex startup hook. The hook
+preserves an explicit pause and the existing schedule on subsequent starts.
+Other session starts and native registration do not authorize activation.
 
 The operator configures the interval and quiet limit with `concierge heartbeat
 set --interval 5m --quiet-limit 5`. `heartbeat pause --reason REASON` persists
@@ -181,7 +183,16 @@ An acknowledged event requires no repeated output. A stale, paused, expired,
 or in-progress claim requires fresh verification. Queue acceptance, hook exit,
 and a drained native queue do not acknowledge operator output.
 
-Codex requires explicit registration from the owning native tool context:
+With `concierge.codex.enable`, launch the normal `codex` command from the adopted
+shell. The generated launcher supplies its own private app-server endpoint.
+The existing SessionStart hook registers the native owning thread automatically.
+The operator supplies no socket path or registration prompt. Do not repeat
+registration after successful startup. Inspect a startup registration fault
+before expecting delivery. Native project and hook trust still require normal
+operator approval.
+
+For an independently managed explicit endpoint, Codex supports registration
+from the owning native tool context:
 
 ```sh
 concierge heartbeat register codex --socket /absolute/owning.sock --thread NATIVE_UUID

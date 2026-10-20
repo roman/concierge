@@ -14,6 +14,10 @@ let
       cat >/dev/null
       case "$*" in
         *"heartbeat activity") exit "''${TEST_ACTIVITY_STATUS:-0}" ;;
+        *"heartbeat start")
+          printf 'status: registered\n'
+          exit "''${TEST_START_STATUS:-0}"
+          ;;
         *"heartbeat wait")
           if [ "''${TEST_CONSUMER_STATUS:-2}" = 2 ]; then
             printf 'Concierge supervisor event fixture. Run the verified heartbeat claim command.\n' >&2
@@ -32,7 +36,7 @@ let
         ;;
       primary)
         cat >/dev/null
-        printf 'status: %s\nkind: test\n' "''${TEST_PRIMARY_STATUS:-owner}"
+        printf 'status: %s\nkind: %s\n' "''${TEST_PRIMARY_STATUS:-owner}" "''${TEST_PRIMARY_KIND:-test}"
         test "''${TEST_PRIMARY_STATUS:-owner}" = owner
         ;;
       --message-root)
@@ -89,6 +93,8 @@ let
       conciergeModule
       {
         concierge.enable = true;
+        concierge.codex.enable = true;
+        concierge.codex.package = pkgs.writeShellScriptBin "codex" "exit 0";
         concierge.package = fakeConcierge;
         concierge.tincanPackage = fakeTincan;
       }

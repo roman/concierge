@@ -19,6 +19,14 @@ output="$(TEST_HOST_STATUS=0 TEST_RECOVERY_READY="$TMPDIR/recovered" ./.agents/h
 [[ "$output" == *'Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.'* ]]
 [[ "$output" == *'Concierge revisions: host revision-b, binary revision-b.'* ]]
 
+: > "$TEST_CALLS"
+output="$(TEST_PRIMARY_KIND=codex TEST_HOST_STATUS=0 ./.agents/hooks/concierge-session-start <<< "$payload")"
+grep -F 'heartbeat start' "$TEST_CALLS"
+[[ "$output" == *'Concierge Codex heartbeat: registered'* ]]
+output="$(TEST_PRIMARY_KIND=codex TEST_START_STATUS=1 TEST_HOST_STATUS=0 ./.agents/hooks/concierge-session-start <<< "$payload")"
+[[ "$output" == *'Concierge Codex heartbeat unavailable:'* ]]
+[[ "$output" == *'Concierge root supervisor context'* ]]
+
 printf '3\n' > "$DEVENV_ROOT/.concierge/.task-state-version"
 output="$(TEST_HOST_STATUS=0 ./.agents/hooks/concierge-session-start <<< "$payload")"
 if [[ "$output" != *'Concierge root supervisor context'* ]]; then

@@ -22,6 +22,14 @@ printf 'The primary reads projects and delegates project changes. Delegate codin
 printf 'The operator may authorize a specific operation or a narrowly scoped integration responsibility. Keep every exception within its stated scope.\n'
 printf 'A specific operation grants no standing authority. Load the Concierge supervisor skill for delivery authority.\n'
 
+if [[ "${automatic_codex_heartbeats:-0}" == 1 && "$primary_result" == *$'\nkind: codex'* ]]; then
+  if heartbeat_result="$(printf '%s' "$payload" | "$concierge_command" --root "$repository_root/.concierge" heartbeat start 2>&1)"; then
+    printf 'Concierge Codex heartbeat: registered. The host preserves operator pauses.\n'
+  else
+    printf 'Concierge Codex heartbeat unavailable: %s\n' "$heartbeat_result"
+  fi
+fi
+
 host_args=(--root "$repository_root/.concierge" --message-root "$repository_root/.tincan" host)
 if [[ "${HERDR_ENV:-}" == 1 ]]; then
   host_args+=(--session "${HERDR_SESSION:-default}")

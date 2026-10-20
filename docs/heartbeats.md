@@ -42,8 +42,15 @@ complete. Task recovery maintenance keeps its separate policy.
 
 ## Native destinations
 
-The root must already have a live native primary owner. Codex also requires its
-explicit owning app-server Unix socket and exact native thread UUID:
+The adopted shell can register Codex automatically with
+[`concierge.codex.enable`](development-shell.md#automatic-codex-startup). The
+normal `codex` command then owns a private explicit endpoint. Its native
+SessionStart hook registers the exact native thread without a setup prompt.
+This deployment option authorizes initial activation. Existing operator pauses
+survive future starts.
+
+For a separately managed endpoint, the root must already have a live native
+primary owner. Register its owning app-server Unix socket and native thread UUID:
 
 ```sh
 concierge heartbeat register codex --socket /absolute/owning.sock --thread NATIVE_UUID
@@ -121,6 +128,11 @@ clocks. Their earlier checkpoint behavior remains only for inactive legacy
 callers. Generated supervisor instructions use the shared event protocol.
 
 ## Native acceptance and limits
+
+Use [Codex startup acceptance](codex-startup-acceptance.md) for the production
+module's deployment contract and real-model output gate. The automated tests
+below establish transport behavior. Record the production startup and output
+results separately.
 
 Opt-in native tests create private roots and new processes. They never discover
 or restart an existing daemon. The model responses come from local deterministic
