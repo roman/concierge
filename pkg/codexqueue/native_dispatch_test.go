@@ -2,6 +2,7 @@ package codexqueue
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket/wsjson"
 
 	"github.com/roman/concierge/pkg/primary"
 )
@@ -149,11 +152,20 @@ func runNativeCodexQueueDispatch(t *testing.T, historyMode string) {
 	await := func(count int32) {
 		t.Helper()
 		for {
+			// turn/start acknowledges admission before execution materializes history.
+			if requests.Load() < count {
+				select {
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				case <-time.After(20 * time.Millisecond):
+				}
+				continue
+			}
 			gate, err := client.Readiness(ctx, thread, work)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if requests.Load() >= count && gate == Ready {
+			if gate == Ready {
 				return
 			}
 			select {
@@ -217,6 +229,42 @@ func runNativeCodexQueueDispatch(t *testing.T, historyMode string) {
 	if found, err := client.Contains(ctx, thread, "native-fixture-queue-1"); err != nil || !found {
 		t.Fatalf("native submission history: %t, %v", found, err)
 	}
+	unobserved, err := Open(ctx, path, client.Server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unobserved.Close()
+	if err := wsjson.Write(ctx, unobserved.connection, map[string]any{
+		"id": 500, "method": "thread/queue/add",
+		"params": map[string]any{
+			"threadId": thread, "clientUserMessageId": "unobserved-receipt-1",
+			"input": []map[string]string{{"type": "text", "text": "UNOBSERVED_RECEIPT_SENTINEL"}},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// No reader observes this connection's submission receipt.
+	await(3)
+	unobserved.Close()
+	reconnected, err := Open(ctx, path, client.Server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reconnected.Close()
+	var queue struct {
+		Data []json.RawMessage `json:"data"`
+	}
+	if err := reconnected.call(ctx, "thread/queue/list", map[string]any{"threadId": thread}, &queue); err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Data) != 0 {
+		t.Fatalf("dispatched inputs remain queued: %s", queue.Data)
+	}
+	if found, err := reconnected.Contains(ctx, thread, "unobserved-receipt-1"); err != nil ||
+		!found {
+		t.Fatalf("fresh-connection reconciliation after unread receipt: %t, %v", found, err)
+	}
+	t.Log("fresh peer-verified connection reconciles the unread receipt without another insertion")
 	if session != "" {
 		if output, err := exec.CommandContext(ctx, ui, "wait", session, "--text", "NATIVE_FIXTURE_TURN_2", "--timeout", "10").CombinedOutput(); err != nil {
 			capture, _ := exec.Command(ui, "text", session).CombinedOutput()
