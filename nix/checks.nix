@@ -15,6 +15,12 @@
         '';
       };
       checks = {
+        codex-launch = pkgs.runCommand "concierge-codex-launch" {
+          nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.python3 ];
+        } ''
+          bash ${./tests/codex-launch.sh} ${./hooks/concierge-codex.sh}
+          touch "$out"
+        '';
         inherit (self'.packages) concierge;
         native-hook-python = pkgs.runCommand "concierge-native-hook-python" {
           nativeBuildInputs = self'.devShells.default.nativeBuildInputs;
