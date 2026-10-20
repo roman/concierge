@@ -12,7 +12,8 @@ type LaunchResources struct{ Name, Label, Tab, Pane string }
 
 // CheckLaunchAbsent checks every workspace, including launches recorded with a label.
 func (client Client) CheckLaunchAbsent(ctx context.Context, launch LaunchResources) error {
-	if !healthAtom(launch.Name, false) || !healthLabel(launch.Label) {
+	if !healthAtom(launch.Name, false) || (launch.Label != "" && !healthLabel(launch.Label)) ||
+		(launch.Label == "" && (!healthAtom(launch.Tab, true) || !healthAtom(launch.Pane, true))) {
 		return ErrResponse
 	}
 	if _, err := client.Get(ctx, launch.Name); !errors.Is(err, ErrNotFound) {
@@ -38,7 +39,7 @@ func (client Client) CheckLaunchAbsent(ctx context.Context, launch LaunchResourc
 	}
 	seen := map[string]struct{}{}
 	for _, workspace := range *response.Result.Workspaces {
-		if workspace.Label == launch.Label {
+		if launch.Label != "" && workspace.Label == launch.Label {
 			return errors.New("launch workspace still exists; inspect it before abandonment")
 		}
 		if !healthAtom(workspace.ID, false) {
@@ -76,7 +77,8 @@ func (client Client) checkLaunchWorkspaceAbsent(
 		if tab.Workspace != workspace || !healthAtom(tab.Tab, true) {
 			return ErrResponse
 		}
-		if tab.Label == launch.Label || (launch.Tab != "" && tab.Tab == launch.Tab) {
+		if (launch.Label != "" && tab.Label == launch.Label) ||
+			(launch.Tab != "" && tab.Tab == launch.Tab) {
 			return errors.New("launch tab still exists; inspect it before abandonment")
 		}
 	}

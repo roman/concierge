@@ -21,7 +21,7 @@ import (
 var version = "dev"
 var revision = "dev"
 
-const cliHelp = "commands: host serve|status|stop|restart, launch TASK_ID, land TASK_ID [--operator-approved], land-recovered TASK_ID --generation GENERATION --commit COMMIT --operator-approved, project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover|upgrade|recover-upgrade, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
+const cliHelp = "commands: host serve|status|stop|restart, launch TASK_ID, land TASK_ID [--operator-approved], land-recovered TASK_ID --generation GENERATION --commit COMMIT --operator-approved, project show|set REPO, operator ask|resolve|list|remind, brief-include set --file FILE|clear, state init|backup|migrate|recover|upgrade|recover-upgrade, brief [--limit N], primary claim|verify|release, control status|interrupt|start, supervise pane|task|stop, backlog, worker list|show, task list|pending|send|receive|ack|reply|report|adopt|stop|cancel|abandon|discard; global flags: --root, --message-root, --recipient, --help; run concierge COMMAND --help for arguments"
 
 type cli struct {
 	hostExpectations        hostservice.Expectations
@@ -274,7 +274,10 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return command.runSupervision(ctx, root, selected.Command(), stdout)
 	case "primary claim", "primary verify", "primary release":
 		return runPrimary(root, selected.Command(), stdin, stdout, primary.CurrentHookIdentity)
-	case "task stop <task-id>", "task cancel <task-id>", "task abandon <task-id>":
+	case "task stop <task-id>",
+		"task cancel <task-id>",
+		"task abandon <task-id>",
+		"task discard <task-id>":
 		return command.Task.runControl(
 			ctx,
 			root,

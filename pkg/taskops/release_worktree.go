@@ -74,6 +74,12 @@ func (service *Service) returnRetiredLease(
 		return taskstate.Task{}, err
 	}
 	if found && current.ID == lease.ID && current.Path == lease.Path {
+		if receipt, ok := task.LaunchAbandonment(generation); ok &&
+			receipt.Kind == taskstate.DiscardedWorker {
+			if err := service.checkDiscardContents(ctx, lease); err != nil {
+				return taskstate.Task{}, err
+			}
+		}
 		specification := worktree.Specification{
 			Project:    lease.Project,
 			Path:       lease.Path,

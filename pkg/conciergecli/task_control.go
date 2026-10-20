@@ -11,7 +11,7 @@ import (
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
-const taskControlHelp = "concierge task abandon TASK_ID --generation GEN; concierge task stop TASK_ID --generation GEN; concierge task cancel TASK_ID; inspect worker show TASK_ID before retrying"
+const taskControlHelp = "concierge task discard TASK_ID --generation GEN --operator-approved; concierge task abandon TASK_ID --generation GEN; concierge task stop TASK_ID --generation GEN; concierge task cancel TASK_ID; inspect worker show TASK_ID before retrying"
 
 func (command *taskCommands) runControl(
 	ctx context.Context,
@@ -24,6 +24,21 @@ func (command *taskCommands) runControl(
 		Transition:   &hostservice.TransitionRequest{},
 	}
 	switch selected {
+	case "task discard <task-id>":
+		if !command.Discard.OperatorApproved {
+			return fail(
+				output,
+				2,
+				errors.New(
+					"discard requires --operator-approved after explicit operator authority",
+				),
+				taskControlHelp,
+			)
+		}
+		request.Operation = hostservice.Discard
+		request.Transition.TaskID = command.Discard.TaskID
+		request.Transition.Generation = command.Discard.Generation
+		request.Transition.OperatorApproved = command.Discard.OperatorApproved
 	case "task abandon <task-id>":
 		request.Operation = hostservice.AbandonLaunch
 		request.Transition.TaskID = command.Abandon.TaskID
@@ -55,6 +70,15 @@ func (command *taskCommands) runControl(
 		return fail(output, code, errors.New(response.Error), help)
 	}
 	switch selected {
+	case "task discard <task-id>":
+		task, err := taskstate.NewMigrated(*response.Transition)
+		if err != nil {
+			return fail(output, 1, err, taskControlHelp)
+		}
+		receipt, _ := task.LaunchAbandonment(command.Discard.Generation)
+		if _, err := fmt.Fprintf(output, "task: %s\ngeneration: %s\nstate: %s\nstatus: discarded\nlease: %s\nreturned_worktree: %s\nretained_branch: %s\n", quote(task.ID()), quote(receipt.Generation), task.State(), receipt.Lease.State, quote(receipt.Worktree), quote(receipt.Branch)); err != nil {
+			return 1
+		}
 	case "task abandon <task-id>":
 		result := response.Abandoned
 		if _, err := fmt.Fprintf(output, "task: %s\ngeneration: %s\nstate: %s\n", quote(command.Abandon.TaskID), quote(result.Generation), response.Transition.State); err != nil {

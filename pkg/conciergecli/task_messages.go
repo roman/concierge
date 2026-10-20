@@ -36,6 +36,11 @@ type taskCommands struct {
 		TaskID     string `arg:"" help:"Task ID."`
 		Generation string `required:"" help:"Worker generation to stop."`
 	} `cmd:"" help:"Close the exact confirmed pane for a worker generation."`
+	Discard struct {
+		TaskID           string `arg:"" help:"Task ID."`
+		Generation       string `required:"" help:"Exact missing worker generation."`
+		OperatorApproved bool   `help:"Confirm explicit operator authority to discard this generation."`
+	} `cmd:"" help:"Discard a confirmed missing local pooled worker without accepting a result; preserve recoverable work."`
 	Cancel struct {
 		TaskID string `arg:"" help:"Task ID."`
 	} `cmd:"" help:"Release an unbound adoption reservation; reject confirmed or published bindings."`

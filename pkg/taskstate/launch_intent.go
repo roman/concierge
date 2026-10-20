@@ -241,7 +241,10 @@ func (task Task) CancelInitialLaunch(generation string) (Task, error) {
 
 // CheckAbandonInitialLaunch excludes completed launches and worker replacements.
 func (task Task) CheckAbandonInitialLaunch(generation string) error {
-	if _, ok := task.LaunchAbandonment(generation); ok {
+	if receipt, ok := task.LaunchAbandonment(generation); ok {
+		if receipt.Kind == DiscardedWorker {
+			return ErrInvalidTransition
+		}
 		return nil
 	}
 	intent := task.record.LaunchIntent
@@ -271,7 +274,10 @@ func (task Task) CheckAbandonInitialLaunch(generation string) error {
 // AbandonInitialLaunch clears an intent after external absence verification.
 // The host must exclude launch execution and verify Herdr resources before applying it.
 func (task Task) AbandonInitialLaunch(generation string) (Task, error) {
-	if _, ok := task.LaunchAbandonment(generation); ok {
+	if receipt, ok := task.LaunchAbandonment(generation); ok {
+		if receipt.Kind == DiscardedWorker {
+			return Task{}, ErrInvalidTransition
+		}
 		return task, nil
 	}
 	if err := task.CheckAbandonInitialLaunch(generation); err != nil {
@@ -456,6 +462,13 @@ func validLaunchIntent(selected record) bool {
 func validLaunchAbandonments(selected record) bool {
 	seen := map[string]bool{}
 	for _, receipt := range selected.AbandonedLaunches {
+		if receipt.Kind != "" && receipt.Kind != DiscardedWorker {
+			return false
+		}
+		if receipt.Kind == DiscardedWorker &&
+			(!receipt.WorkerRetired || receipt.Lease == (WorktreeLease{}) || receipt.Remote != (RemoteLease{}) || receipt.Lease.Remote != (RemoteLease{})) {
+			return false
+		}
 		if remote := receipt.Remote; remote != (RemoteLease{}) {
 			if remote.Validate() != nil || remote.Backend != "" ||
 				receipt.Project != remote.ProjectPath() {

@@ -198,6 +198,46 @@ wakeup shutdown reports that supervision is stopped. Inspect the worker before
 restarting its wakeup. `task pending` lists unfinished completion work. `task cancel` releases
 an unbound adoption reservation; it rejects confirmed bindings.
 
+### Discard a missing worker
+
+Use `task discard` only with explicit operator authority for the recorded
+generation:
+
+```sh
+concierge task discard task-1 --generation GEN --operator-approved
+```
+
+The primary host joins the exact task controller and checks fresh structured
+pane absence, agent absence, and workspace inventories. Unknown or live
+resources cause refusal. The command currently supports confirmed local pooled
+workers after launch completion. Remote workers, unfinished launches,
+replacement generations, accepted results, and saved or pending reports require
+their existing recovery or review paths.
+
+The command inventories tracked changes, untracked files, ignored files and
+commits beyond the recorded launch base. Recoverable work produces a
+`decision required` error with the worktree, branch, base, HEAD, files and
+commits. The binding, lease and source product remain available for the
+operator's decision. Commits beyond the base require review even if another
+branch already contains them. Discard inventory never removes ignored files.
+
+A successful discard queues the unfinished task and removes the missing worker
+binding. It records `kind: discarded_worker` in the existing resource
+abandonment journal. It creates no accepted completion or result receipt.
+The exact lease return uses the existing pool ownership, process and cleanliness
+guards. The branch remains available. A refusal remains an error.
+
+The discard record is durable before pool return. If return fails, the record
+keeps its held lease. Repeat the same command after resolving the refusal.
+Retries use the saved generation and never stop a newer worker. Inspect the
+task after any failure because supervision can already be stopped.
+
+Both the CLI and the primary host must run a build that includes this command.
+An older host rejects the new operation. Activate the new host through the
+normal controlled host replacement procedure. Keep the existing task root,
+message root, and operator settings. Discard does not change heartbeat or
+reminder settings.
+
 ## Worktree lease cleanup
 
 Accept the result, stop the worker, and retire the accepted generation:

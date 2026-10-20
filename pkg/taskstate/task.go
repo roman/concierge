@@ -133,17 +133,23 @@ type Receipt struct {
 	Mode         CompletionMode `json:"mode"`
 }
 
-// LaunchAbandonment preserves retained resources across interrupted client calls.
+// AbandonmentKind distinguishes discarded workers from unfinished launches.
+type AbandonmentKind string
+
+const DiscardedWorker AbandonmentKind = "discarded_worker"
+
+// LaunchAbandonment preserves resources without asserting successful work.
 type LaunchAbandonment struct {
-	WorkerRetired bool          `json:"worker_retired,omitempty"`
-	Remote        RemoteLease   `json:"remote,omitzero"`
-	BaseCommit    string        `json:"base_commit,omitempty"`
-	Lease         WorktreeLease `json:"lease,omitzero"`
-	LeaseHolder   string        `json:"lease_holder,omitempty"`
-	Project       string        `json:"project,omitempty"`
-	Generation    string        `json:"generation"`
-	Worktree      string        `json:"worktree"`
-	Branch        string        `json:"branch"`
+	Kind          AbandonmentKind `json:"kind,omitempty"`
+	WorkerRetired bool            `json:"worker_retired,omitempty"`
+	Remote        RemoteLease     `json:"remote,omitzero"`
+	BaseCommit    string          `json:"base_commit,omitempty"`
+	Lease         WorktreeLease   `json:"lease,omitzero"`
+	LeaseHolder   string          `json:"lease_holder,omitempty"`
+	Project       string          `json:"project,omitempty"`
+	Generation    string          `json:"generation"`
+	Worktree      string          `json:"worktree"`
+	Branch        string          `json:"branch"`
 }
 
 type record struct {

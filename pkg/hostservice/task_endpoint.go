@@ -15,7 +15,15 @@ func taskOperationEndpoint(
 	generation string,
 ) (*controllerEndpoint, error) {
 	snapshot := task.Snapshot()
-	if operation == Stop {
+	if operation == Discard {
+		if err := task.CheckDiscardWorker(generation); err != nil {
+			return nil, err
+		}
+		if receipt, found := task.LaunchAbandonment(generation); found &&
+			receipt.Kind == taskstate.DiscardedWorker {
+			return nil, nil
+		}
+	} else if operation == Stop {
 		if err := taskops.CheckStop(task, generation); err != nil {
 			return nil, err
 		}

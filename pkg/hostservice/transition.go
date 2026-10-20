@@ -21,14 +21,16 @@ const (
 	ReleaseWorktree Operation = "release_worktree"
 	Cancel          Operation = "cancel"
 	Stop            Operation = "stop"
+	Discard         Operation = "discard"
 )
 
 type TransitionRequest struct {
-	TaskID     string                   `json:"task_id"`
-	Generation string                   `json:"generation,omitempty"`
-	Mode       taskstate.CompletionMode `json:"mode,omitempty"`
-	ClosedOn   string                   `json:"closed_on,omitempty"`
-	Hold       *taskstate.Hold          `json:"hold,omitempty"`
+	OperatorApproved bool                     `json:"operator_approved,omitempty"`
+	TaskID           string                   `json:"task_id"`
+	Generation       string                   `json:"generation,omitempty"`
+	Mode             taskstate.CompletionMode `json:"mode,omitempty"`
+	ClosedOn         string                   `json:"closed_on,omitempty"`
+	Hold             *taskstate.Hold          `json:"hold,omitempty"`
 }
 
 func validateRequest(request Request) error {
@@ -110,11 +112,23 @@ func validateRequest(request Request) error {
 	if input == nil || request.Intake != nil {
 		return errors.New("lifecycle operation requires only a transition payload")
 	}
+	if input.OperatorApproved && request.Operation != Discard {
+		return errors.New("operator discard authority is unrelated to this operation")
+	}
 	// Validate identifiers and optional hold with the same task contract as intake.
 	if _, err := taskstate.NewQueued(taskstate.Definition{ID: input.TaskID, Title: "validation", Kind: "task", Repo: "validation", Hold: input.Hold}); err != nil {
 		return err
 	}
 	switch request.Operation {
+	case Discard:
+		if !input.OperatorApproved || input.Generation == "" || input.Mode != "" ||
+			input.ClosedOn != "" ||
+			input.Hold != nil {
+			return errors.New(
+				"discard requires a task ID, generation and explicit operator approval",
+			)
+		}
+		return taskmeta.ValidateSpawnGeneration(input.Generation)
 	case Start, Release, Cancel:
 		if input.Hold != nil || input.Generation != "" || input.Mode != "" || input.ClosedOn != "" {
 			return errors.New("start and release accept only a task ID")
@@ -180,6 +194,14 @@ func (server *Server) execute(
 		return server.service.ReleaseHold(ctx, input.TaskID)
 	case Cancel:
 		return server.service.CancelAdoption(ctx, input.TaskID)
+	case Discard:
+		return service.DiscardWorker(
+			ctx,
+			server.config.MessageRoot,
+			input.TaskID,
+			input.Generation,
+			herdr.NewClient(server.config.HerdrExecutable),
+		)
 	case ReleaseWorktree:
 		return service.ReleaseWorktree(ctx, input.TaskID, input.Generation)
 	case Cleanup:
@@ -234,6 +256,13 @@ func validateTransitionResponse(response Response, request Request) error {
 		repeated, err = task.RetireResult(input.Generation)
 	case Cancel:
 		repeated, err = task.CancelAdoption()
+	case Discard:
+		receipt, found := task.LaunchAbandonment(input.Generation)
+		if !found || receipt.Kind != taskstate.DiscardedWorker ||
+			receipt.Lease.State != taskstate.LeaseReturned {
+			return errors.New("host returned an incomplete worker discard")
+		}
+		repeated, err = task.DiscardWorker(input.Generation)
 	}
 	if err != nil {
 		return err

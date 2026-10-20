@@ -26,7 +26,10 @@ func (server *Server) abandonLaunch(
 		return Response{}, err
 	}
 	defer release()
-	if _, ok := task.LaunchAbandonment(input.Generation); ok {
+	if receipt, ok := task.LaunchAbandonment(input.Generation); ok {
+		if receipt.Kind == taskstate.DiscardedWorker {
+			return Response{}, taskstate.ErrInvalidTransition
+		}
 		return server.finishAbandonedLaunch(ctx, task, input.Generation)
 	}
 	clearedIntent := false
@@ -129,7 +132,8 @@ func validateAbandonedLaunchResponse(response Response, request Request) error {
 	}
 
 	receipt, ok := task.LaunchAbandonment(request.Transition.Generation)
-	if task.ID() != request.Transition.TaskID || !ok || receipt != *response.Abandoned {
+	if task.ID() != request.Transition.TaskID || !ok || receipt.Kind != "" ||
+		receipt != *response.Abandoned {
 		return errors.New("host returned an unapplied abandonment")
 	}
 	return nil
