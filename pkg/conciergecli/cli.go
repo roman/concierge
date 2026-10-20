@@ -222,6 +222,15 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		)
 	case "heartbeat show", "heartbeat set", "heartbeat check":
 		return command.runHeartbeat(ctx, root, selected.Command(), stdout)
+	case "heartbeat activity", "heartbeat wait":
+		return command.runHeartbeatHook(
+			ctx,
+			root,
+			selected.Command(),
+			stdin,
+			stderr,
+			primary.CurrentHookIdentity,
+		)
 	case "heartbeat enable",
 		"heartbeat pause",
 		"heartbeat resume",

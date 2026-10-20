@@ -55,6 +55,7 @@ in
       ".agents/hooks/concierge-session-start".source = hook "concierge-session-start";
       ".agents/hooks/concierge-session-end".source = hook "concierge-session-end";
       ".agents/hooks/concierge-claude-stop".source = hook "concierge-claude-stop";
+      ".agents/hooks/concierge-claude-activity".source = hook "concierge-claude-activity";
       ".agents/skills/concierge-local-supervisor/SKILL.md".source = skill;
       ".claude/skills/concierge-local-supervisor/SKILL.md".source = skill;
     };
@@ -81,13 +82,15 @@ in
         concierge_check_hook() {
           if ! ${pkgs.jq}/bin/jq -e --arg event "$2" \
             --arg command 'if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/'"$3"'; fi' \
-            'any(.hooks[$event][]?.hooks[]?; .type == "command" and .command == $command and (if $event == "Stop" then .asyncRewake == true and (.timeout | type) == "number" and .timeout >= 28800 else true end))' \
+            'any(.hooks[$event][]?.hooks[]?; .type == "command" and .command == $command and (if ($command | contains("concierge-claude-activity")) then (.async != true and .asyncRewake != true and (if $event == "UserPromptSubmit" then .onFailure == "block" else true end)) elif $event == "Stop" then .asyncRewake == true and (.timeout | type) == "number" and .timeout >= 28800 else true end))' \
             "$CONCIERGE_PROJECT_ROOT/$1" >/dev/null 2>&1; then
             printf 'Concierge hook settings need review: %s (%s)\n' "$1" "$2" >&2
           fi
         }
         concierge_check_hook .claude/settings.json SessionStart concierge-session-start
         concierge_check_hook .claude/settings.json Stop concierge-claude-stop
+        concierge_check_hook .claude/settings.json Stop concierge-claude-activity
+        concierge_check_hook .claude/settings.json UserPromptSubmit concierge-claude-activity
         concierge_check_hook .codex/hooks.json SessionStart concierge-session-start
         concierge_check_hook .codex/hooks.json SessionEnd concierge-session-end
         unset -f concierge_check_hook

@@ -49,6 +49,7 @@ type Receipt struct {
 }
 
 type State struct {
+	Activity     *Activity `json:"activity,omitempty"`
 	Delivery     string    `json:"delivery,omitempty"`
 	LastError    string    `json:"last_error,omitempty"`
 	Binding      *Binding  `json:"binding,omitempty"`

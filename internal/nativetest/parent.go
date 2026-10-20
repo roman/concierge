@@ -13,7 +13,14 @@ import (
 // The copied executable provides controlled kernel ancestry for public CLI
 // tests. Native Claude/Codex behavior is verified separately in live trials.
 func RunUnderParent(t *testing.T) bool {
+	return RunUnderKind(t, "codex")
+}
+
+func RunUnderKind(t *testing.T, kind string) bool {
 	t.Helper()
+	if kind != "codex" && kind != "claude" {
+		t.Fatal("unsupported native fixture kind")
+	}
 	if os.Getenv("TINCAN_NATIVE_CALLER_TEST") == t.Name() {
 		return false
 	}
@@ -26,7 +33,7 @@ func RunUnderParent(t *testing.T) bool {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	path := filepath.Join(t.TempDir(), "codex")
+	path := filepath.Join(t.TempDir(), kind)
 	destination, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0700)
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +46,11 @@ func RunUnderParent(t *testing.T) bool {
 		t.Fatal(err)
 	}
 	command := exec.Command(path, "-test.run=^"+regexp.QuoteMeta(t.Name())+"$")
-	command.Env = append(os.Environ(), "TINCAN_NATIVE_CALLER_TEST="+t.Name())
+	command.Env = append(
+		os.Environ(),
+		"TINCAN_NATIVE_CALLER_TEST="+t.Name(),
+		"TINCAN_NATIVE_TEST_EXECUTABLE="+executable,
+	)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("native caller fixture: %v\n%s", err, output)
 	}

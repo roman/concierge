@@ -68,7 +68,7 @@ func acknowledgeEvent(state *State, id, token, output string, now time.Time) err
 
 func (store Store) verifyDestination(ctx context.Context, destination Destination) error {
 	if destination.Mode != Push {
-		return nil
+		return ValidateClaudeHooks(filepath.Dir(store.Root))
 	}
 	client, err := codexqueue.Open(ctx, destination.Socket, destination.Server)
 	if err != nil {

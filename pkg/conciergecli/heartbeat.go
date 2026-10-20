@@ -17,6 +17,10 @@ import (
 const heartbeatHelp = "concierge heartbeat show | set [--interval 5m] [--quiet-limit 5] | enable | pause --reason REASON | resume | register codex --socket PATH --thread UUID | claim EVENT --generation GEN | ack EVENT --generation GEN --token TOKEN --output REFERENCE; check is host-owned after activation"
 
 type heartbeatCommands struct {
+	Activity struct{} `cmd:"" help:"Record a synchronous native Claude lifecycle hook from stdin."`
+	Wait     struct {
+		Timeout time.Duration `default:"7h59m" help:"Registered Stop consumer lifetime; at most 7h59m."`
+	} `cmd:"" help:"Wait for host events inside a verified native asyncRewake Stop hook."`
 	Enable struct{} `cmd:"" help:"Explicitly activate the durable host scheduler; preserve an earlier operator pause."`
 	Pause  struct {
 		Reason string `required:"" help:"Operator reason for pausing periodic output and delivery."`

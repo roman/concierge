@@ -11,20 +11,17 @@ let
   fakeConcierge = pkgs.writeShellScriptBin "concierge" ''
     printf '%s\n' "$*" >> "$TEST_CALLS"
     if [ "$3" = heartbeat ] || { [ "$3" = --message-root ] && [ "$5" = heartbeat ]; }; then
+      cat >/dev/null
       case "$*" in
-        *--wake*) printf 'status: quiet\nactive: yes\n' ;;
-        *)
-          if [ "''${TEST_HEARTBEAT_PAUSED:-0}" = 1 ]; then
-            printf 'status: quiet\nactive: yes\npaused: yes\n'
-            exit 0
+        *"heartbeat activity") exit "''${TEST_ACTIVITY_STATUS:-0}" ;;
+        *"heartbeat wait")
+          if [ "''${TEST_CONSUMER_STATUS:-2}" = 2 ]; then
+            printf 'Concierge supervisor event fixture. Run the verified heartbeat claim command.\n' >&2
           fi
-          printf 'status: %s\nactive: no\n' "''${TEST_HEARTBEAT_STATUS:-quiet}"
-          if [ "''${TEST_HEARTBEAT_STATUS:-quiet}" = due ]; then
-            printf 'heartbeat: primary\nworker: finished, idle\nWaiting on you. Use PushNotification.\n'
-          fi
+          exit "''${TEST_CONSUMER_STATUS:-2}"
           ;;
+        *) exit 91 ;;
       esac
-      exit 0
     fi
     case "$3" in
       operator)
@@ -125,7 +122,7 @@ pkgs.runCommand "concierge-devshell"
     test ! -s "$TEST_CALLS"
     test "$CONCIERGE_HOME" = "$DEVENV_ROOT/.concierge"
     test "$TINCAN_HOME" = "$DEVENV_ROOT/.tincan"
-    for hook in concierge-session-start concierge-session-end concierge-claude-stop; do
+    for hook in concierge-session-start concierge-session-end concierge-claude-stop concierge-claude-activity; do
       test -x "$DEVENV_ROOT/.agents/hooks/$hook"
     done
     test -r "$DEVENV_ROOT/.agents/skills/concierge-local-supervisor/SKILL.md"
@@ -190,13 +187,13 @@ pkgs.runCommand "concierge-devshell"
     stop_status=0
     printf '%s\n' '{"hook_event_name":"Stop","session_id":"fixture"}' | ./.agents/hooks/concierge-claude-stop 2>stop-wake || stop_status=$?
     test "$stop_status" = 2 || { cat stop-wake; printf 'Stop exit: %s\n' "$stop_status"; exit 1; }
-    test -f "$CONCIERGE_HOME/claude-stop.lock"
-    grep -F 'A Tincan message is pending' stop-wake
+    grep -F 'Concierge supervisor event fixture' stop-wake
     start_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-session-start; fi'
     stop_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-claude-stop; fi'
     end_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-session-end; fi'
-    ${pkgs.jq}/bin/jq -n --arg start "$start_command" --arg stop "$stop_command" --arg end "$end_command" \
-      '{hooks:{SessionStart:[{hooks:[{type:"command",command:$start}]}],Stop:[{hooks:[{type:"command",command:$stop,asyncRewake:true,timeout:28800}]}],SessionEnd:[{hooks:[{type:"command",command:$end}]}]}}' \
+    activity_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-claude-activity; fi'
+    ${pkgs.jq}/bin/jq -n --arg start "$start_command" --arg stop "$stop_command" --arg end "$end_command" --arg activity "$activity_command" \
+      '{hooks:{SessionStart:[{hooks:[{type:"command",command:$start}]}],UserPromptSubmit:[{hooks:[{type:"command",command:$activity,onFailure:"block"}]}],Stop:[{hooks:[{type:"command",command:$activity},{type:"command",command:$stop,asyncRewake:true,timeout:28800}]}],SessionEnd:[{hooks:[{type:"command",command:$end}]}]}}' \
       > .claude/settings.json
     cp .claude/settings.json .codex/hooks.json
     run_entry 2>guarded-settings-warning

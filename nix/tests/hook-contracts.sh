@@ -69,36 +69,15 @@ CASES
 unset TEST_HOST_CALLS
 
 payload='{"hook_event_name":"Stop","session_id":"fixture"}'
-active_payload='{"hook_event_name":"Stop","session_id":"fixture","stop_hook_active":true}'
-status=0
-TEST_INITIAL_RESULT=checkpoint TEST_HEARTBEAT_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>heartbeat-wake || status=$?
-[[ "$status" == 2 ]]
-grep -F 'heartbeat: primary' heartbeat-wake
-grep -F 'Waiting on you' heartbeat-wake
-grep -F 'PushNotification' heartbeat-wake
-status=0
-TEST_HEARTBEAT_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>inbox-priority || status=$?
-[[ "$status" == 2 ]]
-grep -F 'A Tincan message is pending' inbox-priority
-if grep -F 'heartbeat: primary' inbox-priority; then exit 1; fi
-status=0
-TEST_INITIAL_RESULT=checkpoint TEST_REMINDER_STATUS=quiet TEST_HEARTBEAT_PAUSED=1 ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>paused-inbox-wake || status=$?
-[[ "$status" == 2 ]]
-grep -F 'A Tincan message is pending' paused-inbox-wake
-if grep -F 'heartbeat: primary' paused-inbox-wake; then exit 1; fi
-status=0
-TEST_INITIAL_RESULT=checkpoint TEST_REMINDER_STATUS=due TEST_HEARTBEAT_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>reminder-priority || status=$?
-[[ "$status" == 2 ]]
-if grep -F 'heartbeat: primary' reminder-priority; then exit 1; fi
-status=0
-TEST_REMINDER_STATUS=due ./.agents/hooks/concierge-claude-stop <<< "$active_payload" 2>operator-wake || status=$?
-[[ "$status" == 2 ]]
-grep -F 'Waiting on you' operator-wake
-grep -F 'PushNotification' operator-wake
-output="$(TEST_REMINDER_STATUS=quiet ./.agents/hooks/concierge-claude-stop <<< "$active_payload" 2>&1)"
-[[ -z "$output" ]]
-output="$(./.agents/hooks/concierge-claude-stop <<< "$active_payload" 2>&1)"
-[[ -z "$output" ]]
+for extra in '' ',"stop_hook_active":true'; do
+  status=0
+  body='{"hook_event_name":"Stop","session_id":"fixture"'"$extra"'}'
+  ./.agents/hooks/concierge-claude-stop <<< "$body" 2>event-wake || status=$?
+  [[ "$status" == 2 ]]
+  grep -F 'Concierge supervisor event fixture' event-wake
+  output="$(TEST_CONSUMER_STATUS=0 ./.agents/hooks/concierge-claude-stop <<< "$body" 2>&1)"
+  [[ -z "$output" ]]
+done
 output="$(TEST_PRIMARY_STATUS=held_by_other ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>&1)"
 [[ -z "$output" ]]
 for foreign_payload in \
@@ -107,22 +86,18 @@ for foreign_payload in \
   output="$(./.agents/hooks/concierge-claude-stop <<< "$foreign_payload" 2>&1)"
   [[ -z "$output" ]]
 done
-status=0
-TEST_INITIAL_RESULT=checkpoint ./.agents/hooks/concierge-claude-stop <<< "$active_payload" 2>new-wake || status=$?
-[[ "$status" == 2 ]]
-grep -F 'A Tincan message is pending' new-wake
-
-export TEST_INITIAL_RESULT=checkpoint TEST_WAIT_LOG="$TMPDIR/waits" TEST_WAIT_RELEASE="$TMPDIR/release"
-./.agents/hooks/concierge-claude-stop <<< "$payload" >first-output 2>&1 &
-first_hook=$!
-for attempt in {1..100}; do
-  [[ ! -e "$TEST_WAIT_LOG" ]] || break
-  sleep 0.05
+for event in UserPromptSubmit Stop PermissionRequest StopFailure; do
+  ./.agents/hooks/concierge-claude-activity <<< '{"hook_event_name":"'"$event"'","session_id":"fixture"}'
 done
-[[ -f "$TEST_WAIT_LOG" ]]
-output="$(timeout 2s ./.agents/hooks/concierge-claude-stop <<< "$payload" 2>&1)"
-[[ -z "$output" ]]
-[[ "$(wc -l < "$TEST_WAIT_LOG")" == 1 ]]
-touch "$TEST_WAIT_RELEASE"
-wait "$first_hook" || [[ "$?" == 2 ]]
-first_hook=
+status=0
+TEST_ACTIVITY_STATUS=1 ./.agents/hooks/concierge-claude-activity <<< '{"hook_event_name":"UserPromptSubmit","session_id":"fixture"}' || status=$?
+[[ "$status" == 1 ]]
+: > "$TEST_CALLS"
+CONCIERGE_WORKER=fixture ./.agents/hooks/concierge-claude-activity <<< "$payload"
+[[ ! -s "$TEST_CALLS" ]]
+TEST_CONSUMER_STATUS=0 ./.agents/hooks/concierge-claude-stop <<< "$payload"
+grep -F 'heartbeat wait' "$TEST_CALLS"
+if grep -E 'heartbeat check|operator remind|inbox wait' "$TEST_CALLS"; then
+  printf 'native consumer started an independent clock\n' >&2
+  exit 1
+fi

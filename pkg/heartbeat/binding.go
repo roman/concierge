@@ -69,6 +69,13 @@ func (destination Destination) validate(owner primary.Identity, now time.Time) e
 
 func register(state *State, owner primary.Identity, destination Destination) Binding {
 	destination.Expires = destination.Expires.UTC()
+	if state.Binding != nil && state.Binding.Owner == owner && destination.Mode == Pull &&
+		state.Binding.Destination.Mode == Pull && state.Binding.Destination.Session == destination.Session {
+		if state.Binding.Destination.Expires.Before(destination.Expires) {
+			state.Binding.Destination.Expires = destination.Expires
+		}
+		return *state.Binding
+	}
 	if state.Binding != nil && state.Binding.Owner == owner &&
 		state.Binding.Destination == destination {
 		return *state.Binding
@@ -145,6 +152,9 @@ func (store Store) CheckBinding(ctx context.Context, generation string, now time
 }
 
 func nativeDestination(owner primary.Identity, destination Destination) error {
+	if owner.Kind == "claude" && os.Getenv("CLAUDE_CODE_SESSION_ID") != destination.Session {
+		return errors.New("destination differs from the inherited native Claude session")
+	}
 	if owner.Kind == "codex" &&
 		(os.Getenv("CODEX_THREAD_ID") == "" || os.Getenv("CODEX_THREAD_ID") != destination.Thread) {
 		return errors.New("destination differs from the inherited native Codex thread UUID")
