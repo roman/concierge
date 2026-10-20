@@ -19,8 +19,8 @@ else
 fi
 
 printf 'The primary reads projects and delegates project changes. Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.\n'
-printf 'The primary may directly create and update only its own Concierge session handoff. All other project and vault edits remain delegated.\n'
-printf 'Any further exception requires a specific operation approved by the operator in the moment. That approval grants no standing authority. Load the Concierge supervisor skill for delivery authority.\n'
+printf 'The operator may authorize a specific operation or a narrowly scoped integration responsibility. Keep every exception within its stated scope.\n'
+printf 'A specific operation grants no standing authority. Load the Concierge supervisor skill for delivery authority.\n'
 
 host_args=(--root "$repository_root/.concierge" --message-root "$repository_root/.tincan" host)
 if [[ "${HERDR_ENV:-}" == 1 ]]; then

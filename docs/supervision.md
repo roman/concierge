@@ -1,43 +1,27 @@
 # Supervision
 
-## Primary session continuity
+## Repository integrations
 
-The source supervisor protocol in `nix/skills/SKILL.md` requires a session
-handoff from the beginning of each non-trivial primary session. The devshell
-generates adopting repositories' skill copies from that source. Change the
-source and upgrade the adopting pin to distribute protocol updates.
+Integration packages own their role-specific protocols and report policies.
+The adopting repository installs and configures those instructions separately.
+The operator may authorize a narrowly scoped integration responsibility for the
+primary. That authority remains limited to its stated scope. Scouts retain
+their read-only contract.
 
-The `concierge` vault project owns the cross-project activity handoff. A primary
-running in a vault repository still records its supervision under `concierge`.
-Project worker reports retain their own project ownership. The session handoff
-connects task IDs, saved report IDs, decisions, delivery state, blockers, and
-open operator actions across those projects.
+Activate integration changes through their source configuration and normal
+generation. Start fresh native sessions when earlier instructions remain
+loaded. A task assignment cannot override higher-priority native instructions.
+Keep native permission checks active.
 
-The primary directly creates and updates its own session handoff. This narrow
-exception preserves the primary's full context and avoids a separate worker
-for routine updates. It keeps a recoverable snapshot and note identity under
-ignored `$CONCIERGE_HOME/session-handoffs/`. Project worker report imports and
-unrelated vault notes still require separate vault workers.
+Supply worker-specific duties and report formats in the task assignment body.
+The existing operator-owned `brief-include` supplies standing defaults.
+Task-specific instructions take precedence over those defaults. Change operator
+configuration only after approval of that exact change.
 
-Follow the [source protocol's handoff procedure](../nix/skills/SKILL.md#concierge-session-handoff)
-for startup recovery, explicit vault selection, update triggers, and direct
-persistence. Recover local pending snapshots even when an earlier vault write
-failed. Initial creation fails if the note already exists. Subsequent updates
-edit the same note and preserve its full metadata. Vault worker replies are
-operational receipts. Importing those receipts would cause recursive vault work.
-
-Locker keeps a session handoff `current` while its body can describe a pending
-outcome. It does not have a `pending` frontmatter status. A later native session
-creates a new handoff after recovering prior context. The vault worker preserves
-still-current guidance before superseding affected notes and linking their
-replacement. The initial handoff, checkpoint updates, and final report follow
-one lifecycle. A restart is not a prerequisite for creating the initial note.
-
-For example, an operator correction that changes delivery from a PR to a local
-landing belongs in the session snapshot at the next checkpoint. Record the
-decision, affected task, and next owner. After landing, update the same handoff
-with the actual commit and remaining cleanup. Import the project's accepted
-worker report separately through the [task report flow](tasks.md#import-accepted-notes-through-a-vault-worker).
+Concierge supplies generation-bound assignments and opaque saved reports.
+External consumers retrieve an accepted report with `concierge task report
+TASK_ID REPLY_ID --format body`. The integration owns interpretation and any
+downstream storage or validation. See the [report consumer reference](tasks.md#external-report-consumers).
 
 ## Worker supervision
 

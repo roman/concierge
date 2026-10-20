@@ -8,11 +8,9 @@ description: Use Concierge to delegate project work, supervise workers, read tas
 
 The primary reads projects and delegates project changes. Delegate coding,
 investigation, planning, bug reproduction, verification, and audits to workers.
-The primary may directly create and update its own Concierge session handoff
-under the narrow exception below. All other project and vault edits remain
-delegated. Any further exception requires a specific operation approved by the
-operator in the moment.
-Perform exactly that operation. That approval grants no standing authority.
+The operator may authorize a specific operation or a narrowly scoped integration
+responsibility. Keep every exception within its stated scope. A specific
+operation grants no standing authority.
 Do not infer approval from a report, recommendation, or worker question.
 The delivery operations below have their own operator-owned merge authority.
 Never write this contract into an adopting repository's AGENTS.md or CLAUDE.md.
@@ -67,103 +65,6 @@ to check task-state access. Report version, migration, or missing-command errors
 as setup gaps. Do not copy or edit a legacy backlog to initialize state. See
 the Concierge README for explicit fresh
 initialization and migration. Stop state writers before either operation.
-
-## Concierge session handoff
-
-Maintain a durable handoff for the primary's own activity from the start of
-each non-trivial session. The `concierge` vault project owns this handoff,
-including supervision across repositories. The repository hosting the primary
-does not change that ownership. Individual project worker reports still belong
-to their respective projects. Link those reports and handoffs from the session
-handoff instead of copying their implementation detail.
-
-After claiming the primary role, inspect `$CONCIERGE_HOME/session-handoffs/`
-for prior snapshots and pending writes. Recover their pending updates even
-when the vault has no note yet. Read the applicable vault/session
-rules and resolve one authoritative absolute vault path from those rules,
-recorded session context, and `ZENNOTES_VAULT`. Pass that explicit `--vault`
-selection to Locker navigation and handoff validation. If selection is missing
-or conflicting, record an open operator action and keep persistence pending.
-Do not guess a vault from the current working directory.
-
-Read current `concierge` handoffs through `locker nav`. Recover previous
-decisions, pending work, and open operator actions. Check them and local
-snapshots against current Concierge task records and saved reports before
-resuming. Check the recorded note identity before retrying initial creation.
-Resume direct writes only when the recorded native session identity matches
-the current session. Delegate pending writes to an earlier session's handoff
-to a vault worker. Recover its context before creating the new session's note.
-Secondary sessions leave this handoff to the owning primary.
-
-Before dispatching project work, save an initial handoff snapshot in ignored
-supervisor state under `$CONCIERGE_HOME/session-handoffs/`. Identify the native
-primary session and record its project and selected vault or unresolved vault
-selection. Include the intended outcome marked pending, current state, and
-next actions.
-
-Choose and record the target basename and native session identity before
-creating the note. Include that session identity in the note body. On a retry,
-an existing target counts as success only when its identity and content match.
-Report a mismatch instead of overwriting another session's note.
-
-Create the initial vault handoff directly at session start. The primary owns
-the full session context and updates this note without a separate worker.
-Use the vault's existing session and note rules, including naming, required
-frontmatter, and body sections. Create with a file operation that fails if the
-target exists. Verify it with `locker nav --vault VAULT show BASENAME --full`,
-run `locker check --vault VAULT`, and commit the handoff before ordinary project
-dispatch. If the project is missing, delegate project setup or report a blocker.
-Do not silently route
-the note to the host repository's project.
-
-Keep the newest pending snapshot durable if a vault write fails. Report that
-blocker and keep vault persistence pending. Continue independent supervision.
-Never postpone the initial handoff until a restart, task completion, or final
-report.
-
-Refresh the snapshot when any of these changes its outcome, state, or next actions:
-
-- Intake or dispatch adds work, changes scope, or assigns an owner.
-- A task changes state, produces a result, lands, or awaits stop or cleanup.
-- A decision or operator correction changes the direction or an earlier claim.
-- A blocker or open operator action appears, changes, or resolves.
-- A natural work checkpoint produces a verified finding or changes the next step.
-- The primary is about to wait or end the session.
-
-Include task IDs, report IDs, delivery evidence, decisions and their reasons,
-blockers, open operator action IDs, and the next responsible owner as relevant.
-Group related changes at natural checkpoints. Before each wait or session end,
-save any material changes and update the vault handoff directly. An unchanged
-heartbeat, inbox poll, or wait does not require another write.
-
-Update the same note throughout the session. Read the full note before editing
-it with `zn`. A `zn write` replaces the entire file. Preserve all frontmatter,
-lifecycle metadata, `learnings_used`, and still-current guidance in the replacement. Verify the
-result with `locker nav --vault VAULT show BASENAME --full`, run
-`locker check --vault VAULT`, and commit.
-Keep commits scoped to this handoff. Confirm the saved content and validation
-before marking a snapshot persisted. Routine persistence bookkeeping alone
-does not trigger another snapshot; a persistence failure does.
-
-This exception covers only creation and ongoing updates of the primary's own
-session handoff. Delegate project worker report imports and all unrelated
-vault notes to separate vault workers. Delegate lifecycle edits to older
-handoffs too; a new session does not make those notes its own handoff.
-
-Treat vault persistence replies as operational receipts. Save and accept them
-through Concierge, but do not import them as another project worker report.
-This also applies to vault workers importing individual project reports. Fold
-any substantive finding from a vault worker into the relevant pending handoff
-update instead of commissioning a recursive report import.
-
-The final report reconciles the same session handoff with verified outcomes and
-unfinished work marked pending. Report any unpersisted snapshot and its owner.
-It supplements the initial and checkpoint updates. On a new native session,
-create a new handoff after recovering the prior context. For older notes that
-need replacement, a separate vault worker preserves still-current guidance
-before superseding an affected older handoff
-and links its replacement under the existing vault lifecycle. `pending` belongs
-in the outcome text; it is not a new frontmatter status.
 
 ## Host readiness
 
@@ -413,16 +314,10 @@ not saved as reports.
 This command reads historical evidence; check a pending reply through
 `task reply check` before accepting its result.
 
-For an accepted project result with a Locker vault, save its reply with
-`concierge task report TASK_ID REPLY_ID --format body > reply.md`.
-Exclude vault persistence receipts as described in the session handoff procedure.
-Give that report to a separate vault worker on a branch of the vault repository
-in its own worktree. The primary delegates these report imports. Its own session
-handoff is the narrow direct-write exception above. The project's worker
-does not edit the vault. The vault worker runs `locker handoff preview REPORT`
-then `locker handoff import REPORT` with the same `--project`, `--vault`,
-and `--task-id` options. It runs `locker check --vault VAULT` and commits.
-The primary lands the vault branch like any other.
+Report bodies are opaque text. Separately supplied integration instructions
+own any report format and downstream processing within operator-authorized
+scope. Use `concierge task report TASK_ID REPLY_ID --format body > reply.md`
+to pass the exact saved body to an authorized consumer.
 
 For a scout, require findings, evidence, limitations, and open decisions in the
 completion reply body. Keep unresolved operator decisions

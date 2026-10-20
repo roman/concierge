@@ -56,8 +56,8 @@ pkgs.runCommand "concierge-devshell-host"
     ./.agents/hooks/concierge-session-start < payload > start-output
     grep -F 'Concierge root supervisor context' start-output
     grep -F 'The primary reads projects and delegates project changes.' start-output
-    grep -F 'The primary may directly create and update only its own Concierge session handoff.' start-output
-    grep -F 'All other project and vault edits remain delegated.' start-output
+    grep -F 'The operator may authorize a specific operation or a narrowly scoped integration responsibility.' start-output
+    grep -F 'Keep every exception within its stated scope.' start-output
     grep -F 'Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.' start-output
     ${conciergePackage}/bin/concierge project show fixture > default-project
     grep -qx 'merge: off' default-project

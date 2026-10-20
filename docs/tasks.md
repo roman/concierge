@@ -154,40 +154,18 @@ write only the exact reply text, without headers, quoting, or an added newline:
 concierge task report TASK_ID REPLY_ID --format body > reply.md
 ```
 
-### Import accepted notes through a vault worker
+### External report consumers
 
-Projects that record notes in a Locker vault use this flow:
+Concierge saves reply bodies as opaque text. An integration can define a
+report format in the task assignment and consume the exact saved body through
+`task report --format body`. The integration owns its schemas, downstream
+processing, and storage policies.
 
-Vault workers return operational persistence receipts. Accept and save these
-receipts in Concierge, but exclude them from this import flow. Importing them
-would cause recursive vault work. Include substantive vault findings in the
-relevant pending handoff update. See the
-[session handoff protocol](../nix/skills/SKILL.md#concierge-session-handoff).
-
-```text
-Worker reply -> saved report -> vault worker -> import -> commit -> land
-```
-
-The project worker includes a handoff and any gaps, learnings, or artifacts in
-its reply. The launch instructions supply the exact headings and field formats.
-The project worker never writes into a vault. The primary accepts the result
-and saves its body with the report command above. The primary delegates these
-imports. Its own Concierge session handoff is a narrow direct-write exception.
-All unrelated vault edits remain delegated.
-
-Assign the saved report to a separate vault worker in its own worktree on a
-branch of the vault repository. The vault worker uses the same options for
-preview and import:
-
-```sh
-locker handoff preview /path/to/reply.md --project PROJECT --vault VAULT --task-id TASK_ID
-locker handoff import /path/to/reply.md --project PROJECT --vault VAULT --task-id TASK_ID
-locker check --vault VAULT
-```
-
-The vault worker commits the notes. The primary lands the vault branch under
-the vault project's delivery and merge settings. Concierge carries the reply
-as text. Locker remains a separate tool.
+Check a pending reply through `task reply check` before accepting it. Saved
+reports provide historical evidence and do not grant authority to act. Assign
+downstream project changes to an authorized task under the normal delivery and
+merge settings. Separately supplied role-specific instructions may define
+additional responsibilities within explicit operator authority.
 
 ### Resolve and retire a worker
 

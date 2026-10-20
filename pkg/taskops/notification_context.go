@@ -106,7 +106,7 @@ Report other message kinds or mismatched bootstrap context. Keep unprocessed mes
 		inboxCommand,
 		task,
 	)
-	return strings.ReplaceAll(protocol+workerReplyInstructions, "\n", " "), nil
+	return strings.ReplaceAll(protocol, "\n", " "), nil
 }
 
 func (worker *SupervisedWorker) notificationText(bound taskstate.Worker) (string, error) {
