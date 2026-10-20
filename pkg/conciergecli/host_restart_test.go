@@ -98,13 +98,15 @@ func TestHostRestartUpgradesBinary(t *testing.T) {
 			break
 		}
 		if ctx.Err() != nil {
-			t.Fatal(ctx.Err())
+			data, _ := os.ReadFile(log.Name())
+			t.Fatalf("host readiness: %v; log: %s", ctx.Err(), data)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	run := func(binary, operation string) string {
+	run := func(binary string, operation ...string) string {
 		t.Helper()
-		data, err := exec.CommandContext(ctx, binary, append(args, operation)...).CombinedOutput()
+		data, err := exec.CommandContext(ctx, binary, append(args, operation...)...).
+			CombinedOutput()
 		if err != nil {
 			t.Fatalf("%s: %s, %v", operation, data, err)
 		}
@@ -148,5 +150,99 @@ func TestHostRestartUpgradesBinary(t *testing.T) {
 		if !strings.Contains(after, expected) {
 			t.Fatalf("missing %s: %s", expected, after)
 		}
+	}
+	for _, step := range []struct {
+		name      string
+		arguments []string
+		policy    string
+	}{
+		{"enter maintenance", []string{"restart", "--recovery", "maintenance"}, "maintenance"},
+		{"preserve maintenance", []string{"restart"}, "maintenance"},
+		{"restore normal", []string{"restart", "--recovery", "normal"}, "normal"},
+	} {
+		run(binaries["revision-b"], step.arguments...)
+		status := run(binaries["revision-b"], "status")
+		if !strings.Contains(status, "recovery: \""+step.policy+"\"") {
+			t.Fatalf("%s: %s", step.name, status)
+		}
+		response, err := hostservice.Call(
+			ctx,
+			filepath.Join(root, "host.sock"),
+			hostservice.Request{
+				Operation: hostservice.HostStatus,
+				Status:    &hostservice.StatusRequest{},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.Status.Session != "work" ||
+			response.Status.Supervision != (supervise.Config{Interval: 5 * time.Second, RestartTolerance: 5, RestartWindow: time.Minute}) {
+			t.Fatalf("%s changed host settings: %+v", step.name, response.Status)
+		}
+	}
+}
+
+func TestReplacementPreservesReportedRecovery(t *testing.T) {
+	for _, policy := range []hostservice.RecoveryPolicy{"", hostservice.RecoveryNormal, hostservice.RecoveryMaintenance} {
+		t.Run(string(policy), func(t *testing.T) {
+			root := t.TempDir()
+			status := &hostservice.StatusResult{
+				Root: root, MessageRoot: filepath.Join(root, "messages"), Recipient: "concierge", Session: "work",
+				HerdrExecutable: unusedHerdr(t), Recovery: policy,
+				Supervision: supervise.Config{
+					Interval:         17 * time.Second,
+					RestartTolerance: 3,
+					RestartWindow:    2 * time.Minute,
+				},
+			}
+			for _, tool := range []string{"tincan", "git", "treehouse"} {
+				if err := os.WriteFile(filepath.Join(root, tool), []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("PATH", root)
+			process, log, err := replacementHost(status)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer log.Close()
+			arguments := strings.Join(process.Args[1:], " ")
+			for _, expected := range []string{"--recovery " + string(policy.Effective()), "--session work", "--interval 17s", "--restart-tolerance 3", "--restart-window 2m0s"} {
+				if !strings.Contains(arguments, expected) {
+					t.Fatalf("missing %q: %s", expected, arguments)
+				}
+			}
+		})
+	}
+}
+
+func TestReplacementReadinessRequiresSelectedPolicy(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name      string
+		reported  hostservice.RecoveryPolicy
+		selected  hostservice.RecoveryPolicy
+		wantError bool
+	}{
+		{"maintenance", hostservice.RecoveryMaintenance, hostservice.RecoveryMaintenance, false},
+		{"normal", hostservice.RecoveryNormal, hostservice.RecoveryNormal, false},
+		{"legacy normal", "", hostservice.RecoveryNormal, false},
+		{"maintenance lost", hostservice.RecoveryNormal, hostservice.RecoveryMaintenance, true},
+		{"maintenance unchanged", hostservice.RecoveryMaintenance, hostservice.RecoveryNormal, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			status := &hostservice.StatusResult{
+				Executable: executable,
+				Revision:   revision,
+				Recovery:   test.reported,
+			}
+			if err := checkReplacementStatus(status, test.selected); (err != nil) != test.wantError {
+				t.Fatalf("replacement policy readiness: %v", err)
+			}
+		})
 	}
 }

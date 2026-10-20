@@ -49,6 +49,9 @@ func initialWakeupEligible(snapshot taskstate.Snapshot) bool {
 }
 
 func (server *Server) reconcileInitialTasks(ctx context.Context) {
+	if server.config.Recovery == RecoveryMaintenance {
+		return
+	}
 	for _, key := range server.controllers.initialWakeupTasks() {
 		if ctx.Err() != nil {
 			return

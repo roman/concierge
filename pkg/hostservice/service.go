@@ -121,6 +121,7 @@ type Server struct {
 }
 
 func New(config Config) (*Server, error) {
+	config.Recovery = config.Recovery.Effective()
 	if config.Supervision == (supervise.Config{}) {
 		config.Supervision = defaultSupervision()
 	}

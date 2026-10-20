@@ -27,14 +27,15 @@ type cli struct {
 	hostExpectations        hostservice.Expectations
 	supervisionExpectations *hostservice.SupervisionSettings
 	Host                    struct {
-		Herdr            string               `help:"Host Herdr executable." default:"herdr" env:"TINCAN_HERDR"`
-		Session          string               `help:"Host session for manual pane control." env:"HERDR_SESSION"`
-		Interval         time.Duration        `help:"Host time between health checks." default:"5s"`
-		RestartTolerance int                  `help:"Host failed checks tolerated per window." default:"5"`
-		RestartWindow    time.Duration        `help:"Host failed-check window." default:"1m"`
-		Serve            struct{}             `cmd:"" help:"Serve primary-owned operations until interrupted; run outside the model sandbox."`
-		Restart          hostLifecycleCommand `cmd:"" help:"Safely replace the background host with this binary; leave workers running."`
-		Stop             hostLifecycleCommand `cmd:"" help:"Safely stop the background host; leave workers running."`
+		Recovery         *hostservice.RecoveryPolicy `enum:"normal,maintenance" help:"Task recovery policy: normal or maintenance. Serve defaults to normal; restart preserves the current policy."`
+		Herdr            string                      `help:"Host Herdr executable." default:"herdr" env:"TINCAN_HERDR"`
+		Session          string                      `help:"Host session for manual pane control." env:"HERDR_SESSION"`
+		Interval         time.Duration               `help:"Host time between health checks." default:"5s"`
+		RestartTolerance int                         `help:"Host failed checks tolerated per window." default:"5"`
+		RestartWindow    time.Duration               `help:"Host failed-check window." default:"1m"`
+		Serve            struct{}                    `cmd:"" help:"Serve primary-owned operations until interrupted; run outside the model sandbox."`
+		Restart          hostLifecycleCommand        `cmd:"" help:"Safely replace the background host with this binary; leave workers running."`
+		Stop             hostLifecycleCommand        `cmd:"" help:"Safely stop the background host; leave workers running."`
 		Status           struct {
 			Timeout time.Duration `default:"1s" help:"Maximum time for the readiness request."`
 		} `cmd:"" help:"Inspect host readiness and verify package and configuration without primary ownership."`

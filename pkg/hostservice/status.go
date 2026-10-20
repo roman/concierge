@@ -16,6 +16,7 @@ const HostStatus Operation = "host_status"
 type StatusRequest struct{}
 
 type StatusResult struct {
+	Recovery        RecoveryPolicy   `json:"recovery,omitempty"`
 	Root            string           `json:"root"`
 	MessageRoot     string           `json:"message_root"`
 	Recipient       string           `json:"recipient"`
@@ -41,6 +42,7 @@ func (server *Server) status() *StatusResult {
 		Revision:        server.config.Revision,
 		HerdrExecutable: server.config.HerdrExecutable,
 		Supervision:     server.config.Supervision,
+		Recovery:        server.config.Recovery,
 	}
 }
 
@@ -65,6 +67,9 @@ func validateStatusResponse(response Response) error {
 		return errors.New("host returned an incomplete status result")
 	}
 	status := response.Status
+	if err := status.Recovery.validate(); err != nil {
+		return err
+	}
 	for _, path := range []string{status.Root, status.MessageRoot, status.Executable} {
 		if _, err := taskmeta.ParseAbsolutePath(path); err != nil {
 			return err

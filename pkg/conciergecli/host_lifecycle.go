@@ -73,6 +73,9 @@ func (command *cli) runHostLifecycle(
 	var process *exec.Cmd
 	var log *os.File
 	if mode == restartHost {
+		if command.Host.Recovery != nil {
+			status.Recovery = *command.Host.Recovery
+		}
 		process, log, err = replacementHost(status)
 		if err != nil {
 			return fail(output, 1, err, help)
@@ -110,12 +113,11 @@ func (command *cli) runHostLifecycle(
 			},
 		)
 		if err == nil && response.Outcome == hostservice.Completed {
-			executable, _ := os.Executable()
-			if response.Status.Executable != executable || response.Status.Revision != revision {
+			if err := checkReplacementStatus(response.Status, status.Recovery); err != nil {
 				return fail(
 					output,
 					1,
-					errors.New("another host became ready during replacement"),
+					err,
 					help,
 				)
 			}
@@ -140,6 +142,23 @@ func (command *cli) runHostLifecycle(
 		case <-time.After(25 * time.Millisecond):
 		}
 	}
+}
+
+func checkReplacementStatus(
+	status *hostservice.StatusResult,
+	recovery hostservice.RecoveryPolicy,
+) error {
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if status.Executable != executable || status.Revision != revision {
+		return errors.New("another host became ready during replacement")
+	}
+	if status.Recovery.Effective() != recovery.Effective() {
+		return errors.New("replacement host uses a different recovery policy")
+	}
+	return nil
 }
 
 func awaitHostDeparture(ctx context.Context, root string) error {
@@ -189,6 +208,8 @@ func replacementHost(status *hostservice.StatusResult) (*exec.Cmd, *os.File, err
 		"--recipient",
 		status.Recipient,
 		"host",
+		"--recovery",
+		string(status.Recovery.Effective()),
 		"--session",
 		status.Session,
 		"--herdr",

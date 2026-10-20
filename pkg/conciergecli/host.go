@@ -60,6 +60,10 @@ func (command *cli) runHost(ctx context.Context, root string, output io.Writer) 
 	if err != nil {
 		return fail(output, 2, err, hostHelp)
 	}
+	recovery := hostservice.RecoveryNormal
+	if command.Host.Recovery != nil {
+		recovery = *command.Host.Recovery
+	}
 	server, err := hostservice.New(
 		hostservice.Config{
 			Root:                root,
@@ -86,6 +90,7 @@ func (command *cli) runHost(ctx context.Context, root string, output io.Writer) 
 			Revision:    revision,
 			Session:     command.Host.Session,
 			Supervision: monitor,
+			Recovery:    recovery,
 		},
 	)
 	if err != nil {

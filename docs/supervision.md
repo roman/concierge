@@ -25,6 +25,50 @@ downstream storage or validation. See the [report consumer reference](tasks.md#e
 
 ## Worker supervision
 
+### Host recovery policy
+
+The host defaults to `normal` task recovery. It restores durable task
+controllers before readiness and retries pending registrations afterward.
+Select `maintenance` before startup to suppress both passes and automatic
+task restarts:
+
+```sh
+concierge --root ROOT --message-root MESSAGES --recipient concierge \
+  host --recovery maintenance serve
+```
+
+Maintenance keeps authenticated lifecycle commands available, including
+`task discard`. All primary, generation, pane absence, native process,
+report, salvage, and lease checks still apply. Task launches and task supervision
+starts are refused while maintenance is active. Manual pane supervision remains explicit.
+The policy applies for the host process lifetime. It does not persist a per-task pause.
+
+Use the new binary to replace an existing host without an automatic recovery
+window:
+
+```sh
+concierge --root ROOT --message-root MESSAGES --recipient concierge \
+  host restart --recovery maintenance
+concierge --root ROOT --message-root MESSAGES --recipient concierge host status
+concierge --root ROOT --message-root MESSAGES --recipient concierge \
+  task discard TASK_ID --generation GENERATION --operator-approved
+concierge --root ROOT --message-root MESSAGES --recipient concierge \
+  host restart --recovery normal
+```
+
+Run the discard only with operator approval after checking salvage. Capture
+the original native primary identity and host configuration first. Restart
+preserves the roots, recipient, Herdr executable, session, and monitor values
+reported by the current host. It preserves the recovery policy unless
+`--recovery` changes it explicitly. An older host without a recovery field
+uses `normal`. Invalid policy values fail before replacement.
+
+`host status` reports `recovery: "normal"` or `recovery: "maintenance"`.
+New clients accept older status responses without the field. Older clients
+that reject unknown response fields cannot read the new host status. Use the
+new binary for the entire maintenance procedure and update adopting pins to
+the revision that includes this policy before activation.
+
 ```sh
 concierge control --session work status worker-1
 concierge control --session work interrupt worker-1

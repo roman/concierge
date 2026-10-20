@@ -145,6 +145,11 @@ func (server *Server) supervisionWithMode(
 		result.State = "stopped"
 		return Response{Supervision: &result}, nil
 	}
+	if input.TaskID != "" && server.config.Recovery == RecoveryMaintenance {
+		return Response{}, errors.New(
+			"task supervision is disabled by the maintenance recovery policy",
+		)
+	}
 	var endpoint controllerEndpoint
 	var prepare func(context.Context) (preparedController, error)
 	if input.TaskID != "" {
@@ -305,6 +310,9 @@ func (worker manualWorker) Restart(ctx context.Context) error {
 }
 
 func (server *Server) restoreTaskControllers(ctx context.Context) error {
+	if server.config.Recovery == RecoveryMaintenance {
+		return ctx.Err()
+	}
 	tasks, err := server.store.List(ctx)
 	if err != nil {
 		return err

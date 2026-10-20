@@ -79,6 +79,9 @@ func (input LaunchRequest) intent(session, generation string) taskstate.LaunchIn
 }
 
 func (server *Server) launch(ctx context.Context, input LaunchRequest) (Response, error) {
+	if server.config.Recovery == RecoveryMaintenance {
+		return Response{}, errors.New("task launch is disabled by the maintenance recovery policy")
+	}
 	release, err := server.controllers.reserveInitialLaunch(
 		controllerKey{kind: taskController, id: input.TaskID},
 	)

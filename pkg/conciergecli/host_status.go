@@ -91,6 +91,9 @@ func (command *cli) runHostStatus(ctx context.Context, root string, output io.Wr
 	if err != nil {
 		return 1
 	}
+	if _, err := fmt.Fprintf(output, "recovery: %s\n", quote(string(status.Recovery.Effective()))); err != nil {
+		return 1
+	}
 	hostRevision := status.Revision
 	if hostRevision == "" {
 		hostRevision = "unknown"

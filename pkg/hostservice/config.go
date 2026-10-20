@@ -13,6 +13,7 @@ import (
 
 // Config binds every external dependency before host admission starts.
 type Config struct {
+	Recovery            RecoveryPolicy
 	WorkerSettings      func(string) (taskops.WorkerSettings, error)
 	Supervision         supervise.Config
 	Diagnostics         io.Writer
@@ -36,6 +37,9 @@ type Expectations struct {
 }
 
 func (config Config) validate() error {
+	if err := config.Recovery.validate(); err != nil {
+		return err
+	}
 	for _, executable := range []string{config.GitExecutable, config.TreehouseExecutable} {
 		if executable != "" {
 			if _, err := taskmeta.ParseAbsolutePath(executable); err != nil {
