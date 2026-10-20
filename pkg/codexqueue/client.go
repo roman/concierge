@@ -136,7 +136,7 @@ func (client *Client) call(ctx context.Context, method string, params any, resul
 			continue
 		}
 		if response.Error != nil {
-			return response.Error
+			return fmt.Errorf("Codex %s: %w", method, response.Error)
 		}
 		if result == nil {
 			return nil
@@ -152,6 +152,34 @@ type thread struct {
 		Type        string   `json:"type"`
 		ActiveFlags []string `json:"activeFlags"`
 	} `json:"status"`
+	Turns []struct {
+		Status string `json:"status"`
+		Items  []struct {
+			Type     string `json:"type"`
+			ClientID string `json:"clientId"`
+		} `json:"items"`
+	} `json:"turns"`
+}
+
+func unsupportedMethod(err error) bool {
+	var rpc *rpcError
+	return errors.As(err, &rpc) && rpc.Code == -32601
+}
+
+func (client *Client) readHistoryThread(ctx context.Context, id string) (thread, error) {
+	var result struct {
+		Thread thread `json:"thread"`
+	}
+	if err := client.call(ctx, "thread/read", map[string]any{"threadId": id, "includeTurns": true}, &result); err != nil {
+		return thread{}, err
+	}
+	if result.Thread.ID != id {
+		return thread{}, errors.New("Codex history returned another thread")
+	}
+	if result.Thread.Turns == nil {
+		return thread{}, errors.New("Codex history did not include turn records")
+	}
+	return result.Thread, nil
 }
 
 func (client *Client) readThread(ctx context.Context, id, cwd string) (thread, error) {
@@ -182,22 +210,40 @@ func (client *Client) Verify(ctx context.Context, id, cwd string) error {
 	return nil
 }
 
+func threadGate(thread thread) Gate {
+	switch thread.Status.Type {
+	case "notLoaded":
+		return Missing
+	case "active":
+		if slices.Contains(thread.Status.ActiveFlags, "waitingOnApproval") {
+			return Permission
+		}
+		return Busy
+	case "idle":
+		return Ready
+	default:
+		return Unknown
+	}
+}
+
+func turnGate(status string) Gate {
+	switch status {
+	case "completed":
+		return Ready
+	case "interrupted":
+		return Interrupted
+	default:
+		return Unknown
+	}
+}
+
 func (client *Client) Readiness(ctx context.Context, id, cwd string) (Gate, error) {
 	thread, err := client.readThread(ctx, id, cwd)
 	if err != nil {
 		return Unknown, err
 	}
-	switch thread.Status.Type {
-	case "notLoaded":
-		return Missing, nil
-	case "active":
-		if slices.Contains(thread.Status.ActiveFlags, "waitingOnApproval") {
-			return Permission, nil
-		}
-		return Busy, nil
-	case "idle":
-	default:
-		return Unknown, nil
+	if gate := threadGate(thread); gate != Ready {
+		return gate, nil
 	}
 	var turns struct {
 		Data []struct {
@@ -205,16 +251,28 @@ func (client *Client) Readiness(ctx context.Context, id, cwd string) (Gate, erro
 		} `json:"data"`
 	}
 	if err := client.call(ctx, "thread/turns/list", map[string]any{"threadId": id, "limit": 1, "sortDirection": "desc", "itemsView": "notLoaded"}, &turns); err != nil {
-		return Unknown, err
+		if !unsupportedMethod(err) {
+			return Unknown, err
+		}
+		// Older native stores advertise pagination before implementing it.
+		// The WebSocket read limit also bounds full-history hydration.
+		history, err := client.readHistoryThread(ctx, id)
+		if err != nil {
+			return Unknown, err
+		}
+		if history.Cwd != cwd {
+			return Unknown, errors.New("Codex history working directory differs from registration")
+		}
+		if gate := threadGate(history); gate != Ready {
+			return gate, nil
+		}
+		if len(history.Turns) == 0 {
+			return Ready, nil
+		}
+		return turnGate(history.Turns[len(history.Turns)-1].Status), nil
 	}
 	if len(turns.Data) > 0 {
-		switch turns.Data[0].Status {
-		case "interrupted":
-			return Interrupted, nil
-		case "completed":
-		default:
-			return Unknown, nil
-		}
+		return turnGate(turns.Data[0].Status), nil
 	}
 	return Ready, nil
 }
@@ -306,6 +364,20 @@ func (client *Client) containsHistory(
 			Next string `json:"nextCursor"`
 		}
 		if err := client.call(ctx, "thread/items/list", params, &page); err != nil {
+			if unsupportedMethod(err) {
+				history, err := client.readHistoryThread(ctx, threadID)
+				if err != nil {
+					return false, err
+				}
+				for _, turn := range history.Turns {
+					for _, item := range turn.Items {
+						if item.Type == "userMessage" && item.ClientID == clientID {
+							return true, nil
+						}
+					}
+				}
+				return false, nil
+			}
 			return false, err
 		}
 		for _, entry := range page.Data {
