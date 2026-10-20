@@ -100,7 +100,7 @@ func TestClaudeLifecycleDeliversOnlyFromReadyStop(t *testing.T) {
 	if output, code := hook("Stop", "activity"); code != 0 {
 		t.Fatalf("ready: %d %s", code, output)
 	}
-	output, code := hook("Stop", "wait", "--timeout", "1s")
+	output, code := hook("Stop", "wait", "--timeout", "1m")
 	if code != 2 || !strings.Contains(output, "heartbeat claim '"+id+"'") {
 		t.Fatalf("ready offer: %d %s", code, output)
 	}
@@ -109,6 +109,29 @@ func TestClaudeLifecycleDeliversOnlyFromReadyStop(t *testing.T) {
 	if state.Pending == nil || state.Receipt != nil || state.Pending.Attempt.Count != 1 {
 		t.Fatalf("offer consumed event: %+v", state)
 	}
+	if err := store.DeliverCodex(ctx, "/fixture/concierge", messageRoot, "concierge", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	afterPushTick, _ := store.Read(ctx)
+	if afterPushTick.Delivery != "offered" {
+		t.Fatalf("push tick overwrote pull phase: %s", afterPushTick.Delivery)
+	}
+	attempt := state.Pending.Attempt
+	mutateHeartbeatRecord(t, root, func(current *heartbeat.State) { current.Pending.Attempt = nil })
+	before, _ := os.ReadFile(filepath.Join(root, "supervisor.json"))
+	if event, err := store.OfferPull(ctx, generation, time.Now()); err == nil || event != nil ||
+		!strings.Contains(err.Error(), "consumer was replaced") {
+		t.Fatalf("foreign consumer offered an event: %+v, %v", event, err)
+	}
+	after, _ := os.ReadFile(filepath.Join(root, "supervisor.json"))
+	if !bytes.Equal(before, after) {
+		t.Fatal("rejected consumer changed the pending event")
+	}
+	mutateHeartbeatRecord(
+		t,
+		root,
+		func(current *heartbeat.State) { current.Pending.Attempt = attempt },
+	)
 	if output, code := hook("Stop", "wait", "--timeout", "50ms"); code != 0 || output != "" {
 		t.Fatalf("duplicate offer: %d %s", code, output)
 	}
@@ -140,7 +163,11 @@ func TestClaudeLifecycleDeliversOnlyFromReadyStop(t *testing.T) {
 	if err := store.RecordActivity(ctx, state.Binding.Owner, heartbeat.ActivityGate("invalid")); err == nil {
 		t.Fatal("invalid activity accepted")
 	}
-	previousExpiry := state.Binding.Destination.Expires
+	current, err := store.Read(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousConsumer := *current.Binding.Consumer
 	type consumerResult struct {
 		output string
 		code   int
@@ -156,7 +183,7 @@ func TestClaudeLifecycleDeliversOnlyFromReadyStop(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if current.Binding.Destination.Expires.After(previousExpiry) {
+		if current.Binding.Consumer != nil && *current.Binding.Consumer != previousConsumer {
 			break
 		}
 		if time.Now().After(deadline) {

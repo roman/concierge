@@ -2,10 +2,13 @@ package conciergecli
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/roman/concierge/pkg/heartbeat"
+	"github.com/roman/concierge/pkg/primary"
 )
 
 func TestHeartbeatActivationAndPauseCommands(t *testing.T) {
@@ -22,6 +25,40 @@ func TestHeartbeatActivationAndPauseCommands(t *testing.T) {
 		"operator_paused: no",
 	) {
 		t.Fatal(got)
+	}
+}
+
+func TestHookOwnerRetriesOnlyTransientLockContention(t *testing.T) {
+	for _, trial := range []struct {
+		name  string
+		first error
+		want  error
+		calls int
+	}{
+		{"busy then current", primary.ErrClaimBusy, nil, 2},
+		{"unauthorized", primary.ErrUnauthorizedCaller, primary.ErrUnauthorizedCaller, 1},
+	} {
+		t.Run(trial.name, func(t *testing.T) {
+			calls := 0
+			err := retryHookOwner(context.Background(), func(context.Context) error {
+				calls++
+				if calls == 1 {
+					return trial.first
+				}
+				return nil
+			})
+			if !errors.Is(err, trial.want) || calls != trial.calls {
+				t.Fatalf("retry result %v after %d calls", err, calls)
+			}
+		})
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	if err := retryHookOwner(ctx, func(context.Context) error { return primary.ErrClaimBusy }); !errors.Is(
+		err,
+		context.DeadlineExceeded,
+	) {
+		t.Fatalf("unbounded owner retry: %v", err)
 	}
 }
 

@@ -42,6 +42,9 @@ func TestPullOfferRequiresReadyCurrentHook(t *testing.T) {
 				(got.Attempt.Count != 1 || state.Receipt != nil || state.Pending == nil) {
 				t.Fatalf("offer consumed output: %+v", state)
 			}
+			if got != nil && state.Activity.Gate != Busy {
+				t.Fatal("offered turn retained a reusable ready gate")
+			}
 		})
 	}
 }
@@ -80,6 +83,7 @@ func TestPullOffersHaveBoundedRetries(t *testing.T) {
 		Pending:  &Event{ID: "event", Kind: Periodic, MessageID: "published"},
 	}
 	for attempt := 1; attempt <= 3; attempt++ {
+		state.Activity.Gate = Ready
 		event := offerPull(&state, now)
 		if event == nil || event.Attempt.Count != attempt {
 			t.Fatalf("attempt %d: %+v", attempt, state)
@@ -89,6 +93,7 @@ func TestPullOffersHaveBoundedRetries(t *testing.T) {
 		}
 		now = now.Add(ClaimLease)
 	}
+	state.Activity.Gate = Ready
 	if offerPull(&state, now) != nil || state.Delivery != "retry_exhausted" ||
 		state.Pending == nil {
 		t.Fatalf("retry budget lost event: %+v", state)

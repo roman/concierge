@@ -24,6 +24,29 @@ type Activity struct {
 	Gate  ActivityGate     `json:"gate"`
 }
 
+func pullConsumerAvailable(state *State, now time.Time) error {
+	if event := state.Pending; event != nil {
+		if event.Claim != nil && now.Before(event.Claim.Until) {
+			return nil
+		}
+		if event.Attempt != nil && event.Attempt.Phase == "offered" &&
+			now.Before(event.Attempt.At.Add(ClaimLease)) {
+			return nil
+		}
+	}
+	if state.Binding.Consumer == nil {
+		return errors.New("primary delivery unavailable: Stop consumer missing")
+	}
+	status, err := primary.ProbeProcessToken(*state.Binding.Consumer)
+	if err != nil {
+		return err
+	}
+	if status != primary.ProcessRunning {
+		return errors.New("primary delivery unavailable: Stop consumer exited")
+	}
+	return nil
+}
+
 // RecordActivity is called by synchronous lifecycle hooks. The asynchronous
 // consumer cannot mark a session ready after a later prompt has started.
 func (store Store) RecordActivity(
@@ -81,6 +104,7 @@ func offerPull(state *State, now time.Time) *Event {
 		count += state.Pending.Attempt.Count
 	}
 	state.Pending.Claim = nil
+	state.Activity.Gate = Busy
 	state.Pending.Attempt = &Attempt{
 		ID:         rand.Text(),
 		Generation: state.Binding.Generation,
@@ -102,6 +126,13 @@ func (store Store) OfferPull(
 	err := store.withBinding(ctx, generation, now, func(state *State) error {
 		if state.Binding.Destination.Mode != Pull {
 			return errors.New("delivery is not a registered Claude Stop consumer")
+		}
+		token, err := primary.CaptureProcessToken(os.Getpid())
+		if err != nil {
+			return err
+		}
+		if state.Binding.Consumer == nil || *state.Binding.Consumer != token {
+			return errors.New("Stop consumer was replaced")
 		}
 		result = offerPull(state, now)
 		return nil

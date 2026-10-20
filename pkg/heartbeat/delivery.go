@@ -119,7 +119,6 @@ func (store Store) DeliverCodex(
 				return err
 			}
 			if binding.Destination.Mode != Push {
-				state.Delivery = "pull_waiting"
 				return nil
 			}
 			plan := deliveryPlan(event, now)

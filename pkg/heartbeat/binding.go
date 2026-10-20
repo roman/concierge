@@ -29,9 +29,10 @@ type Destination struct {
 }
 
 type Binding struct {
-	Owner       primary.Identity `json:"owner"`
-	Generation  string           `json:"generation"`
-	Destination Destination      `json:"destination"`
+	Consumer    *primary.ProcessToken `json:"consumer,omitempty"`
+	Owner       primary.Identity      `json:"owner"`
+	Generation  string                `json:"generation"`
+	Destination Destination           `json:"destination"`
 }
 
 var threadUUID = regexp.MustCompile(
@@ -114,9 +115,21 @@ func (store Store) Register(
 			if err := verify(owner); err != nil {
 				return err
 			}
+			var consumer *primary.ProcessToken
+			if destination.Mode == Pull {
+				token, err := primary.CaptureProcessToken(os.Getpid())
+				if err != nil {
+					return err
+				}
+				consumer = &token
+			}
 			return store.update(
 				ctx,
-				func(state *State) error { result = register(state, owner, destination); return nil },
+				func(state *State) error {
+					result = register(state, owner, destination)
+					result.Consumer, state.Binding.Consumer = consumer, consumer
+					return nil
+				},
 			)
 		},
 	)
@@ -146,6 +159,11 @@ func (store Store) CheckBinding(ctx context.Context, generation string, now time
 		}
 		if err := bindingCurrent(&state, owner, generation, now); err != nil {
 			return err
+		}
+		if state.Binding.Destination.Mode == Pull {
+			if err := pullConsumerAvailable(&state, now); err != nil {
+				return err
+			}
 		}
 		return store.verifyDestination(ctx, state.Binding.Destination)
 	})

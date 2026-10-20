@@ -69,7 +69,7 @@ func (command *cli) runHeartbeatHook(
 		default:
 			return fail(output, 1, errors.New("unsupported activity hook event"), heartbeatHelp)
 		}
-		if err := store.RecordActivity(ctx, identity, gate); err != nil {
+		if err := retryHookOwner(ctx, func(attempt context.Context) error { return store.RecordActivity(attempt, identity, gate) }); err != nil {
 			return fail(output, 1, err, heartbeatHelp)
 		}
 		return 0
@@ -117,29 +117,37 @@ func (command *cli) runHeartbeatHook(
 	}
 	ctx, cancel := context.WithTimeout(ctx, lifetime)
 	defer cancel()
-	binding, err := store.Register(
-		ctx,
-		heartbeat.Destination{
-			Mode:    heartbeat.Pull,
-			Session: identity.SessionID,
-			Expires: time.Now().Add(lifetime),
-		},
-		func(owner primary.Identity) error {
-			if owner != identity {
-				return errors.New("Stop hook differs from the owning primary")
-			}
-			return nil
-		},
-		time.Now(),
-	)
+	var binding heartbeat.Binding
+	err = retryHookOwner(ctx, func(attempt context.Context) error {
+		var registerErr error
+		binding, registerErr = store.Register(
+			attempt,
+			heartbeat.Destination{
+				Mode:    heartbeat.Pull,
+				Session: identity.SessionID,
+				Expires: time.Now().Add(lifetime),
+			},
+			func(owner primary.Identity) error {
+				if owner != identity {
+					return errors.New("Stop hook differs from the owning primary")
+				}
+				return nil
+			},
+			time.Now(),
+		)
+		return registerErr
+	})
 	if err != nil {
+		if ctx.Err() != nil {
+			return 0
+		}
 		return fail(output, 1, err, heartbeatHelp)
 	}
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		event, err := store.OfferPull(ctx, binding.Generation, time.Now())
-		if err != nil {
+		if err != nil && !errors.Is(err, primary.ErrClaimBusy) {
 			if ctx.Err() != nil {
 				return 0
 			}
@@ -155,6 +163,22 @@ func (command *cli) runHeartbeatHook(
 		case <-ctx.Done():
 			return 0
 		case <-ticker.C:
+		}
+	}
+}
+
+func retryHookOwner(ctx context.Context, action func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	for {
+		err := action(ctx)
+		if !errors.Is(err, primary.ErrClaimBusy) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Millisecond):
 		}
 	}
 }
