@@ -8,8 +8,18 @@ case "$("$concierge/bin/concierge" --version)" in
   *) exit 1 ;;
 esac
 set -- "$concierge"/bin/*
-test "$#" -eq 1
+test "$#" -eq 2
 test "$1" = "$concierge/bin/concierge"
+test "$2" = "$concierge/bin/concierge-usage"
+test "$("$concierge/bin/concierge-usage" --version)" = "$version"
+"$coreutils/bin/mkdir" "$TMPDIR/sessions"
+printf '%s\n' \
+  '{"type":"session_meta","payload":{"id":"smoke","cwd":"/synthetic"}}' \
+  '{"timestamp":"2026-10-20T22:00:00Z","type":"token_usage_record","payload":{"turn_id":"one","response_id":"r1","usage":{"input_tokens":42}}}' \
+  > "$TMPDIR/sessions/smoke.jsonl"
+"$concierge/bin/concierge-usage" --sessions "$TMPDIR/sessions" \
+  --from 2026-10-20T22:00:00Z --to 2026-10-20T23:00:00Z --format json > usage
+"$jq" -e '.primary.usage.requests == 1 and .primary.usage.input == 42' usage >/dev/null
 set -- "$tincan"/bin/*
 test "$#" -eq 1
 test "$1" = "$tincan/bin/tincan"

@@ -17,5 +17,6 @@ pkgs.runCommand "concierge-${command.version}" {
   nativeBuildInputs = [ pkgs.makeWrapper ];
 } ''
   install -Dm755 ${command}/bin/concierge "$out/bin/concierge"
+  install -Dm755 ${command}/bin/concierge-usage "$out/bin/concierge-usage"
   wrapProgram "$out/bin/concierge" --prefix PATH : ${runtime}/bin
 ''

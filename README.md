@@ -140,6 +140,7 @@ architectures on each platform.
 ## Reference
 
 - [Commands and project settings](docs/commands.md)
+- [Offline session usage and baseline](docs/session-usage.md)
 - [Task lifecycle and lease cleanup](docs/tasks.md)
 - [Worker launch and native checkpoints](docs/launch.md)
 - [Remote workers and reply recovery](docs/remote-workers.md)
