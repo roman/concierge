@@ -80,10 +80,11 @@ func (server *Server) withTaskEndpoint(
 	if err := server.checkTaskRemoteEndpoint(ctx, task); err != nil {
 		return Response{}, err
 	}
-	release, err := server.controllers.quiesce(
+	release, err := server.controllers.quiesceOperation(
 		ctx,
 		controllerKey{kind: taskController, id: input.TaskID},
 		*endpoint,
+		request.Operation,
 	)
 	if err != nil {
 		var stopped *controllerStoppedError

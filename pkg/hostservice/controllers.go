@@ -3,6 +3,7 @@ package hostservice
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -54,6 +55,7 @@ type controllerEntry struct {
 }
 
 type controllerRegistry struct {
+	operationNames        map[controllerKey]Operation
 	ctx                   context.Context
 	cancel                context.CancelFunc
 	mu                    sync.Mutex
@@ -69,6 +71,7 @@ type controllerRegistry struct {
 func newControllerRegistry(ctx context.Context) *controllerRegistry {
 	lifetime, cancel := context.WithCancel(ctx)
 	return &controllerRegistry{
+		operationNames:        make(map[controllerKey]Operation),
 		ctx:                   lifetime,
 		cancel:                cancel,
 		entries:               make(map[controllerKey]*controllerEntry),
@@ -323,6 +326,15 @@ func (registry *controllerRegistry) quiesce(
 	key controllerKey,
 	endpoint controllerEndpoint,
 ) (func(), error) {
+	return registry.quiesceOperation(ctx, key, endpoint, "")
+}
+
+func (registry *controllerRegistry) quiesceOperation(
+	ctx context.Context,
+	key controllerKey,
+	endpoint controllerEndpoint,
+	operation Operation,
+) (func(), error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -332,7 +344,11 @@ func (registry *controllerRegistry) quiesce(
 		return nil, context.Canceled
 	}
 	if _, exists := registry.operationKeys[key]; exists {
+		operation := registry.operationNames[key]
 		registry.mu.Unlock()
+		if operation != "" {
+			return nil, fmt.Errorf("%s operation is in progress: %w", operation, errControllerBusy)
+		}
 		return nil, errControllerBusy
 	}
 	if _, exists := registry.operationEndpoints[endpoint]; exists {
@@ -349,6 +365,7 @@ func (registry *controllerRegistry) quiesce(
 		return nil, errControllerBusy
 	}
 	release := registry.reserveOperationLocked(key, endpoint)
+	registry.operationNames[key] = operation
 	delete(registry.awaitingInitialWakeup, key)
 	if entry != nil {
 		entry.stopping = true
@@ -382,6 +399,7 @@ func (registry *controllerRegistry) reserveOperationLocked(
 			registry.mu.Lock()
 			defer registry.mu.Unlock()
 			delete(registry.operationKeys, key)
+			delete(registry.operationNames, key)
 			delete(registry.operationEndpoints, endpoint)
 		})
 	}

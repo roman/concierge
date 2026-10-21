@@ -19,6 +19,9 @@ type assignmentSelection struct {
 }
 
 type taskCommands struct {
+	Reopen struct {
+		TaskID string `arg:"" help:"Accepted local scout with a retained worker binding."`
+	} `cmd:"" help:"Reopen a local scout for follow-up work; resume its recorded native session when absent."`
 	Inbox     remoteInboxCommands     `cmd:"" help:"List pending message metadata through the remote worker socket."`
 	Bootstrap remoteBootstrapCommands `cmd:"" help:"Inspect or acknowledge a matching remote worker bootstrap."`
 	Settings  remoteTaskSelection     `cmd:"" help:"Read project settings for the remote worker's assigned task."`

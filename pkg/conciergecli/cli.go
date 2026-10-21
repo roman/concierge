@@ -304,6 +304,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "primary claim", "primary verify", "primary release":
 		return runPrimary(root, selected.Command(), stdin, stdout, primary.CurrentHookIdentity)
 	case "task stop <task-id>",
+		"task reopen <task-id>",
 		"task cancel <task-id>",
 		"task abandon <task-id>",
 		"task discard <task-id>":

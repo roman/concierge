@@ -56,6 +56,9 @@ func (server *Server) perform(ctx context.Context, request Request) (Response, e
 }
 
 func (server *Server) performOperation(ctx context.Context, request Request) (Response, error) {
+	if request.Operation == Reopen {
+		return server.reopen(ctx, request.Transition.TaskID)
+	}
 	if request.Operation == PrepareMachine {
 		return server.prepareMachine(ctx, *request.MachinePreparation)
 	}

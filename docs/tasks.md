@@ -144,6 +144,41 @@ concierge task stop task-1 --generation GEN
 concierge backlog cleanup task-1 --generation GEN
 ```
 
+### Follow-up work for an accepted scout
+
+Reopen a local scout before sending another question:
+
+```sh
+concierge task reopen scout-1
+concierge task send scout-1 --key follow-up-1 --body-file question.txt
+```
+
+Reopen requires an accepted result and a retained worker binding. A live worker
+keeps its generation. If the agent has departed, Concierge resumes the native
+session from the recorded resume arguments through normal supervised recovery.
+The restart advances the generation and uses the usual bootstrap and recovery
+protocol. A missing pane gets a replacement workspace without taking focus.
+The host must still have access to the recorded Herdr session and worktree.
+
+Concierge refuses recovery without an explicit recorded native session ID. It
+does not search transcripts. A lost pane-creation response is recovered by its
+reserved workspace label. If that workspace cannot be found, the command reports
+an unresolved creation instead of creating another workspace. Retry `task reopen`
+after fixing the reported problem. Repeating a successful reopen is a no-op for
+the task history.
+
+Only local scouts can reopen. Project tasks, including landed tasks, require a
+new task. This keeps landing and worktree ownership rules unchanged. Remote
+workers, held tasks, and workers retired by cleanup cannot reopen. An active
+stop or cleanup operation blocks reopen and appears by name in the error.
+
+The task record keeps the earlier acceptance, closing date, timestamp, and reopen
+reason in its `reopens` history. `backlog show` displays the most recent reopen.
+Earlier reports remain available. Reopen supersedes the earlier acceptance for
+the active work. A follow-up reply is saved as a report and needs a new
+`backlog resolve` decision. Replaying the earlier resolution cannot accept active
+follow-up work.
+
 Saved reports remain readable after worker cleanup. List them with
 `concierge task report TASK_ID`. Read a selected report with
 `concierge task report TASK_ID REPLY_ID`. The default `--format toon` includes

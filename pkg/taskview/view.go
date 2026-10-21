@@ -128,6 +128,18 @@ func WriteTask(output io.Writer, task taskstate.Task, detail DetailLevel) error 
 			quote(closure.Reason),
 		)
 	}
+	if err == nil && len(task.Snapshot().Reopens) > 0 {
+		reopens := task.Snapshot().Reopens
+		latest := reopens[len(reopens)-1]
+		_, err = fmt.Fprintf(
+			output,
+			"  reopen_count: %d\n  reopened_at: %s\n  reopen_reason: %s\n  prior_closed: %s\n",
+			len(reopens),
+			quote(latest.At),
+			quote(latest.Reason),
+			quote(latest.Closed),
+		)
+	}
 	return err
 }
 

@@ -11,7 +11,7 @@ import (
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
-const taskControlHelp = "concierge task discard TASK_ID --generation GEN --operator-approved; concierge task abandon TASK_ID --generation GEN; concierge task stop TASK_ID --generation GEN; concierge task cancel TASK_ID; inspect worker show TASK_ID before retrying"
+const taskControlHelp = "concierge task reopen TASK_ID; concierge task discard TASK_ID --generation GEN --operator-approved; concierge task abandon TASK_ID --generation GEN; concierge task stop TASK_ID --generation GEN; concierge task cancel TASK_ID; inspect worker show TASK_ID before retrying"
 
 func (command *taskCommands) runControl(
 	ctx context.Context,
@@ -24,6 +24,9 @@ func (command *taskCommands) runControl(
 		Transition:   &hostservice.TransitionRequest{},
 	}
 	switch selected {
+	case "task reopen <task-id>":
+		request.Operation = hostservice.Reopen
+		request.Transition.TaskID = command.Reopen.TaskID
 	case "task discard <task-id>":
 		if !command.Discard.OperatorApproved {
 			return fail(
@@ -70,6 +73,11 @@ func (command *taskCommands) runControl(
 		return fail(output, code, errors.New(response.Error), help)
 	}
 	switch selected {
+	case "task reopen <task-id>":
+		worker := response.Transition.Worker
+		if _, err := fmt.Fprintf(output, "task: %s\nstate: %s\ngeneration: %s\nstatus: reopened\n", quote(command.Reopen.TaskID), response.Transition.State, quote(worker.Generation)); err != nil {
+			return 1
+		}
 	case "task discard <task-id>":
 		task, err := taskstate.NewMigrated(*response.Transition)
 		if err != nil {

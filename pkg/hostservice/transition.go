@@ -16,6 +16,7 @@ import (
 
 const (
 	Start           Operation = "start"
+	Reopen          Operation = "reopen"
 	Finish          Operation = "finish"
 	Hold            Operation = "hold"
 	Release         Operation = "release"
@@ -156,7 +157,7 @@ func validateRequest(request Request) error {
 			)
 		}
 		return taskmeta.ValidateSpawnGeneration(input.Generation)
-	case Start, Release, Cancel:
+	case Start, Release, Cancel, Reopen:
 		if input.Hold != nil || input.Generation != "" || input.Mode != "" || input.ClosedOn != "" {
 			return errors.New("start and release accept only a task ID")
 		}
@@ -287,6 +288,12 @@ func validateTransitionResponse(response Response, request Request) error {
 		repeated, err = task.CloseRetired(input.Generation, input.Reason, input.ClosedOn)
 	case Start:
 		repeated, err = task.Start()
+	case Reopen:
+		if task.State() != taskstate.InFlight || task.Snapshot().Completion != nil ||
+			len(task.Snapshot().Reopens) == 0 {
+			return errors.New("host returned an unapplied reopen result")
+		}
+		repeated = task
 	case Hold:
 		repeated, err = task.PlaceHold(*input.Hold)
 	case Release:
