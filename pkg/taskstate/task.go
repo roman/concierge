@@ -162,6 +162,7 @@ type LaunchAbandonment struct {
 }
 
 type record struct {
+	Reopens           []ReopenRecord      `json:"reopens,omitempty"`
 	AbandonedLaunches []LaunchAbandonment `json:"abandoned_launches,omitempty"`
 	Format            int                 `json:"format"`
 	Definition
@@ -176,6 +177,7 @@ type record struct {
 
 // Snapshot carries one complete task across the explicit migration boundary.
 type Snapshot struct {
+	Reopens           []ReopenRecord
 	AbandonedLaunches []LaunchAbandonment
 	Definition        Definition
 	State             State
@@ -202,6 +204,7 @@ func NewQueued(input Definition) (Task, error) {
 // NewMigrated accepts a complete snapshot only when its combined state is valid.
 func NewMigrated(input Snapshot) (Task, error) {
 	selected := record{
+		Reopens:           slices.Clone(input.Reopens),
 		AbandonedLaunches: slices.Clone(input.AbandonedLaunches),
 		Format:            formatVersion, Definition: cloneDefinition(input.Definition),
 		State: input.State, Worker: cloneWorker(input.Worker),
@@ -267,6 +270,7 @@ func (task Task) Definition() Definition { return cloneDefinition(task.record.De
 // Snapshot returns a detached copy for migration checks and task transitions.
 func (task Task) Snapshot() Snapshot {
 	return Snapshot{
+		Reopens:           slices.Clone(task.record.Reopens),
 		AbandonedLaunches: slices.Clone(task.record.AbandonedLaunches),
 		Definition:        cloneDefinition(task.record.Definition), State: task.record.State,
 		Worker:        cloneWorker(task.record.Worker),
@@ -356,6 +360,9 @@ func cloneClosure(input *Closure) *Closure {
 }
 
 func validate(selected record) error {
+	if !validReopens(selected.Reopens) {
+		return ErrInvalidTask
+	}
 	if !validClosure(selected) {
 		return ErrInvalidTask
 	}
