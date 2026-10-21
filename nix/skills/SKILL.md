@@ -43,8 +43,12 @@ and a two-minute token. Batch independent reads. Reuse these returned states;
 read status again only for a new decision or the required current pane check.
 Wait longer on running commands instead of repeatedly polling them.
 
-For a pending bound reply, run `concierge task reply check REPLY_ID`; act only on
-`status: current`. Use Tincan for ordinary coordination. Acknowledge handled
+First inspect a pending bound reply with
+`concierge task reply check REPLY_ID --format concise`; act only on `status: current`.
+Before acceptance, require a fresh `task reply check REPLY_ID --format toon`
+if the preview lacks decision evidence. An empty outcome requires this full check.
+See the completion reference for evidence and exact-body import rules.
+Use Tincan for ordinary coordination. Acknowledge handled
 coordination with `tincan inbox ack concierge MESSAGE_ID`. Do not repeat handled work.
 Record an operator request first: `concierge operator ask ACTION_ID "DESCRIPTION"`.
 Resolve it only after an answer or withdrawal: `concierge operator resolve ACTION_ID`.

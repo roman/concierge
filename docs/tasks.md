@@ -216,12 +216,13 @@ remains exact. A stale reply check returns only its status and task in either
 format. A saved report always reports `status: archived`; it does not validate
 the current worker generation.
 
-The supervisor skill currently tells the primary to act on a current reply's
-body. To adopt previews, change its reply-check examples to `--format concise`
-and require a fresh full check (`--format toon`) when evidence is missing.
-Use report `--format concise` for navigation. Keep `--format body` for exact
-imports into downstream consumers. Do not replace generation or acceptance
-checks with a saved-report preview.
+The supervisor skill uses `--format concise` for initial reply inspection and
+saved-report navigation. Before acceptance, it requires a fresh full check
+(`--format toon`) when decision evidence is missing, including an empty outcome.
+Only current reply bodies are actionable. Exact imports into authorized
+downstream consumers use report `--format body`, redirected without printing the
+body again for supervision. Saved-report previews do not replace generation or
+acceptance checks.
 
 ### External report consumers
 

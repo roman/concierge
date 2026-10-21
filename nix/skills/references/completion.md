@@ -2,18 +2,35 @@
 
 Concierge saves every bound task reply, including each rework assignment reply, in
 `$CONCIERGE_HOME/reports/` before acknowledging its assignment. Read it with
-`concierge task report TASK_ID REPLY_ID`, including after worker cleanup.
+`concierge task report TASK_ID REPLY_ID --format concise` for initial inspection,
+including after worker cleanup.
 List saved reply IDs and creation times with `concierge task report TASK_ID`.
 When recording accepted results elsewhere, read them from these reports. Reports survive
 `backlog resolve`, worker stop, and cleanup. Generic coordination messages are
 not saved as reports.
-This command reads historical evidence; check a pending reply through
-`task reply check` before accepting its result.
+This command reads historical evidence. Its `status: archived` does not validate
+the current generation. First inspect a pending reply with
+`concierge task reply check REPLY_ID --format concise`; only `status: current`
+bodies are actionable.
+
+Before acceptance, require decision evidence for the task's scope, completed
+checks for the exact commit, limitations, and unresolved questions. For scouts,
+require findings and supporting evidence. The preview omits most body text and
+can shorten fields. An empty outcome, missing evidence, relevant section titles
+without their details, or a shortened decision requires a fresh full check:
+`concierge task reply check REPLY_ID --format toon`. Act on that full body only
+with `status: current`. Do not infer passing checks or absent blockers from an
+omission. A sufficient current preview needs no duplicate full read.
 
 Report bodies are opaque text. Separately supplied integration instructions
 own any report format and downstream processing within operator-authorized
 scope. Use `concierge task report TASK_ID REPLY_ID --format body > reply.md`
 to pass the exact saved body to an authorized consumer.
+Redirect that body to the consumer or its input file without printing it again
+for supervision. Reuse verified evidence for the same reply and generation;
+recheck a changed reply or generation before acceptance. Use concise saved
+reports for navigation, and request their full body when historical evidence
+is missing. A saved report cannot replace the current reply check.
 
 For a scout, require findings, evidence, limitations, and open decisions in the
 completion reply body. Keep unresolved operator decisions
@@ -40,10 +57,13 @@ the remote after a failed or unconfirmed landing. Never force, discard unlanded
 work, or bypass a lease refusal. A scout needs no landing.
 
 Preserve the accepted worker generation through stop and cleanup. Check the
-bound reply, then accept the result with an explicit closing date:
+bound reply using the evidence rules above, then accept the result with an
+explicit closing date:
 
 ```sh
-concierge task reply check REPLY_ID
+concierge task reply check REPLY_ID --format concise
+# If decision evidence is missing, require status: current from this full check:
+concierge task reply check REPLY_ID --format toon
 concierge backlog resolve REPLY_ID --mode close --closed-on YYYY-MM-DD
 ```
 
