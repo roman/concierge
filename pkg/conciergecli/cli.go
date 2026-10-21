@@ -342,7 +342,12 @@ func quote(value string) string {
 }
 
 func fail(output io.Writer, code int, err error, help string) int {
-	fmt.Fprintf(output, "error: %s\nhelp: %s\n", quote(err.Error()), quote(help))
+	fmt.Fprintf(
+		output,
+		"error: %s\nhelp: %s\n",
+		quote(err.Error()),
+		quote(commandAccessHelp(err, help)),
+	)
 	return code
 }
 

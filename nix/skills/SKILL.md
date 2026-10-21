@@ -65,10 +65,13 @@ drained queue do not acknowledge output. An acknowledged event needs no repeat.
 Stale, paused, expired, or in-progress claims require fresh verification.
 An inbox event authorizes its pending messages and report; honor a periodic pause.
 
-A sandbox claim failure stating `process ownership cannot be confirmed` can need
-native approval. In Codex, retry the exact command with
-`sandbox_permissions=require_escalated` and use the same access for the receipt.
-A denial leaves the event pending. Report the fault and record any operator action.
+In Codex, use sandbox access for ordinary file reads. Request native approval
+on the first attempt for an operation with an already observed socket, process
+identity, or state-write restriction. Keep that evidence scoped to the operation
+and roots. Do not escalate an entire batch of unrelated reads. For a new access
+failure, retry the exact command once with `sandbox_permissions=require_escalated`.
+A denial leaves the work pending. Read [Command access](references/command-access.md)
+for command classes and failure handling. Keep native permissions unchanged.
 
 ## Accept, land, stop, cleanup
 

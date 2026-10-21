@@ -66,3 +66,6 @@ quota observations, large records, unknown records, and decoded command exits.
 See [the fixed Codex baseline](session-usage-baseline.md) for a reproducible
 comparison against the earlier audit. Effectiveness and subscription charging
 remain separate measurements.
+
+See [Codex command access](codex-command-access.md) for the ranked access-cause
+inventory and the isolated before/after permission replay.
