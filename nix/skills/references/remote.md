@@ -1,0 +1,27 @@
+# Remote workers
+
+Read the repository's [remote setup guide](https://github.com/roman/concierge/blob/main/docs/remote-setup.md)
+before preparing a machine. Read [remote operations](https://github.com/roman/concierge/blob/main/docs/remote-workers.md)
+for connection, result import, outbox reconciliation, and cleanup procedures.
+Use the guides from the pinned Concierge revision when available locally.
+
+Remote launches add `--machine SAVED_MACHINE` to the normal launch command.
+Keep native permissions and login settings active. Operator approval requests
+remain native dialogs on the remote. Never answer a permission dialog through
+pane supervision.
+
+Remote delivery differs from local worker delivery. The remote worker commits
+its result and removes ignored files. Acceptance imports the selected commit
+into a primary worktree. The primary runs `concierge land TASK_ID` with the
+same operator-owned merge authority and delivery gates. The primary publishes
+a remote task's PR. The remote worker needs no repository write credentials.
+
+An unavailable SSH connection does not authorize a replacement worker or free
+its lease. Inspect `concierge worker show TASK_ID` and preserve the generation.
+Retry an unconfirmed reply with the identical key, arguments, and body.
+A revoked secret requires the trusted primary's retained-outbox reconciliation
+procedure. Never copy a generation into the worker environment to bypass it.
+
+Cleanup must confirm agent and worktree quiescence. Unknown ownership, active
+listeners, dirty files, or unconfirmed lease returns require inspection.
+Do not remove arbitrary sockets or reset worktrees to make cleanup pass.

@@ -135,6 +135,23 @@ pkgs.runCommand "concierge-devshell"
     test -r "$DEVENV_ROOT/.agents/skills/concierge-local-supervisor/SKILL.md"
     test -r "$DEVENV_ROOT/.claude/skills/concierge-local-supervisor/SKILL.md"
     cmp "$DEVENV_ROOT/.agents/skills/concierge-local-supervisor/SKILL.md" "$DEVENV_ROOT/.claude/skills/concierge-local-supervisor/SKILL.md"
+    python3 - "$DEVENV_ROOT" <<'PY'
+    import pathlib
+    import re
+    import sys
+
+    project = pathlib.Path(sys.argv[1])
+    skills = [project / harness / "skills/concierge-local-supervisor" for harness in (".agents", ".claude")]
+    core = (skills[0] / "SKILL.md").read_text()
+    references = re.findall(r"\]\((references/[^)]+\.md)\)", core)
+    assert references, "the supervisor core must link its on-demand references"
+    assert len(core.splitlines()) < 120, "keep the always-loaded supervisor core short"
+    for reference in references:
+        contents = [(skill / reference).read_text() for skill in skills]
+        assert contents[0] == contents[1], reference
+        assert "@commandPath@" not in contents[0], reference
+    assert "@commandPath@" not in core
+    PY
     if grep -F 'Exmachina' "$DEVENV_ROOT/.agents/skills/concierge-local-supervisor/SKILL.md"; then exit 1; fi
     test ! -e "$DEVENV_ROOT/.claude/settings.json"
     test ! -e "$DEVENV_ROOT/.codex/hooks.json"

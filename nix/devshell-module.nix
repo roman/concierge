@@ -36,6 +36,14 @@ let
   skill = pkgs.writeText "concierge-local-supervisor-skill" (
     builtins.replaceStrings [ "@commandPath@" ] [ commandPath ] (builtins.readFile ./skills/SKILL.md)
   );
+  skillReferences = lib.genAttrs (builtins.attrNames (builtins.readDir ./skills/references)) (
+    name:
+    pkgs.writeText "concierge-supervisor-${name}" (
+      builtins.replaceStrings [ "@commandPath@" ] [ commandPath ] (
+        builtins.readFile (./skills/references + "/${name}")
+      )
+    )
+  );
 in
 {
   options.concierge = {
@@ -64,14 +72,24 @@ in
       cfg.tincanPackage
       pkgs.python3
     ] ++ lib.optional cfg.codex.enable codexLauncher;
-    files = {
-      ".agents/hooks/concierge-session-start".source = hook "concierge-session-start";
-      ".agents/hooks/concierge-session-end".source = hook "concierge-session-end";
-      ".agents/hooks/concierge-claude-stop".source = hook "concierge-claude-stop";
-      ".agents/hooks/concierge-claude-activity".source = hook "concierge-claude-activity";
-      ".agents/skills/concierge-local-supervisor/SKILL.md".source = skill;
-      ".claude/skills/concierge-local-supervisor/SKILL.md".source = skill;
-    };
+    files =
+      {
+        ".agents/hooks/concierge-session-start".source = hook "concierge-session-start";
+        ".agents/hooks/concierge-session-end".source = hook "concierge-session-end";
+        ".agents/hooks/concierge-claude-stop".source = hook "concierge-claude-stop";
+        ".agents/hooks/concierge-claude-activity".source = hook "concierge-claude-activity";
+        ".agents/skills/concierge-local-supervisor/SKILL.md".source = skill;
+        ".claude/skills/concierge-local-supervisor/SKILL.md".source = skill;
+      }
+      // lib.listToAttrs (
+        lib.concatMap (
+          name:
+          map (harness: {
+            name = "${harness}/skills/concierge-local-supervisor/references/${name}";
+            value.source = skillReferences.${name};
+          }) [ ".agents" ".claude" ]
+        ) (builtins.attrNames skillReferences)
+      );
     enterShell = ''
       export CONCIERGE_PROJECT_ROOT="$(${pkgs.coreutils}/bin/realpath -m -- "''${DEVENV_ROOT:-$PWD}")"
       export CONCIERGE_HOME="''${CONCIERGE_HOME:-$CONCIERGE_PROJECT_ROOT/.concierge}"
