@@ -13,11 +13,7 @@ func (task Task) CheckDiscardWorker(generation string) error {
 	worker := task.record.Worker
 	if taskmeta.ValidateSpawnGeneration(generation) != nil || task.State() != InFlight ||
 		task.record.Completion != nil || task.record.LaunchIntent != nil ||
-		worker == nil || worker.Generation != generation || worker.PendingAdoption ||
-		worker.PendingGeneration != "" || worker.PendingLaunch != "" ||
-		worker.Workspace == "" || worker.Tab == "" || worker.Machine != "" ||
-		worker.Lease == (WorktreeLease{}) || worker.Lease.Remote != (RemoteLease{}) ||
-		worker.Lease.State != LeaseHeld || worker.RemoteResult != (RemoteResult{}) || worker.Access != nil {
+		worker == nil || worker.Generation != generation || !closableOrphanedWorker(*worker) {
 		return ErrInvalidTransition
 	}
 	return nil

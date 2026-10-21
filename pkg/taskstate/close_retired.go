@@ -31,8 +31,9 @@ func validClosure(selected record) bool {
 	return found
 }
 
-// CloseRetired closes held work after its worker and launch have retired.
+// CloseRetired closes held retired work or a confirmed absent local worker.
 // Existing receipts, holds and lease reservations remain available for inspection.
+// The caller must exclude worker execution and pending replies before closing a binding.
 func (task Task) CloseRetired(generation, reason, closedOn string) (Task, error) {
 	closure := Closure{Generation: generation, Reason: reason}
 	if !singleLine(reason) || strings.TrimSpace(reason) == "" || closedOn == "" ||
@@ -40,10 +41,17 @@ func (task Task) CloseRetired(generation, reason, closedOn string) (Task, error)
 		return Task{}, ErrInvalidTransition
 	}
 	if task.record.Closure != nil {
-		if *task.record.Closure == closure && task.record.Closed == closedOn {
+		if task.record.Closure.Generation == generation && task.record.Closure.Reason == reason &&
+			task.record.Closed == closedOn {
 			return task, nil
 		}
 		return Task{}, ErrInvalidTransition
+	}
+	if task.record.Worker != nil {
+		if err := task.CheckDiscardWorker(generation); err != nil {
+			return Task{}, err
+		}
+		return task.closeOrphanedWorker(generation, reason, closedOn)
 	}
 	if task.State() != Queued || task.record.Hold == nil || task.record.Worker != nil ||
 		task.record.LaunchIntent != nil || task.record.Completion != nil {

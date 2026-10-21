@@ -253,14 +253,19 @@ concierge backlog close TASK_ID --generation GENERATION \
   --reason "Superseded by a replacement task" --closed-on YYYY-MM-DD
 ```
 
-The generation must identify its latest retained result or an abandonment
-receipt. The command records a closure decision separately from result acceptance.
+For held retired work, the generation must identify its latest retained result
+or an abandonment receipt. The command records a closure decision separately from result acceptance.
 It preserves the hold, receipts, worktree, commits, and lease reservation. An
-active worker, completion, or launch intent blocks closure. An identical retry
+existing pane, completion, or launch intent blocks closure. An identical retry
 succeeds; a different reason, generation, or date fails. Inspect the reason and
 date with `backlog show TASK_ID`. Use `backlog list --state held` to find held
 queued tasks. Return a retained lease separately with `backlog release-worktree`
 after reviewing its work.
+
+For an in-flight confirmed local worker with a held pool lease, the same command
+requires its exact generation, verified pane absence, and no pending current bound
+reply. It archives the binding and retains the worktree, branch, and lease;
+pending restarts still use `backlog recover`.
 
 Act on a reply only when `check` reports `status: current`. Resolution verifies
 its assignment and worker generation, records acceptance, and acknowledges the

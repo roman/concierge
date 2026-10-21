@@ -140,7 +140,7 @@ func TestCloseRetiredAbandonedLaunchAndRejectActiveIntent(t *testing.T) {
 }
 
 func TestCloseRetiredRejectsUnfinishedOrChangedRequests(t *testing.T) {
-	for _, mode := range []string{"wrong generation", "missing reason", "invalid date", "unheld", "worker", "changed retry"} {
+	for _, mode := range []string{"wrong generation", "missing reason", "invalid date", "unheld", "changed retry"} {
 		t.Run(mode, func(t *testing.T) {
 			task := retainedTaskForClosure(t)
 			generation, reason, date := "gen-1", "Superseded", "2026-10-20"
@@ -153,8 +153,6 @@ func TestCloseRetiredRejectsUnfinishedOrChangedRequests(t *testing.T) {
 				date = "2026-02-30"
 			case "unheld":
 				task, _ = task.ReleaseHold()
-			case "worker":
-				task = runningTaskForRestart(t)
 			case "changed retry":
 				var err error
 				task, err = task.CloseRetired(generation, reason, date)
@@ -165,6 +163,58 @@ func TestCloseRetiredRejectsUnfinishedOrChangedRequests(t *testing.T) {
 			}
 			if _, err := task.CloseRetired(generation, reason, date); err == nil {
 				t.Fatal("closed an unfinished task or accepted a changed request")
+			}
+		})
+	}
+}
+
+func TestCloseRetiredArchivesConfirmedOrphan(t *testing.T) {
+	task := runningTaskForRestart(t)
+	snapshot := task.Snapshot()
+	input := launchForTest()
+	snapshot.Worker.Lease = WorktreeLease{ID: "lease", Holder: "holder", Project: input.Project,
+		Path: input.Worktree, Branch: input.Branch, BaseCommit: input.BaseCommit, State: LeaseHeld}
+	task, err := NewMigrated(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed, err := task.CloseRetired("gen-1", "Pane absent", "2026-10-21")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if closed.State() != Done || closed.Snapshot().Worker != nil ||
+		!reflect.DeepEqual(closed.Snapshot().Closure.Worker, snapshot.Worker) {
+		t.Fatal("closure lost the worker archive")
+	}
+	lease, found := closed.RetiredLease("gen-1")
+	if !found || lease != snapshot.Worker.Lease {
+		t.Fatal("closure lost the lease reservation")
+	}
+	data, err := closed.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := Decode(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retried, err := reloaded.CloseRetired("gen-1", "Pane absent", "2026-10-21")
+	if err != nil || !reflect.DeepEqual(closed.Snapshot(), retried.Snapshot()) {
+		t.Fatalf("retry changed closure: %v", err)
+	}
+	for _, change := range []string{"generation", "reason", "date"} {
+		t.Run(change, func(t *testing.T) {
+			generation, reason, date := "gen-1", "Pane absent", "2026-10-21"
+			switch change {
+			case "generation":
+				generation = "other"
+			case "reason":
+				reason = "Changed"
+			case "date":
+				date = "2026-10-22"
+			}
+			if _, err := closed.CloseRetired(generation, reason, date); err == nil {
+				t.Fatal("accepted changed closure arguments")
 			}
 		})
 	}

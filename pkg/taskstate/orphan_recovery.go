@@ -51,6 +51,10 @@ func (task Task) RecoverOrphaned(generation, reason, closedOn string) (Task, err
 		}
 		return Task{}, ErrInvalidTransition
 	}
+	return task.closeOrphanedWorker(generation, reason, closedOn)
+}
+
+func (task Task) closeOrphanedWorker(generation, reason, closedOn string) (Task, error) {
 	snapshot := task.Snapshot()
 	worker := snapshot.Worker
 	lease := worker.Lease
@@ -70,7 +74,7 @@ func validOrphanedClosure(selected record) bool {
 	closure := selected.Closure
 	worker := closure.Worker
 	if worker == nil || worker.Generation != closure.Generation || !validWorker(*worker) ||
-		!recoverablePendingWorker(*worker) {
+		(!recoverablePendingWorker(*worker) && !closableOrphanedWorker(*worker)) {
 		return false
 	}
 	receipt, found := (Task{record: selected}).LaunchAbandonment(closure.Generation)
@@ -78,4 +82,18 @@ func validOrphanedClosure(selected record) bool {
 	// The archive retains the original lease state after an explicit later return.
 	lease.State = LeaseHeld
 	return found && receipt.Kind == OrphanedWorker && lease == worker.Lease
+}
+
+func closableOrphanedWorker(worker Worker) bool {
+	if worker.PendingAdoption || worker.PendingGeneration != "" || worker.PendingLaunch != "" {
+		return false
+	}
+	if worker.Workspace == "" || worker.Tab == "" || worker.Machine != "" {
+		return false
+	}
+	if worker.Lease == (WorktreeLease{}) || worker.Lease.Remote != (RemoteLease{}) {
+		return false
+	}
+	return worker.Lease.State == LeaseHeld && worker.RemoteResult == (RemoteResult{}) &&
+		worker.Access == nil
 }

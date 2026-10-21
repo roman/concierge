@@ -8,6 +8,8 @@ List saved reply IDs and creation times with `concierge task report TASK_ID`.
 When recording accepted results elsewhere, read them from these reports. Reports survive
 `backlog resolve`, worker stop, and cleanup. Generic coordination messages are
 not saved as reports.
+For an orphaned confirmed local worker, use `concierge backlog close TASK_ID --generation GEN --reason TEXT --closed-on YYYY-MM-DD` with its exact recorded generation.
+Closure requires verified pane absence and no pending current bound reply; it archives the binding and retains the worktree, branch, and lease.
 This command reads historical evidence. Its `status: archived` does not validate
 the current generation. First inspect a pending reply with
 `concierge task reply check REPLY_ID --format concise`; only `status: current`

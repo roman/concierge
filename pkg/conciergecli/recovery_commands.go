@@ -1,15 +1,16 @@
 package conciergecli
 
 type closeRetiredCommand struct {
-	TaskID     string `arg:"" help:"Held task with a retired worker or abandoned launch."`
-	Generation string `required:"" help:"Exact retired generation to close."`
+	TaskID     string `arg:"" help:"Held retired task or orphaned confirmed local worker."`
+	Generation string `required:"" help:"Exact recorded generation to close."`
 	Reason     string `required:"" help:"Reason for closing the retained work."`
 	ClosedOn   string `required:"" help:"Closing date YYYY-MM-DD."`
 }
 
 func (closeRetiredCommand) Help() string {
 	return `Preserves the hold, receipts, worktree and lease reservation.
-An active worker or launch blocks closure. Inspect the task with backlog show.
+A bound local worker requires verified pane absence and no pending current reply.
+Pending launches and remote or raw workers block closure. Inspect backlog show.
 
 Examples:
   concierge backlog close TASK_ID --generation GENERATION --reason "Superseded" --closed-on YYYY-MM-DD

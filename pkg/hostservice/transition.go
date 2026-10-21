@@ -218,10 +218,12 @@ func (server *Server) execute(
 	case CloseRetired:
 		return service.CloseRetired(
 			ctx,
+			server.config.MessageRoot,
 			input.TaskID,
 			input.Generation,
 			input.Reason,
 			input.ClosedOn,
+			herdr.NewClient(server.config.HerdrExecutable),
 		)
 	case Start:
 		return server.service.Start(ctx, input.TaskID)

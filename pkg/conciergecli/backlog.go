@@ -23,7 +23,7 @@ const backlogHelp = "global flags: --root, --help; commands: backlog add ID TITL
 
 type backlogCommands struct {
 	Recover         orphanRecoveryCommand `cmd:"" help:"Close an approved pending local restart after confirming resource absence; preserve its worktree and lease."`
-	Close           closeRetiredCommand   `cmd:"" help:"Close held retired work while preserving its receipts and leases."`
+	Close           closeRetiredCommand   `cmd:"" help:"Close held retired work or an absent local worker; preserve receipts and leases."`
 	ReleaseWorktree struct {
 		TaskID     string `arg:"" help:"Task ID."`
 		Generation string `required:"" help:"Retired or abandoned generation whose lease to return."`
