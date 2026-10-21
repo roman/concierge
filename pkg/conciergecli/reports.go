@@ -10,8 +10,8 @@ import (
 )
 
 func (command *taskCommands) report(ctx context.Context, root string, output io.Writer) int {
-	if command.Report.Format == "body" && command.Report.ReplyID == "" {
-		return fail(output, 2, fmt.Errorf("body format requires a reply ID"),
+	if command.Report.Format != "toon" && command.Report.ReplyID == "" {
+		return fail(output, 2, fmt.Errorf("%s format requires a reply ID", command.Report.Format),
 			"use concierge task report TASK_ID REPLY_ID --format body > reply.md")
 	}
 	service, err := taskops.New(root)
@@ -49,6 +49,15 @@ func (command *taskCommands) report(ctx context.Context, root string, output io.
 	}
 	if command.Report.Format == "body" {
 		if _, err := io.WriteString(output, report.Body); err != nil {
+			return 1
+		}
+		return 0
+	}
+	if command.Report.Format == "concise" {
+		if _, err := fmt.Fprintf(output, "status: archived\ntask: %s\ngeneration: %s\n", quote(report.Task), quote(report.SpawnGeneration)); err != nil {
+			return 1
+		}
+		if err := writeReportPreview(output, command.Report.ReplyID, report.Body, "body"); err != nil {
 			return 1
 		}
 		return 0

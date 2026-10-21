@@ -154,6 +154,40 @@ write only the exact reply text, without headers, quoting, or an added newline:
 concierge task report TASK_ID REPLY_ID --format body > reply.md
 ```
 
+For a short decision preview, use the same format on either command:
+
+```sh
+concierge task reply check REPLY_ID --format concise
+concierge task report TASK_ID REPLY_ID --format concise
+```
+
+The preview includes the status, task, generation, reply ID, UTF-8 body size,
+the first paragraph of `Handoff` → `Outcome`, and the titles under `Gaps`,
+`Learnings`, and `Artifacts`. A standalone `## Outcome` also works. Open
+decision and question sections include the first line of each paragraph or
+list item. Nested decision headings include their first line and list items.
+Recognized headings are `Open decisions`, `Open questions`, `Waiting on you`,
+`Operator decisions`, and `Decision required` (case insensitive).
+
+This is a lossy Markdown preview. It recognizes ATX headings (`## Title`)
+outside fenced code blocks. Outcome previews stop at 600 characters, section
+titles at 120, and decision lines at 240. An ellipsis marks a shortened field.
+An empty outcome means no supported outcome section was found. Read the full
+body before deciding when the preview lacks the required evidence.
+
+Both commands retain their full-body default for existing consumers. Explicit
+`--format toon` includes the complete quoted body. Report `--format body`
+remains exact. A stale reply check returns only its status and task in either
+format. A saved report always reports `status: archived`; it does not validate
+the current worker generation.
+
+The supervisor skill currently tells the primary to act on a current reply's
+body. To adopt previews, change its reply-check examples to `--format concise`
+and require a fresh full check (`--format toon`) when evidence is missing.
+Use report `--format concise` for navigation. Keep `--format body` for exact
+imports into downstream consumers. Do not replace generation or acceptance
+checks with a saved-report preview.
+
 ### External report consumers
 
 Concierge saves reply bodies as opaque text. An integration can define a

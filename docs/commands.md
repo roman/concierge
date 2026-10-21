@@ -193,6 +193,11 @@ Reports retain their original generation and survive worker cleanup and removal 
 mailbox. Each reply remains separate, so a later question or report cannot
 overwrite earlier evidence. `status: archived` identifies historical evidence;
 use `task reply check` to validate current results before accepting them.
+Both commands accept `--format concise` for a short outcome, section-title,
+and open-decision preview with the reply ID and body size. Full-body output
+remains the default; `--format toon` requests it explicitly. Use report
+`--format body` for exact text. See [task reports](tasks.md) for preview limits
+and supervisor adoption requirements.
 When recording accepted results elsewhere, the primary reads them from these reports,
 including after `backlog resolve`, worker stop, and cleanup.
 Scout read-only behavior is an agent contract under normal native permissions.

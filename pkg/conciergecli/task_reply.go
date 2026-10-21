@@ -24,6 +24,7 @@ type replyCommands struct {
 	} `cmd:"" help:"Publish a worker result and optionally acknowledge its assignment."`
 	Check struct {
 		MessageID string `arg:"" help:"Reply message ID in the primary inbox."`
+		Format    string `default:"toon" enum:"toon,concise" help:"Output format. Concise previews the outcome, headings and decisions; toon includes the full current body."`
 	} `cmd:"" help:"Read current reply content without accepting or acknowledging it."`
 }
 
@@ -90,6 +91,12 @@ func (command *replyCommands) check(
 		if _, err := fmt.Fprintf(output, "assignment_id: %s\n", quote(result.AssignmentID)); err != nil {
 			return 1
 		}
+	}
+	if command.Check.Format == "concise" {
+		if err := writeReportPreview(output, command.Check.MessageID, result.Body, "toon"); err != nil {
+			return 1
+		}
+		return 0
 	}
 	if _, err := fmt.Fprintf(output, "body: %s\n", quote(result.Body)); err != nil {
 		return 1

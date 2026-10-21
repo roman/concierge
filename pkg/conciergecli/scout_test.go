@@ -91,7 +91,7 @@ func TestReportCommandReadsHistoricalEvidence(t *testing.T) {
 }
 
 func TestTaskReportRejectsBodyFormatWithoutReply(t *testing.T) {
-	for _, format := range []string{"body", "invalid"} {
+	for _, format := range []string{"body", "concise", "invalid"} {
 		t.Run(format, func(t *testing.T) {
 			var output bytes.Buffer
 			code := Run(context.Background(), []string{
@@ -100,7 +100,7 @@ func TestTaskReportRejectsBodyFormatWithoutReply(t *testing.T) {
 			if code != 2 || !strings.Contains(output.String(), "error:") {
 				t.Fatalf("code %d: %s", code, &output)
 			}
-			if format == "body" && !strings.Contains(output.String(), "reply ID") {
+			if format != "invalid" && !strings.Contains(output.String(), "reply ID") {
 				t.Fatalf("missing reply ID guidance: %s", &output)
 			}
 		})
