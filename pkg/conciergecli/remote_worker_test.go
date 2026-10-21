@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -62,18 +63,31 @@ func remoteCLI(t *testing.T, response workerservice.Response) <-chan workerservi
 		}
 		defer connection.Close()
 		_ = connection.SetDeadline(time.Now().Add(3 * time.Second))
-		var request workerservice.Request
-		if json.NewDecoder(connection).Decode(&request) != nil {
-			return
-		}
-		requests <- request
-		_ = json.NewEncoder(connection).Encode(response)
+		respondRemoteCLI(connection, response, requests)
 	}()
 	t.Cleanup(func() {
 		_ = listener.Close()
 		<-done
 	})
 	return requests
+}
+
+func respondRemoteCLI(
+	connection io.ReadWriter,
+	response workerservice.Response,
+	requests chan<- workerservice.Request,
+) {
+	var request workerservice.Request
+	decoder := json.NewDecoder(connection)
+	if decoder.Decode(&request) != nil {
+		return
+	}
+	// Match request framing so the fixture cannot close before the client's half-close.
+	if decoder.Decode(new(any)) != io.EOF {
+		return
+	}
+	requests <- request
+	_ = json.NewEncoder(connection).Encode(response)
 }
 
 func TestIncompleteRemoteModeCannotInitializeLocalState(t *testing.T) {
