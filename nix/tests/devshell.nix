@@ -109,6 +109,7 @@ pkgs.runCommand "concierge-devshell"
       pkgs.gnugrep
       pkgs.gnused
       pkgs.git
+      pkgs.jq
       pkgs.diffutils
     ];
     shellEntry = result.shellHook;
@@ -117,8 +118,8 @@ pkgs.runCommand "concierge-devshell"
     python3 -c 'import json, socket, tempfile; socket.socket(socket.AF_UNIX).close()'
     export TEST_CALLS="$TMPDIR/calls"
     touch "$TEST_CALLS"
-    mkdir -p "$TMPDIR/project/subdirectory"
-    export DEVENV_ROOT="$TMPDIR/project"
+    mkdir -p "$TMPDIR/project with spaces/subdirectory"
+    export DEVENV_ROOT="$TMPDIR/project with spaces"
     cd "$DEVENV_ROOT/subdirectory"
     run_entry() { eval "$shellEntry"; }
     run_entry 2>missing-warning
@@ -194,16 +195,30 @@ pkgs.runCommand "concierge-devshell"
     printf '%s\n' '{"hook_event_name":"Stop","session_id":"fixture"}' | ./.agents/hooks/concierge-claude-stop 2>stop-wake || stop_status=$?
     test "$stop_status" = 2 || { cat stop-wake; printf 'Stop exit: %s\n' "$stop_status"; exit 1; }
     grep -F 'Concierge supervisor event fixture' stop-wake
-    start_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-session-start; fi'
-    stop_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-claude-stop; fi'
-    end_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-session-end; fi'
-    activity_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-claude-activity; fi'
-    ${pkgs.jq}/bin/jq -n --arg start "$start_command" --arg stop "$stop_command" --arg end "$end_command" --arg activity "$activity_command" \
-      '{hooks:{SessionStart:[{hooks:[{type:"command",command:$start}]}],UserPromptSubmit:[{hooks:[{type:"command",command:$activity,onFailure:"block"}]}],Stop:[{hooks:[{type:"command",command:$activity},{type:"command",command:$stop,asyncRewake:true,timeout:28800}]}],SessionEnd:[{hooks:[{type:"command",command:$end}]}]}}' \
+    start_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then cd "$CLAUDE_PROJECT_DIR" && ./.agents/hooks/concierge-session-start; fi'
+    stop_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then cd "$CLAUDE_PROJECT_DIR" && ./.agents/hooks/concierge-claude-stop; fi'
+    activity_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then cd "$CLAUDE_PROJECT_DIR" && ./.agents/hooks/concierge-claude-activity; fi'
+    ${pkgs.jq}/bin/jq -n --arg start "$start_command" --arg stop "$stop_command" --arg activity "$activity_command" \
+      '{hooks:{SessionStart:[{hooks:[{type:"command",command:$start}]}],UserPromptSubmit:[{hooks:[{type:"command",command:$activity,onFailure:"block"}]}],Stop:[{hooks:[{type:"command",command:$activity},{type:"command",command:$stop,asyncRewake:true,timeout:28800}]}]}}' \
       > .claude/settings.json
-    cp .claude/settings.json .codex/hooks.json
+    cp .claude/settings.json guarded-settings.json
+    codex_start_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then cd "$CONCIERGE_PROJECT_ROOT" && ./.agents/hooks/concierge-session-start; fi'
+    codex_end_command='if [ -z "''${CONCIERGE_WORKER:-}" ]; then cd "$CONCIERGE_PROJECT_ROOT" && ./.agents/hooks/concierge-session-end; fi'
+    ${pkgs.jq}/bin/jq -n --arg start "$codex_start_command" --arg end "$codex_end_command" \
+      '{hooks:{SessionStart:[{hooks:[{type:"command",command:$start}]}],SessionEnd:[{hooks:[{type:"command",command:$end}]}]}}' > .codex/hooks.json
     run_entry 2>guarded-settings-warning
     if grep -F 'hook settings need review' guarded-settings-warning; then exit 1; fi
+    cp .codex/hooks.json guarded-codex-hooks.json
+    ${pkgs.jq}/bin/jq --arg prefix 'cd "$CLAUDE_PROJECT_DIR" && ' \
+      'walk(if type == "string" then split($prefix) | join("") else . end)' guarded-settings.json > .claude/settings.json
+    ${pkgs.jq}/bin/jq --arg prefix 'cd "$CONCIERGE_PROJECT_ROOT" && ' \
+      'walk(if type == "string" then split($prefix) | join("") else . end)' guarded-codex-hooks.json > .codex/hooks.json
+    run_entry 2>relative-settings-warning
+    grep -F '.claude/settings.json (SessionStart)' relative-settings-warning
+    grep -F '.claude/settings.json (UserPromptSubmit)' relative-settings-warning
+    grep -F '.claude/settings.json (Stop)' relative-settings-warning
+    grep -F '.codex/hooks.json (SessionStart)' relative-settings-warning
+    grep -F '.codex/hooks.json (SessionEnd)' relative-settings-warning
     ${pkgs.jq}/bin/jq \
       '.hooks.SessionStart[0].hooks[0].command = "./.agents/hooks/concierge-session-start" |
        .hooks.Stop[0].hooks[0].command = "./.agents/hooks/concierge-claude-stop" |
@@ -216,6 +231,8 @@ pkgs.runCommand "concierge-devshell"
     grep -F '.claude/settings.json (Stop)' unguarded-settings-warning
     grep -F '.codex/hooks.json (SessionStart)' unguarded-settings-warning
     grep -F '.codex/hooks.json (SessionEnd)' unguarded-settings-warning
+    cp guarded-settings.json .claude/settings.json
+    cp guarded-codex-hooks.json .codex/hooks.json
     ${pkgs.bash}/bin/bash ${./hook-contracts.sh}
     export CONCIERGE_HOME="$TMPDIR/shared-state"
     export TINCAN_HOME="$TMPDIR/shared-messages"

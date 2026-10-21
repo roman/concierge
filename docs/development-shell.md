@@ -25,11 +25,11 @@ stable command definitions in `.claude/settings.json`:
 ```json
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-session-start; fi", "timeout": 15}]}],
-    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-claude-activity; fi", "onFailure": "block"}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then cd \"$CLAUDE_PROJECT_DIR\" && ./.agents/hooks/concierge-session-start; fi", "timeout": 15}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then cd \"$CLAUDE_PROJECT_DIR\" && ./.agents/hooks/concierge-claude-activity; fi", "onFailure": "block"}]}],
     "Stop": [{"hooks": [
-      {"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-claude-activity; fi"},
-      {"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-claude-stop; fi", "asyncRewake": true, "timeout": 28800}
+      {"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then cd \"$CLAUDE_PROJECT_DIR\" && ./.agents/hooks/concierge-claude-activity; fi"},
+      {"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then cd \"$CLAUDE_PROJECT_DIR\" && ./.agents/hooks/concierge-claude-stop; fi", "asyncRewake": true, "timeout": 28800}
     ]}]
   }
 }
@@ -40,14 +40,31 @@ Use these definitions in `.codex/hooks.json`:
 ```json
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-session-start; fi", "timeout": 15}]}],
-    "SessionEnd": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then ./.agents/hooks/concierge-session-end; fi", "timeout": 3}]}]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then cd \"$CONCIERGE_PROJECT_ROOT\" && ./.agents/hooks/concierge-session-start; fi", "timeout": 15}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "if [ -z \"${CONCIERGE_WORKER:-}\" ]; then cd \"$CONCIERGE_PROJECT_ROOT\" && ./.agents/hooks/concierge-session-end; fi", "timeout": 3}]}]
   }
 }
 ```
 
 Preserve unrelated native settings when adding the definitions. Review and
 approve the initial hook definitions through each harness's normal trust flow.
+Claude commands change to `CLAUDE_PROJECT_DIR` before running the hook. Codex
+commands use `CONCIERGE_PROJECT_ROOT`, exported by the development shell.
+Both forms work from subdirectories and other repositories, including project
+paths with spaces. Keep the directory change inside the worker guard.
+The hook itself requires the shell's project root as its working directory.
+An absolute hook path alone would find the script but skip its work.
+The shell settings check reports the old guarded relative commands as needing
+review. Replace them with the definitions above after updating the pin.
+
+Codex runs hook commands in the session working directory. Its
+[hook documentation](https://developers.openai.com/codex/hooks) recommends Git
+root resolution for repository hooks. Git root resolution selects the wrong
+repository after a session changes to another checkout. These commands use the
+existing shell variable instead. Codex documents no native project-root
+variable for project hooks. Start Codex from the development shell to inherit
+`CONCIERGE_PROJECT_ROOT`.
+
 Claude needs support for synchronous `UserPromptSubmit` failure blocking.
 The native acceptance trial uses Claude Code 2.1.296. The activity hooks mark
 the primary busy before a prompt and ready after a completed turn. A missing

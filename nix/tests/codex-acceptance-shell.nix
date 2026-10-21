@@ -20,8 +20,8 @@ let
   };
   hooks = pkgs.writeText "concierge-acceptance-hooks.json" (builtins.toJSON {
     hooks = {
-      SessionStart = [{ hooks = [{ type = "command"; command = ''if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-session-start; fi''; timeout = 15; }]; }];
-      SessionEnd = [{ hooks = [{ type = "command"; command = ''if [ -z "''${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/concierge-session-end; fi''; timeout = 3; }]; }];
+      SessionStart = [{ hooks = [{ type = "command"; command = ''if [ -z "''${CONCIERGE_WORKER:-}" ]; then cd "$CONCIERGE_PROJECT_ROOT" && ./.agents/hooks/concierge-session-start; fi''; timeout = 15; }]; }];
+      SessionEnd = [{ hooks = [{ type = "command"; command = ''if [ -z "''${CONCIERGE_WORKER:-}" ]; then cd "$CONCIERGE_PROJECT_ROOT" && ./.agents/hooks/concierge-session-end; fi''; timeout = 3; }]; }];
     };
   });
 in

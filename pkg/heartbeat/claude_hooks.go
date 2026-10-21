@@ -19,7 +19,7 @@ type claudeHook struct {
 }
 
 func ClaudeHookCommand(name string) string {
-	return `if [ -z "${CONCIERGE_WORKER:-}" ]; then ./.agents/hooks/` + name + `; fi`
+	return `if [ -z "${CONCIERGE_WORKER:-}" ]; then cd "$CLAUDE_PROJECT_DIR" && ./.agents/hooks/` + name + `; fi`
 }
 
 // ValidateClaudeHooks requires a synchronous readiness gate before each turn.

@@ -2,6 +2,33 @@
 set -euo pipefail
 
 unset HERDR_ENV HERDR_SESSION
+# Run the committed commands outside the project, including a different repo.
+export CLAUDE_PROJECT_DIR="$DEVENV_ROOT"
+foreign_project="$TMPDIR/other-repository"
+git -c init.templateDir= init -q "$foreign_project"
+for directory in "$DEVENV_ROOT/subdirectory" "$foreign_project"; do
+  for settings in .claude/settings.json .codex/hooks.json; do
+    hook_commands="$(jq -r '.hooks | to_entries[] | .key as $event | .value[].hooks[] | [$event, .command] | join("|")' "$DEVENV_ROOT/$settings")"
+    [[ -n "$hook_commands" ]]
+    while IFS='|' read -r event command; do
+      : > "$TEST_CALLS"
+      status=0
+      (cd "$directory" && TEST_HOST_STATUS=0 TEST_CONSUMER_STATUS=0 bash -c "$command" \
+        <<< '{"hook_event_name":"'"$event"'","session_id":"fixture"}') > "$TMPDIR/foreign-hook-output" 2>&1 || status=$?
+      if [[ "$status" != 0 || ! -s "$TEST_CALLS" ]]; then
+        cat "$TMPDIR/foreign-hook-output" >&2
+        printf 'hook did not run: %s %s from %s (exit %s)\n' "$settings" "$event" "$directory" "$status" >&2
+        exit 1
+      fi
+      grep -F -- "--root $DEVENV_ROOT/.concierge" "$TEST_CALLS"
+      : > "$TEST_CALLS"
+      (cd "$directory" && CONCIERGE_WORKER=fixture CLAUDE_PROJECT_DIR=/missing CONCIERGE_PROJECT_ROOT=/missing \
+        bash -c "$command" </dev/null)
+      [[ ! -s "$TEST_CALLS" ]]
+    done <<< "$hook_commands"
+  done
+done
+unset CLAUDE_PROJECT_DIR
 payload='{"hook_event_name":"SessionStart","session_id":"fixture"}'
 : > "$TEST_CALLS"
 output="$(TEST_PRIMARY_STATUS=held_by_other ./.agents/hooks/concierge-session-start <<< "$payload")"
@@ -44,7 +71,8 @@ printf '2\n' > "$DEVENV_ROOT/.concierge/.task-state-version"
 
 output="$(TEST_HOST_STATUS=0 TEST_HOST_REVISION=revision-a TEST_UPGRADE_REQUIRED=yes ./.agents/hooks/concierge-session-start <<< "$payload")"
 [[ "$output" == *'Concierge revisions: host revision-a, binary revision-b.'* ]]
-[[ "$output" == *"concierge --root $DEVENV_ROOT/.concierge --message-root $DEVENV_ROOT/.tincan host restart"* ]]
+printf -v restart_command '%q ' concierge --root "$DEVENV_ROOT/.concierge" --message-root "$DEVENV_ROOT/.tincan" host restart
+[[ "$output" == *"$restart_command"* ]]
 [[ "$output" == *'Start a new primary session after the restart.'* ]]
 
 export TEST_HOST_READY="$TMPDIR/host-ready" TEST_HOST_PID="$TMPDIR/host-pids"
