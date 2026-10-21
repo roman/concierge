@@ -263,6 +263,19 @@ preserves a newer worker and its supervision. The lease ID and holder must still
 match. The pool must report no live processes. Return uses neither --force nor
 approval to discard changes. The result branch remains in the repository.
 
+A live-process refusal is separate from a changed lease or damaged checkout.
+It lists every blocking PID from Treehouse, with the available owner, parent
+PID, and command name. Missing details appear as `unavailable`. On Linux,
+`pane_hint` reports the process's inherited `HERDR_PANE_ID`, when readable.
+The hint does not establish ownership. Retired receipts do not retain a worker
+pane, so `pane_relation` remains `unknown`.
+
+Process details come from a later snapshot. A process can exit, become
+inaccessible, or have its PID reused between snapshots. Inspect the process
+before taking action. Close an operator-owned terminal only after confirming
+its purpose, then retry cleanup. Concierge preserves the lease regardless of
+the process's owner or pane hint. It never kills a blocking process.
+
 Before checking cleanliness, return removes ignored symlinks whose targets are
 inside `/nix/store`. Cleanup and explicit worktree release report each removed
 link in `removed_store_links`. Other ignored entries and untracked files still

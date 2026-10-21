@@ -25,13 +25,15 @@ type PoolClient struct {
 
 type poolEntry struct {
 	Lease
-	Name           string `json:"name"`
-	Flavor         string `json:"flavor"`
-	RecoveryReason string `json:"recovery_reason"`
-	BranchError    string `json:"branch_error"`
-	Processes      *[]struct {
-		PID int `json:"pid"`
-	} `json:"processes"`
+	Name           string         `json:"name"`
+	Flavor         string         `json:"flavor"`
+	RecoveryReason string         `json:"recovery_reason"`
+	BranchError    string         `json:"branch_error"`
+	Processes      *[]poolProcess `json:"processes"`
+}
+
+type poolProcess struct {
+	PID int `json:"pid"`
 }
 
 func cleanPoolPath(path string) bool {
@@ -320,9 +322,11 @@ func (client PoolClient) Return(ctx context.Context, project string, lease Lease
 		return nil
 	}
 	if selected.Lease != lease || selected.Flavor != "git" || selected.RecoveryReason != "" ||
-		selected.BranchError != "" ||
-		len(*selected.Processes) != 0 {
-		return fmt.Errorf("%w: lease changed, damaged, or has live processes", ErrIdentity)
+		selected.BranchError != "" {
+		return fmt.Errorf("%w: lease changed or checkout is damaged", ErrIdentity)
+	}
+	if len(*selected.Processes) != 0 {
+		return describeProcessBlockers(ctx, *selected.Processes)
 	}
 	if _, err := client.run(ctx, project, "return", lease.Path, "--if-lease-id", lease.ID, "--if-lease-holder", lease.Holder); err != nil {
 		return err
