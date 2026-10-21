@@ -1,11 +1,19 @@
 package worktree
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
+)
+
+const (
+	maxProcessDiagnostics   = 16
+	maxProcessFieldBytes    = 128
+	maxProcessSnapshotBytes = 64 * 1024
 )
 
 // blockingProcess describes a PID from the pool's refusal snapshot.
@@ -18,6 +26,7 @@ type blockingProcess struct {
 // processBlockError preserves the identity refusal with process diagnostics.
 type processBlockError struct {
 	Processes []blockingProcess
+	Omitted   int
 }
 
 func (failure *processBlockError) Unwrap() error { return ErrIdentity }
@@ -36,16 +45,44 @@ func (failure *processBlockError) Error() string {
 			process.PaneHint,
 		)
 	}
+	if failure.Omitted > 0 {
+		fmt.Fprintf(&message, "; omitted_processes=%d", failure.Omitted)
+	}
 	message.WriteString("; process details are best effort; recorded worker pane is unavailable")
 	return message.String()
 }
 
 func describeProcessBlockers(ctx context.Context, processes []poolProcess) error {
-	// A later snapshot can lose a process or observe a reused PID. Keep every
-	// inventory PID in the refusal, even when its diagnostic details are absent.
-	output, _ := exec.CommandContext(ctx, "ps", "-axo", "pid=,ppid=,user=,comm=").Output()
-	details := parseProcessDetails(string(output))
+	// A later snapshot can lose a process or observe a reused PID. Preserve
+	// the refusal even when diagnostic details are absent or truncated.
 	failure := &processBlockError{}
+	if len(processes) > maxProcessDiagnostics {
+		failure.Omitted = len(processes) - maxProcessDiagnostics
+		processes = processes[:maxProcessDiagnostics]
+	}
+	pids := make([]string, 0, len(processes))
+	for _, process := range processes {
+		if process.PID > 0 {
+			pids = append(pids, strconv.Itoa(process.PID))
+		}
+	}
+	var output processSnapshotBuffer
+	if len(pids) > 0 {
+		snapshotContext, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		command := exec.CommandContext(
+			snapshotContext,
+			"ps",
+			"-p",
+			strings.Join(pids, ","),
+			"-o",
+			"pid=,ppid=,user=,comm=",
+		)
+		command.Stdout = &output
+		command.WaitDelay = 100 * time.Millisecond
+		_ = command.Run()
+	}
+	details := parseProcessDetails(output.buffer.String())
 	for _, process := range processes {
 		detail, found := details[process.PID]
 		if !found {
@@ -60,6 +97,26 @@ func describeProcessBlockers(ctx context.Context, processes []poolProcess) error
 		failure.Processes = append(failure.Processes, detail)
 	}
 	return failure
+}
+
+// Keep a bounded prefix while draining stdout so diagnostics cannot consume
+// unbounded memory or block a child on a full pipe.
+type processSnapshotBuffer struct{ buffer bytes.Buffer }
+
+func (output *processSnapshotBuffer) Write(data []byte) (int, error) {
+	length := len(data)
+	remaining := maxProcessSnapshotBytes - output.buffer.Len()
+	if remaining > 0 {
+		_, _ = output.buffer.Write(data[:min(length, remaining)])
+	}
+	return length, nil
+}
+
+func processDiagnosticField(value string) string {
+	if len(value) > maxProcessFieldBytes {
+		return strings.ToValidUTF8(value[:maxProcessFieldBytes], "?") + "..."
+	}
+	return value
 }
 
 func parseProcessDetails(output string) map[int]blockingProcess {
@@ -77,8 +134,8 @@ func parseProcessDetails(output string) map[int]blockingProcess {
 		details[pid] = blockingProcess{
 			PID:       pid,
 			ParentPID: strconv.Itoa(parent),
-			Owner:     fields[2],
-			Command:   strings.Join(fields[3:], " "),
+			Owner:     processDiagnosticField(fields[2]),
+			Command:   processDiagnosticField(strings.Join(fields[3:], " ")),
 		}
 	}
 	return details

@@ -350,11 +350,19 @@ match. The pool must report no live processes. Return uses neither --force nor
 approval to discard changes. The result branch remains in the repository.
 
 A live-process refusal is separate from a changed lease or damaged checkout.
-It lists every blocking PID from Treehouse, with the available owner, parent
-PID, and command name. Missing details appear as `unavailable`. On Linux,
+It lists up to 16 blocking PIDs from Treehouse, with the available owner, parent
+PID, and command name. `omitted_processes` counts additional blockers. The
+refusal covers all blockers, including omitted processes. Missing details
+appear as `unavailable`. On Linux,
 `pane_hint` reports the process's inherited `HERDR_PANE_ID`, when readable.
 The hint does not establish ownership. Retired receipts do not retain a worker
 pane, so `pane_relation` remains `unknown`.
+
+Diagnostics query only the listed PIDs and limit the process snapshot to 64 KiB
+and two seconds. Owner, command, and pane-hint fields contain at most 128 bytes
+plus a truncation marker. Command arguments and other environment values are
+excluded. Linux pane-hint collection reads at most 64 KiB of each process's
+environment. Darwin reports the pane hint as `unavailable`.
 
 Process details come from a later snapshot. A process can exit, become
 inaccessible, or have its PID reused between snapshots. Inspect the process
