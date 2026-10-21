@@ -132,9 +132,18 @@ func TestHostTunnelProbeChecksCurrentGrantBeforeExternalWork(t *testing.T) {
 
 func TestHostRestartServesWorkerSocketBeforeTunnelRecovery(t *testing.T) {
 	server, spec, processes, remote := hostTunnelFixture(t)
+	now := func() time.Time { return time.Date(2026, 10, 17, 10, 0, 0, 0, time.UTC) }
+	server.tunnels.Now = now
 	for range 2 {
 		probed := make(chan error, 16)
+		inFlight := make(chan struct{})
+		var calls atomic.Int32
 		remote.probe = func(ctx context.Context) error {
+			if calls.Add(1) > 1 {
+				close(inFlight)
+				<-ctx.Done()
+				return ctx.Err()
+			}
 			connection, err := (&net.Dialer{}).DialContext(
 				ctx,
 				"unix",
@@ -172,6 +181,7 @@ func TestHostRestartServesWorkerSocketBeforeTunnelRecovery(t *testing.T) {
 			default:
 				return errors.New("restored controller omitted tunnel recovery")
 			}
+			<-inFlight
 			return expected
 		})
 		listener.Close()
@@ -184,6 +194,7 @@ func TestHostRestartServesWorkerSocketBeforeTunnelRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 		server.tunnels, _ = remoteworker.NewTunnelManager(config.Root, processes, remote)
+		server.tunnels.Now = now
 	}
 	current, err := server.store.Read(context.Background(), spec.Owner.Task)
 	if err != nil || current.Snapshot().Worker.Access.Verifier != spec.Owner.Verifier ||

@@ -139,6 +139,9 @@ func (manager *TunnelManager) reconcile(
 		}
 	} else {
 		if err := manager.remote.Prepare(ctx, record.Spec); err != nil {
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return ctx.Err()
+			}
 			if errors.Is(err, ErrSocketActive) || errors.Is(err, ErrSocketOwnership) {
 				return ErrTunnelOwnership
 			}
@@ -162,6 +165,9 @@ func (manager *TunnelManager) reconcile(
 		}
 	}
 	if err := manager.remote.Probe(ctx, record.Spec); err != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return ctx.Err()
+		}
 		return tunnelRetry(lease, record, now)
 	}
 	if record.Failures == 0 {

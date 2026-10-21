@@ -132,16 +132,94 @@ type tunnelRemote struct {
 	preparations atomic.Int32
 	probes       atomic.Int32
 	failure      error
+	prepare      func(context.Context) error
+	probe        func(context.Context) error
 }
 
-func (remote *tunnelRemote) Prepare(context.Context, TunnelSpec) error {
+func (remote *tunnelRemote) Prepare(ctx context.Context, _ TunnelSpec) error {
 	remote.preparations.Add(1)
+	if remote.prepare != nil {
+		return remote.prepare(ctx)
+	}
 	return nil
 }
 
-func (remote *tunnelRemote) Probe(context.Context, TunnelSpec) error {
+func (remote *tunnelRemote) Probe(ctx context.Context, _ TunnelSpec) error {
 	remote.probes.Add(1)
+	if remote.probe != nil {
+		return remote.probe(ctx)
+	}
 	return remote.failure
+}
+
+func TestTunnelManagerRemoteFailureRetryPolicy(t *testing.T) {
+	for _, operation := range []string{"prepare", "probe"} {
+		for _, outcome := range []struct {
+			name    string
+			failure error
+		}{
+			{"canceled", context.Canceled},
+			{"deadline", context.DeadlineExceeded},
+			{"disconnected", errors.New("disconnected")},
+		} {
+			t.Run(operation+"/"+outcome.name, func(t *testing.T) {
+				root, spec := tunnelFixture(t)
+				processes := &tunnelProcesses{status: primary.ProcessRunning}
+				remote := &tunnelRemote{}
+				manager, _ := NewTunnelManager(root, processes, remote)
+				now := time.Date(2026, 10, 17, 10, 0, 0, 0, time.UTC)
+				manager.Now = func() time.Time { return now }
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				fail := func(context.Context) error {
+					if outcome.failure == context.Canceled {
+						cancel()
+					}
+					return outcome.failure
+				}
+				if operation == "prepare" {
+					remote.prepare = fail
+				} else {
+					remote.probe = fail
+				}
+				err := manager.Ensure(ctx, spec)
+				want := ErrTunnelUnreachable
+				if outcome.failure == context.Canceled {
+					want = context.Canceled
+				}
+				if !errors.Is(err, want) {
+					t.Errorf("remote failure returned %v, want %v", err, want)
+				}
+				if err := manager.store.WithTask(t.Context(), spec.Owner.Task, func(lease *TunnelLease) error {
+					record, err := lease.Read()
+					if err != nil {
+						return err
+					}
+					if outcome.failure == context.Canceled {
+						if record.Failures != 0 || !record.NextRetry.IsZero() {
+							t.Errorf("cancellation persisted retry: %+v", record)
+						}
+					} else if record.Failures != 1 || !record.NextRetry.Equal(now.Add(time.Second)) {
+						t.Errorf("remote failure lost retry: %+v", record)
+					}
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				remote.prepare, remote.probe = nil, nil
+				restarted, _ := NewTunnelManager(root, processes, remote)
+				restarted.Now = manager.Now
+				err = restarted.Ensure(t.Context(), spec)
+				if outcome.failure == context.Canceled {
+					if err != nil || remote.probes.Load() == 0 {
+						t.Fatalf("immediate restart did not probe: %v", err)
+					}
+				} else if !errors.Is(err, ErrTunnelUnreachable) {
+					t.Fatalf("immediate restart bypassed retry: %v", err)
+				}
+			})
+		}
+	}
 }
 
 func TestTunnelManagerReusesPersistedProcessAfterPrimaryRestart(t *testing.T) {
