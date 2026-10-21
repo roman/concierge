@@ -2,6 +2,7 @@ package conciergecli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -10,6 +11,20 @@ import (
 )
 
 func (command *taskCommands) report(ctx context.Context, root string, output io.Writer) int {
+	if command.Report.Attachment != "" || command.Report.Output != "" {
+		if command.Report.Attachment == "" || command.Report.Output == "" ||
+			command.Report.ReplyID == "" ||
+			command.Report.Format != "toon" {
+			return fail(
+				output,
+				2,
+				fmt.Errorf(
+					"attachment export requires a reply ID, --attachment and --output with the default format",
+				),
+				"use concierge task report TASK_ID REPLY_ID --attachment NAME --output NEW_FILE",
+			)
+		}
+	}
 	if command.Report.Format != "toon" && command.Report.ReplyID == "" {
 		return fail(output, 2, fmt.Errorf("%s format requires a reply ID", command.Report.Format),
 			"use concierge task report TASK_ID REPLY_ID --format body > reply.md")
@@ -53,6 +68,26 @@ func (command *taskCommands) report(ctx context.Context, root string, output io.
 		}
 		return 0
 	}
+	if command.Report.Attachment != "" {
+		if err := exportReplyAttachment(report.Attachments, command.Report.Attachment, command.Report.Output); err != nil {
+			return fail(
+				output,
+				1,
+				err,
+				"select an existing attachment name and a new --output file",
+			)
+		}
+		if _, err := fmt.Fprintf(output, "attachment: %s\noutput: %s\n", quote(command.Report.Attachment), quote(command.Report.Output)); err != nil {
+			return 1
+		}
+		return 0
+	}
+	if command.Report.Format == "json" {
+		if err := json.NewEncoder(output).Encode(report); err != nil {
+			return 1
+		}
+		return 0
+	}
 	if command.Report.Format == "concise" {
 		if _, err := fmt.Fprintf(output, "status: archived\ntask: %s\ngeneration: %s\n", quote(report.Task), quote(report.SpawnGeneration)); err != nil {
 			return 1
@@ -60,9 +95,15 @@ func (command *taskCommands) report(ctx context.Context, root string, output io.
 		if err := writeReportPreview(output, command.Report.ReplyID, report.Body, "body"); err != nil {
 			return 1
 		}
+		if err := writeAttachmentSummary(output, report.Attachments); err != nil {
+			return 1
+		}
 		return 0
 	}
 	if _, err := fmt.Fprintf(output, "status: archived\ntask: %s\ngeneration: %s\nbody: %s\n", quote(report.Task), quote(report.SpawnGeneration), quote(report.Body)); err != nil {
+		return 1
+	}
+	if err := writeAttachmentSummary(output, report.Attachments); err != nil {
 		return 1
 	}
 	return 0

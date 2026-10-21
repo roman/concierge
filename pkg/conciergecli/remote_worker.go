@@ -102,6 +102,10 @@ func (command *cli) runRemoteWorker(
 	var response workerservice.Response
 	retained := ""
 	if request.Operation == workeraccess.SendReply {
+		request.Attachments, err = readReplyAttachments(command.Task.Reply.Send.Attach)
+		if err != nil {
+			return fail(output, 1, err, replySendUsage)
+		}
 		response, retained, err = sendRemoteReply(ctx, socket, secretFile, request)
 	} else {
 		secret, secretError := workeraccess.ReadSecretFile(secretFile)

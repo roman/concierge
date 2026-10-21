@@ -8,7 +8,7 @@ import (
 	"github.com/roman/concierge/pkg/taskops"
 )
 
-const replySendUsage = "concierge [--recipient NAME] task reply send TASK_ID --generation GEN --key KEY [--assignment-id ID] --body-file FILE|-"
+const replySendUsage = "concierge [--recipient NAME] task reply send TASK_ID --generation GEN --key KEY [--assignment-id ID] --body-file FILE|- [--attach NAME=PATH ...]"
 const replyCheckUsage = "concierge [--recipient NAME] task reply check MESSAGE_ID"
 
 type replyCommands struct {
@@ -16,11 +16,12 @@ type replyCommands struct {
 		File string `required:"" help:"Retained outbox record; use - for stdin. Its original tuple is never changed."`
 	} `cmd:"" help:"Ask the primary host to reconcile an identical original reply after access is revoked."`
 	Send struct {
-		TaskID       string `arg:"" help:"Task ID."`
-		Generation   string `required:"" help:"Worker generation supplied at launch."`
-		Key          string `required:"" help:"Stable logical reply key for identical retries."`
-		AssignmentID string `help:"Assignment to acknowledge after reply publication."`
-		BodyFile     string `required:"" help:"Result body file; use - for stdin."`
+		TaskID       string   `arg:"" help:"Task ID."`
+		Generation   string   `required:"" help:"Worker generation supplied at launch."`
+		Key          string   `required:"" help:"Stable logical reply key for identical retries."`
+		AssignmentID string   `help:"Assignment to acknowledge after reply publication."`
+		BodyFile     string   `required:"" help:"Result body file; use - for stdin."`
+		Attach       []string `sep:"none" help:"Named attachment NAME=PATH; repeat for up to 8 regular files, 256 KiB each and 512 KiB total."`
 	} `cmd:"" help:"Publish a worker result and optionally acknowledge its assignment."`
 	Check struct {
 		MessageID string `arg:"" help:"Reply message ID in the primary inbox."`
@@ -35,6 +36,10 @@ func (command *replyCommands) send(
 	stdin io.Reader,
 	output io.Writer,
 ) int {
+	attachments, err := readReplyAttachments(command.Send.Attach)
+	if err != nil {
+		return fail(output, 1, err, replySendUsage)
+	}
 	body, err := readBodyFile(command.Send.BodyFile, stdin)
 	if err != nil {
 		return fail(output, 1, err, "provide a readable --body-file or use --body-file - for stdin")
@@ -45,6 +50,7 @@ func (command *replyCommands) send(
 		Key:          command.Send.Key,
 		AssignmentID: command.Send.AssignmentID,
 		Body:         body,
+		Attachments:  attachments,
 	}
 	result, err := service.SendReply(ctx, messageRoot, input)
 	if result.Message.ID.String() != "" {
@@ -96,9 +102,15 @@ func (command *replyCommands) check(
 		if err := writeReportPreview(output, command.Check.MessageID, result.Body, "toon"); err != nil {
 			return 1
 		}
+		if err := writeAttachmentSummary(output, result.Attachments); err != nil {
+			return 1
+		}
 		return 0
 	}
 	if _, err := fmt.Fprintf(output, "body: %s\n", quote(result.Body)); err != nil {
+		return 1
+	}
+	if err := writeAttachmentSummary(output, result.Attachments); err != nil {
 		return 1
 	}
 	return 0

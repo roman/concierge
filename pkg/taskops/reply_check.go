@@ -24,6 +24,7 @@ type CheckedReply struct {
 	Generation   string
 	AssignmentID string
 	Body         string
+	Attachments  []taskprotocol.Attachment
 }
 
 // CheckReply reads a snapshot without acknowledging or accepting the result.
@@ -68,6 +69,6 @@ func (service *Service) CheckReply(
 	}
 	return CheckedReply{
 		State: ReplyCurrent, TaskID: reply.Task, Generation: worker.Generation,
-		AssignmentID: reply.AssignmentID, Body: reply.Body,
+		AssignmentID: reply.AssignmentID, Body: reply.Body, Attachments: reply.Attachments,
 	}, nil
 }

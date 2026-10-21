@@ -26,9 +26,11 @@ type taskCommands struct {
 	Bootstrap remoteBootstrapCommands `cmd:"" help:"Inspect or acknowledge a matching remote worker bootstrap."`
 	Settings  remoteTaskSelection     `cmd:"" help:"Read project settings for the remote worker's assigned task."`
 	Report    struct {
-		TaskID  string `arg:"" help:"Task ID."`
-		ReplyID string `arg:"" optional:"" help:"Reply message ID; omit to list saved reports."`
-		Format  string `default:"toon" enum:"toon,body,concise" help:"Output format. Concise previews headings and decisions; body writes the exact reply text. Both require a reply ID."`
+		TaskID     string `arg:"" help:"Task ID."`
+		ReplyID    string `arg:"" optional:"" help:"Reply message ID; omit to list saved reports."`
+		Format     string `default:"toon" enum:"toon,body,concise,json" help:"Output format. JSON includes the validated attachment bytes as base64. All non-toon formats require a reply ID."`
+		Attachment string `help:"Export this named attachment; requires a reply ID and --output."`
+		Output     string `help:"New destination file for --attachment; existing files and symlinks are refused."`
 	} `cmd:"" help:"Read or list archived task reports, including after worker cleanup."`
 	Abandon struct {
 		TaskID     string `arg:"" help:"Task ID."`

@@ -226,6 +226,13 @@ acceptance checks.
 
 ### External report consumers
 
+Worker replies can include named files with repeated `--attach NAME=PATH`
+arguments. Saved reports retain their bytes after worker cleanup. Report
+`--format json` includes the validated attachment bytes as base64. Report
+`--attachment NAME --output NEW_FILE` exports one file without overwriting an
+existing path. See [reply attachments](reply-attachments.md) for limits, remote
+recovery, and the stable interface for external importers.
+
 Concierge saves reply bodies as opaque text. An integration can define a
 report format in the task assignment and consume the exact saved body through
 `task report --format body`. The integration owns its schemas, downstream

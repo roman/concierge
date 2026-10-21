@@ -200,6 +200,10 @@ remains the default; `--format toon` requests it explicitly. Use report
 and supervisor adoption requirements.
 When recording accepted results elsewhere, the primary reads them from these reports,
 including after `backlog resolve`, worker stop, and cleanup.
+Worker replies accept repeated `--attach NAME=PATH` arguments. Report
+`--format json` includes their validated bytes. Report
+`--attachment NAME --output NEW_FILE` exports one named file to a new path.
+See [reply attachments](reply-attachments.md) for limits and the import interface.
 Scout read-only behavior is an agent contract under normal native permissions.
 Concierge does not replace those permissions with a filesystem sandbox.
 

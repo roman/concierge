@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/roman/concierge/pkg/taskprotocol"
@@ -61,10 +62,16 @@ func TestCheckReplySuppressesStaleContent(t *testing.T) {
 	for _, state := range []string{"missing task", "new generation", "completed", "retired", "adoption", "generation", "launch"} {
 		t.Run(state, func(t *testing.T) {
 			service, messages, assignment := assignmentFixture(t)
+			input := replyInput(assignment)
+			attachment, err := taskprotocol.NewAttachment("evidence.bin", []byte{0, 255})
+			if err != nil {
+				t.Fatal(err)
+			}
+			input.Attachments = []taskprotocol.Attachment{attachment}
 			delivery, err := service.SendReply(
 				context.Background(),
 				messages.Root(),
-				replyInput(assignment),
+				input,
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -104,7 +111,8 @@ func TestCheckReplySuppressesStaleContent(t *testing.T) {
 				t.Fatal(err)
 			}
 			result, err := service.CheckReply(ctx, messages.Root(), delivery.Message.ID.String())
-			if err != nil || result != (CheckedReply{State: ReplyStale, TaskID: "task-1"}) {
+			if err != nil ||
+				!reflect.DeepEqual(result, CheckedReply{State: ReplyStale, TaskID: "task-1"}) {
 				t.Fatalf("stale check = %#v, %v", result, err)
 			}
 		})
@@ -157,7 +165,7 @@ func TestCheckReplyReportsStorageAndLinkageFailures(t *testing.T) {
 				messages.Root(),
 				delivery.Message.ID.String(),
 			)
-			if err == nil || result != (CheckedReply{}) {
+			if err == nil || !reflect.DeepEqual(result, CheckedReply{}) {
 				t.Fatalf("failed check = %#v, %v", result, err)
 			}
 		})
