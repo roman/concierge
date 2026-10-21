@@ -51,13 +51,8 @@ func TestScheduleCoalescesAndCountsAcknowledgedOutput(t *testing.T) {
 		}
 	}
 	acknowledge(first.Pending.ID, now)
-	second, err := store.Schedule(ctx, now.Add(time.Hour), observation, policy)
-	if err != nil || second.Pending == nil {
-		t.Fatalf("not scheduled: %+v, %v", second, err)
-	}
-	acknowledge(second.Pending.ID, now.Add(time.Hour))
 	quiet, err := store.Schedule(ctx, now.Add(2*time.Hour), observation, policy)
-	if err != nil || quiet.Pending != nil || quiet.QuietCount != 1 {
+	if err != nil || quiet.Pending != nil || quiet.QuietCount != 0 {
 		t.Fatalf("quiet contract: %+v, %v", quiet, err)
 	}
 	changed, err := store.Schedule(

@@ -54,11 +54,12 @@ func acknowledgeEvent(state *State, id, token, output string, now time.Time) err
 	}
 	state.SeenReplies = append([]string(nil), event.Replies...)
 	state.Receipt = &Receipt{
-		EventID:   id,
-		Token:     token,
-		Output:    output,
-		At:        now.UTC(),
-		MessageID: event.MessageID,
+		SnapshotHash: snapshotHash(event.Snapshot),
+		EventID:      id,
+		Token:        token,
+		Output:       output,
+		At:           now.UTC(),
+		MessageID:    event.MessageID,
 	}
 	if event.Interval > 0 {
 		interval := event.Interval

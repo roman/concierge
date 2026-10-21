@@ -41,11 +41,12 @@ type Claim struct {
 }
 
 type Receipt struct {
-	MessageID string    `json:"message_id,omitempty"`
-	EventID   string    `json:"event_id"`
-	Token     string    `json:"token"`
-	Output    string    `json:"output"`
-	At        time.Time `json:"at"`
+	SnapshotHash string    `json:"snapshot_hash,omitempty"`
+	MessageID    string    `json:"message_id,omitempty"`
+	EventID      string    `json:"event_id"`
+	Token        string    `json:"token"`
+	Output       string    `json:"output"`
+	At           time.Time `json:"at"`
 }
 
 type State struct {

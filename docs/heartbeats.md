@@ -26,10 +26,14 @@ pause. The pause survives owner replacement and host restart. Automatic quiet
 suppression cannot clear it.
 
 The host checks every five seconds. The default reporting interval is five
-minutes. Missed intervals coalesce into one pending event. The default quiet
-limit suppresses further unchanged periodic events after five unchanged output
-receipts. `--quiet-limit 0` disables that suppression. A changed snapshot becomes
-eligible again. Only acknowledged periodic output changes the quiet count.
+minutes. Missed intervals coalesce into one pending event. A periodic event
+requires a change from the last acknowledged snapshot. That snapshot includes
+open actions, pending worker replies, and worker status. Both inbox and periodic
+output receipts establish the snapshot. An unchanged snapshot stays suppressed
+even with `--quiet-limit 0`. A changed snapshot becomes eligible at the next
+reporting deadline. The quiet limit still controls compatibility callers and
+operator reminder commands. Only acknowledged periodic output changes the
+quiet count.
 
 New pending messages remain eligible during an operator pause or quiet
 suppression. The event kind is `inbox`. Its claim permits processing the new

@@ -3,6 +3,7 @@ package heartbeat
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -82,6 +83,11 @@ func unseen(replies, seen []string) bool {
 	return false
 }
 
+// A digest keeps receipts from doubling the persisted size of large snapshots.
+func snapshotHash(snapshot string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(snapshot)))
+}
+
 func (store Store) Schedule(
 	ctx context.Context,
 	now time.Time,
@@ -113,8 +119,8 @@ func (store Store) Schedule(
 			return nil
 		}
 		state.Next = now.Add(interval).UTC()
-		if !newReplies && settings.QuietLimit > 0 && state.QuietCount >= settings.QuietLimit &&
-			observation.Text == state.LastSnapshot {
+		if !newReplies && state.Receipt != nil && state.Receipt.SnapshotHash != "" &&
+			snapshotHash(observation.Text) == state.Receipt.SnapshotHash {
 			return nil
 		}
 		kind := Periodic

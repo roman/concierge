@@ -45,7 +45,7 @@ type heartbeatCommands struct {
 	Show struct{} `cmd:"" help:"Show the operator-owned heartbeat interval and quiet limit."`
 	Set  struct {
 		Interval   *time.Duration `help:"Positive interval between primary heartbeats."`
-		QuietLimit *int           `help:"Suppress unchanged periodic output after this many reported updates (default 5). Use 0 to disable quiet suppression."`
+		QuietLimit *int           `help:"Limit unchanged compatibility checks and operator reminders (default 5, 0 disables the limit). Host events require changed acknowledged state."`
 	} `cmd:"" help:"Set the operator-approved heartbeat interval or quiet limit."`
 	Check struct {
 		Wake  string `default:"checkpoint" enum:"checkpoint,inbox,reminder" help:"Use inbox or reminder to defer a heartbeat after another wake."`

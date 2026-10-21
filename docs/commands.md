@@ -237,8 +237,10 @@ executable.
 `concierge heartbeat show` reports the interval, quiet limit, activation,
 operator pause, native binding, pending delivery, attempts, and output receipt.
 `heartbeat set --interval 2m --quiet-limit 5` changes the operator-owned
-configuration. Either flag preserves the other setting. `0` disables automatic
-quiet suppression. An explicit operator pause still requires `resume`.
+configuration. Either flag preserves the other setting. `0` disables the quiet
+limit for compatibility callers and operator reminders. The host always
+suppresses periodic events with the same state as its last acknowledged output.
+An explicit operator pause still requires `resume`.
 
 The scheduler starts disabled. `heartbeat enable` activates it intentionally.
 `heartbeat pause --reason REASON` persists an operator pause. `heartbeat resume`
