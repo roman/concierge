@@ -204,7 +204,11 @@ func acquire(ctx context.Context, path string, mode int) (*Guard, error) {
 	}
 	baseName := filepath.Base(path)
 	lockName := "." + strings.TrimPrefix(baseName, ".") + lockSuffix
-	lock, err := lockfile.Open(parent, lockName)
+	openLock := lockfile.Open
+	if mode == syscall.LOCK_SH {
+		openLock = lockfile.OpenShared
+	}
+	lock, err := openLock(parent, lockName)
 	if err != nil {
 		parent.Close()
 		return nil, err
