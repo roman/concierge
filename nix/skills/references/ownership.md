@@ -33,3 +33,27 @@ one primary Claude or Codex session. A secondary session leaves task intake, wor
 wakes to the owner. Codex SessionEnd releases ownership. Primary identity checks
 use native Linux or Darwin process identity. A claim from another PID namespace stays held until
 release. Confirm that a crashed owner ended before removing its primary record.
+
+## Primary session boundaries
+
+Request a fresh primary session at a safe task boundary to limit context age
+and token cost. Only evaluate this boundary during a fresh `status: current`
+heartbeat claim. Defer without one. Require zero bound workers and no unbound
+launches, pending messages, completion work, or open actions. Also read
+`concierge backlog list` and defer while queued work remains. Defer while any
+other work, approval, or operator question is pending, or the operator is
+mid-conversation.
+
+At that boundary, record a durable handoff with the outcome, pending work,
+branch state, and next action. Use the adopting project's handoff location.
+Tell the operator a fresh primary session is due and name the reason and exact
+handoff path to supply to the new session. After a Concierge pin upgrade, give
+the same notice at a safe boundary because the current session retains a
+stale PATH binary.
+
+The operator starts the new session. Never end or restart your own session.
+Keep ownership, bindings, and heartbeat duties unchanged while waiting.
+Post any required heartbeat update before its acknowledgement. The new session
+follows normal ownership checks and reads that handoff path and a fresh
+`concierge brief`. Claim the next native event when it arrives. Resume from
+these durable records and fresh state instead of the old conversation.

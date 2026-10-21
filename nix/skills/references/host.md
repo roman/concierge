@@ -29,9 +29,10 @@ concierge host status
 concierge host restart
 ```
 
-Then start a new primary session. The primary is the agent session. The host
-is the background process. A new primary session is needed because the agent
-keeps the PATH it started with.
+Then apply the [primary session boundary rule](ownership.md#primary-session-boundaries).
+Request an operator-started fresh primary session at a safe boundary. The agent
+keeps its original PATH binary after a pin upgrade. The host is a separate
+background process.
 
 `host restart` starts the calling binary with the existing roots, Herdr session,
 and monitor settings. It leaves workers running. It refuses during a launch or

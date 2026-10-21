@@ -98,6 +98,10 @@ after the viewer detaches or returns. Cleanup must confirm pane departure and
 retire the binding before another adoption. Use `concierge task pending` for
 unfinished completion work. Read the completion reference for retain or retry cases.
 
+At a task boundary or after a Concierge pin upgrade, apply the
+[primary session boundary rule](references/ownership.md) before requesting
+an operator-started fresh primary session.
+
 ## References on demand
 
 - [Ownership](references/ownership.md): root claims, process identity, scoped exceptions.
