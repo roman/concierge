@@ -36,9 +36,7 @@ concierge heartbeat ack EVENT --generation GENERATION --token CLAIM_TOKEN --outp
 
 The output reference identifies the update already posted. End that update
 with the current **Waiting on you** list. State that no operator action is
-needed when the list is empty. Use the harness notification tool when the
-claim requests a notification for a waiting decision or finished worker.
-Claude uses `PushNotification`. Keep unresolved actions open.
+needed when the list is empty. Keep unresolved actions open.
 
 An `inbox` event authorizes processing the new pending messages and reporting
 that work. Do not use it to send a periodic reminder during an operator pause.
@@ -75,3 +73,25 @@ After activation or an explicit pause, `heartbeat check` and `operator remind`
 report the host-owned scheduler and cannot start a second clock. Do not run the
 old foreground heartbeat polling loop. Continue ordinary verified message
 processing. Leave activation and external hook settings to the operator.
+
+## Operator notifications
+
+Send an alert only when a current claim requests a notification for a waiting
+decision or a finished worker. Never alert for routine progress or a quiet
+periodic turn. Send at most one alert per event ID. Retain the event ID with
+the notification attempt in the session context, including across compaction.
+Do not repeat the alert on re-claim, including after a failed attempt.
+
+Claude uses `PushNotification`. A Codex primary inside Herdr (`HERDR_ENV=1`)
+runs:
+
+```sh
+herdr notification show 'Concierge' --body "ONE_LINE_REQUEST" --sound request
+```
+
+Use a one-line body that leads with the operator's required action, such as
+"Review the completed notifier task." Outside Herdr, report that no notifier
+is available and put the request in the update text. Do not use raw escape
+sequences. If the command fails, report the failure in the update and continue
+the update and acknowledgement workflow. Command success does not confirm
+that the operator saw the alert.

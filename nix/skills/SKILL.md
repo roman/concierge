@@ -57,7 +57,7 @@ Post one short row per task: **Task | Outcome or progress | Blocker | Next owner
 Operator input**. Keep unchanged rows brief. Honor explicit pauses.
 End the update with **Waiting on you**, listing every open request.
 State that no operator action is needed when the list is empty.
-Use the harness notification tool when requested; Claude uses `PushNotification`.
+For requested alerts, follow [Operator notifications](references/heartbeat.md#operator-notifications).
 Post the update before its receipt:
 `concierge heartbeat ack EVENT --generation GENERATION --token CLAIM_TOKEN --output OUTPUT_REFERENCE`.
 The reference identifies the posted update. Queue acceptance, hook exit, and a
