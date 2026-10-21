@@ -1,0 +1,17 @@
+{"timestamp":"2026-10-20T21:00:00Z","type":"session_meta","payload":{"id":"primary","cwd":"/project"}}
+{"timestamp":"2026-10-20T21:59:00Z","type":"event_msg","payload":{"type":"task_started","turn_id":"one"}}
+{"timestamp":"2026-10-20T21:59:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"text":"A synthetic request."}]}}
+{"timestamp":"2026-10-20T22:01:00Z","type":"token_usage_record","payload":{"turn_id":"one","response_id":"r1","usage":{"input_tokens":100,"cached_input_tokens":80,"output_tokens":10,"reasoning_output_tokens":4}}}
+{"timestamp":"2026-10-20T22:01:01Z","type":"token_usage_record","payload":{"turn_id":"one","response_id":"r1","usage":{"input_tokens":100,"cached_input_tokens":80,"output_tokens":10,"reasoning_output_tokens":4}}}
+{"timestamp":"2026-10-20T22:01:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":9000}},"rate_limits":{"primary":{"window_minutes":10080,"used_percent":20}}}}
+{"timestamp":"2026-10-20T22:02:00Z","type":"response_item","payload":{"type":"function_call","call_id":"c1","arguments":"{\"cmd\":\"concierge heartbeat claim example\",\"sandbox_permissions\":\"require_escalated\"}"}}
+{"timestamp":"2026-10-20T22:02:01Z","type":"response_item","payload":{"type":"function_call_output","call_id":"c1","output":"hello"}}
+{"timestamp":"2026-10-20T22:03:00Z","type":"response_item","payload":{"type":"function_call","call_id":"c2","arguments":"{\"cmd\":\"cat concierge-local-supervisor/SKILL.md\"}"}}
+{"timestamp":"2026-10-20T22:03:01Z","type":"response_item","payload":{"type":"function_call","call_id":"c3","arguments":"{\"cmd\":\"cat concierge-local-supervisor/SKILL.md\"}"}}
+{"timestamp":"2026-10-20T22:04:00Z","type":"compacted","payload":{}}
+{"timestamp":"2026-10-20T22:05:00Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"one"}}
+{"timestamp":"2026-10-20T22:06:00Z","type":"event_msg","payload":{"type":"task_started","turn_id":"two"}}
+{"timestamp":"2026-10-20T22:06:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"text":"Concierge supervisor event example. Recheck this event."}]}}
+{"timestamp":"2026-10-20T22:07:00Z","type":"token_usage_record","payload":{"turn_id":"two","response_id":"r2","usage":{"input_tokens":200,"cached_input_tokens":100,"output_tokens":20,"reasoning_output_tokens":8}}}
+{"timestamp":"2026-10-20T22:08:00Z","type":"future_record","payload":{}}
+{"timestamp":"2026-10-20T23:01:00Z","type":"token_usage_record","payload":{"turn_id":"two","response_id":"r3","usage":{"input_tokens":1000}}}
