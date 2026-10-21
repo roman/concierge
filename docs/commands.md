@@ -127,6 +127,9 @@ full reviewed commit, even when `merge: on`. The command supports
 `delivery: fast-forward` only. It requires the latest close receipt and the
 recorded returned local lease. It reserves the recorded free Treehouse slot
 without changing its checkout. It releases the reservation after landing.
+The lease holder must identify this state root and task using
+`concierge:ROOT:TASK_ID:ACQUISITION_GENERATION`. A restart keeps its original
+acquisition generation. The latest close receipt must match `--generation`.
 It recovers its own prior reservation after an interrupted attempt. The
 command requires the clean worktree to use the recorded repository and
 branch. It requires worktree HEAD to equal `--commit`, the recorded base to

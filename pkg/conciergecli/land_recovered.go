@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/roman/concierge/pkg/hostactivity"
+	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/worktree"
 )
@@ -75,7 +76,7 @@ func (command *landRecoveredCommand) run(ctx context.Context, root string, outpu
 			lease := snapshot.Receipt.Lease
 			if lease.State != taskstate.LeaseReturned ||
 				lease.Remote != (taskstate.RemoteLease{}) ||
-				lease.Holder != command.TaskID ||
+				!returnedLocalHolder(root, command.TaskID, lease.Holder) ||
 				lease.Project == "" ||
 				lease.Path == "" ||
 				lease.BaseCommit == "" {
@@ -191,6 +192,15 @@ func (command *landRecoveredCommand) run(ctx context.Context, root string, outpu
 		return 1
 	}
 	return 0
+}
+
+func returnedLocalHolder(root, taskID, holder string) bool {
+	prefix := "concierge:" + root + ":" + taskID + ":"
+	if !strings.HasPrefix(holder, prefix) {
+		return false
+	}
+	// Restarts keep the lease acquired by the initial generation.
+	return taskmeta.ValidateSpawnGeneration(strings.TrimPrefix(holder, prefix)) == nil
 }
 
 func validRecoveredCommit(value string) bool {

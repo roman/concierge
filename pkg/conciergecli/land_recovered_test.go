@@ -16,6 +16,7 @@ func recoveredLandingFixture(t *testing.T) (landingFixture, string) {
 	f := newLandingFixture(t)
 	lease := f.worker.Lease
 	lease.State = taskstate.LeaseReturned
+	lease.Holder = "concierge:" + f.root + ":task-1:gen-1"
 	receipt := taskstate.Receipt{
 		Generation: f.worker.Generation,
 		Mode:       taskstate.Close,
@@ -157,6 +158,17 @@ func TestRecoveredLandingResumesItsOwnReservation(t *testing.T) {
 	}
 }
 
+func TestRecoveredLandingAfterRestartKeepsAcquisitionHolder(t *testing.T) {
+	f, pool := recoveredLandingFixture(t)
+	changeRecoveredTask(t, f.root, func(snapshot *taskstate.Snapshot) {
+		snapshot.Receipt.Lease.Holder = "concierge:" + f.root + ":task-1:initial-generation"
+	})
+	invoke(t, f.root, "", recoveredLandingArgs(f, pool)...)
+	if landed := landingGit(t, f.remote, "rev-parse", "trunk"); landed != f.head {
+		t.Fatal("restarted result did not land")
+	}
+}
+
 func TestRecoveredLandingRecordsCheckoutAfterReleaseFailure(t *testing.T) {
 	f, pool := recoveredLandingFixture(t)
 	t.Setenv("CONCIERGE_TEST_RETURN_FAIL", "1")
@@ -179,11 +191,30 @@ func TestRecoveredLandingRejectsChangedOrReusedResult(t *testing.T) {
 		"reused lease", "missing slot", "reused during reservation", "busy after reservation",
 		"wrong path response", "missing receipt",
 		"old receipt", "held lease", "wrong base",
+		"wrong holder root", "wrong holder task", "invalid holder generation", "bare holder",
 	} {
 		t.Run(mode, func(t *testing.T) {
 			f, pool := recoveredLandingFixture(t)
 			before := landingGit(t, f.remote, "rev-parse", "trunk")
 			switch mode {
+			case "wrong holder root",
+				"wrong holder task",
+				"invalid holder generation",
+				"bare holder":
+				changeRecoveredTask(t, f.root, func(snapshot *taskstate.Snapshot) {
+					holder := "concierge:" + f.root + ":task-1:gen-1"
+					switch mode {
+					case "wrong holder root":
+						holder = "concierge:" + f.root + "-other:task-1:gen-1"
+					case "wrong holder task":
+						holder = "concierge:" + f.root + ":task-2:gen-1"
+					case "invalid holder generation":
+						holder = "concierge:" + f.root + ":task-1:gen-1:other"
+					case "bare holder":
+						holder = "task-1"
+					}
+					snapshot.Receipt.Lease.Holder = holder
+				})
 			case "reused lease":
 				writeRecoveredPoolStatus(
 					t,
