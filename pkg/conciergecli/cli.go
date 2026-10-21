@@ -189,6 +189,11 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			return fail(stdout, 2, err, backlogHelp)
 		}
 	}
+	if selected.Command() == "backlog recover <task-id>" {
+		if err := validateCompletion("close", command.Backlog.Recover.ClosedOn); err != nil {
+			return fail(stdout, 2, err, recoverOrphanedUsage)
+		}
+	}
 	if selected.Command() == "backlog finish <task-id>" {
 		if err := validateCompletion(command.Backlog.Finish.Mode, command.Backlog.Finish.ClosedOn); err != nil {
 			return fail(

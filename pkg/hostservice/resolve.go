@@ -44,7 +44,8 @@ func validateResolveRequest(request Request) error {
 }
 
 func (server *Server) perform(ctx context.Context, request Request) (Response, error) {
-	if request.Operation == Stop || request.Operation == Cleanup || request.Operation == Discard {
+	if request.Operation == Stop || request.Operation == Cleanup || request.Operation == Discard ||
+		request.Operation == RecoverOrphaned {
 		return server.withTaskEndpoint(
 			ctx,
 			request,

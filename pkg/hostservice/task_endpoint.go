@@ -15,7 +15,14 @@ func taskOperationEndpoint(
 	generation string,
 ) (*controllerEndpoint, error) {
 	snapshot := task.Snapshot()
-	if operation == Discard {
+	if operation == RecoverOrphaned {
+		if err := task.CheckRecoverOrphaned(generation); err != nil {
+			return nil, err
+		}
+		if snapshot.Closure != nil {
+			return nil, nil
+		}
+	} else if operation == Discard {
 		if err := task.CheckDiscardWorker(generation); err != nil {
 			return nil, err
 		}

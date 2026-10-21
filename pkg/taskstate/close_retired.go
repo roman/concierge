@@ -13,8 +13,14 @@ func validClosure(selected record) bool {
 	}
 	if selected.State != Done || selected.Closed == "" || selected.Worker != nil ||
 		selected.LaunchIntent != nil || selected.Completion != nil ||
-		selected.Hold == nil || !singleLine(closure.Reason) || strings.TrimSpace(closure.Reason) == "" ||
+		!singleLine(closure.Reason) || strings.TrimSpace(closure.Reason) == "" ||
 		taskmeta.ValidateSpawnGeneration(closure.Generation) != nil {
+		return false
+	}
+	if closure.Worker != nil {
+		return validOrphanedClosure(selected)
+	}
+	if selected.Hold == nil {
 		return false
 	}
 	if selected.Receipt != nil && selected.Receipt.Generation == closure.Generation &&

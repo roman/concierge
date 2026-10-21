@@ -41,6 +41,24 @@ func (command *backlogCommands) runLifecycle(
 	request := hostservice.Request{Transition: &hostservice.TransitionRequest{}}
 	input := request.Transition
 	switch selected {
+	case "backlog recover <task-id>":
+		if !command.Recover.OperatorApproved {
+			return fail(
+				output,
+				2,
+				errors.New(
+					"orphan recovery requires --operator-approved after explicit operator approval",
+				),
+				recoverOrphanedUsage,
+			)
+		}
+		request.Operation = hostservice.RecoverOrphaned
+		input.TaskID = command.Recover.TaskID
+		input.Generation = command.Recover.Generation
+		input.Reason = command.Recover.Reason
+		input.ClosedOn = command.Recover.ClosedOn
+		input.OperatorApproved = true
+		generation = input.Generation
 	case "backlog close <task-id>":
 		request.Operation = hostservice.CloseRetired
 		input.TaskID = command.Close.TaskID

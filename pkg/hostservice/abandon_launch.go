@@ -27,7 +27,7 @@ func (server *Server) abandonLaunch(
 	}
 	defer release()
 	if receipt, ok := task.LaunchAbandonment(input.Generation); ok {
-		if receipt.Kind == taskstate.DiscardedWorker {
+		if receipt.Kind != "" {
 			return Response{}, taskstate.ErrInvalidTransition
 		}
 		return server.finishAbandonedLaunch(ctx, task, input.Generation)

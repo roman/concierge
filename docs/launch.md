@@ -113,6 +113,41 @@ are removed during return. Treehouse slots remain available for reuse.
 An unbound launch still requires confirmed resource absence before abandonment.
 Its lease remains held until an explicit `backlog release-worktree` request.
 
+### Close an orphaned pending restart
+
+Use `backlog recover` when a local pooled worker has a pending restart but its
+recorded endpoint has disappeared. Obtain explicit operator approval for the
+task, current recorded generation, reason, and closing date first:
+
+```sh
+concierge backlog recover TASK_ID --generation CURRENT_GENERATION \
+  --reason "Superseded; the worker endpoint is absent" \
+  --closed-on YYYY-MM-DD --operator-approved
+```
+
+Use the worker's current generation, even when its pending replacement has a
+different generation. The host excludes its controller and endpoint while it
+checks the exact pane, agent, workspace label, tabs, and panes. An incomplete or
+failed inventory leaves the worker binding intact. The held lease must still
+match its recorded ID, holder, and path. A live process in the Treehouse slot
+blocks recovery.
+
+Recovery records `done`, the reason, and the date. It preserves the complete
+pending worker identity under `closure.worker` in the task record. An
+`orphaned_worker` abandonment receipt preserves the held lease and its branch,
+base, and paths. Recovery preserves existing holds and receipts. It does not
+return the lease or change the worktree, commits, reports, or pending messages.
+Use `backlog release-worktree TASK_ID --generation CURRENT_GENERATION` separately
+after reviewing the retained work. An identical recovery retry succeeds from
+the durable closure without inspecting a later worker or a reused slot.
+
+This command requires a pending local pooled restart. It refuses remote workers,
+raw worktrees, completed launches, and initial launch intents. Initial launches
+use `task abandon`, followed by a hold and `backlog close` when closure is needed.
+Uncertain resource absence requires inspection. A failed attempt can leave its
+controller stopped; the recorded task remains available for an explicit retry.
+The normal automatic restart policy remains unchanged.
+
 Exact pending retries must preserve every request field. A completed or retired
 launch requires inspection instead of another launch. A disconnected client
 cannot establish whether launch completed. Inspect `backlog show TASK_ID` and

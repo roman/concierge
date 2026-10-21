@@ -135,14 +135,17 @@ type Receipt struct {
 
 // Closure records an explicit decision without accepting a worker result.
 type Closure struct {
-	Generation string `json:"generation"`
-	Reason     string `json:"reason"`
+	Generation string  `json:"generation"`
+	Reason     string  `json:"reason"`
+	Worker     *Worker `json:"worker,omitempty"`
 }
 
 // AbandonmentKind distinguishes discarded workers from unfinished launches.
 type AbandonmentKind string
 
 const DiscardedWorker AbandonmentKind = "discarded_worker"
+
+const OrphanedWorker AbandonmentKind = "orphaned_worker"
 
 // LaunchAbandonment preserves resources without asserting successful work.
 type LaunchAbandonment struct {
@@ -348,6 +351,7 @@ func cloneClosure(input *Closure) *Closure {
 		return nil
 	}
 	selected := *input
+	selected.Worker = cloneWorker(input.Worker)
 	return &selected
 }
 

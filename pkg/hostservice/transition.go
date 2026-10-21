@@ -9,6 +9,7 @@ import (
 	"github.com/roman/concierge/pkg/taskmeta"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/roman/concierge/pkg/taskstate"
 )
@@ -24,6 +25,7 @@ const (
 	Stop            Operation = "stop"
 	Discard         Operation = "discard"
 	CloseRetired    Operation = "close_retired"
+	RecoverOrphaned Operation = "recover_orphaned"
 )
 
 type TransitionRequest struct {
@@ -115,10 +117,12 @@ func validateRequest(request Request) error {
 	if input == nil || request.Intake != nil {
 		return errors.New("lifecycle operation requires only a transition payload")
 	}
-	if input.OperatorApproved && request.Operation != Discard {
-		return errors.New("operator discard authority is unrelated to this operation")
+	if input.OperatorApproved && request.Operation != Discard &&
+		request.Operation != RecoverOrphaned {
+		return errors.New("operator authority is unrelated to this operation")
 	}
-	if input.Reason != "" && request.Operation != CloseRetired {
+	if input.Reason != "" && request.Operation != CloseRetired &&
+		request.Operation != RecoverOrphaned {
 		return errors.New("closure reason is unrelated to this operation")
 	}
 	// Validate identifiers and optional hold with the same task contract as intake.
@@ -126,9 +130,12 @@ func validateRequest(request Request) error {
 		return err
 	}
 	switch request.Operation {
-	case CloseRetired:
+	case CloseRetired, RecoverOrphaned:
+		if request.Operation == RecoverOrphaned && !input.OperatorApproved {
+			return errors.New("orphan recovery requires explicit operator approval")
+		}
 		if input.Mode != "" || input.Hold != nil || strings.TrimSpace(input.Reason) == "" ||
-			strings.ContainsAny(input.Reason, "\r\n\x00") {
+			strings.IndexFunc(input.Reason, unicode.IsControl) >= 0 {
 			return errors.New(
 				"close requires only a task ID, retired generation, reason and closing date",
 			)
@@ -198,6 +205,15 @@ func (server *Server) execute(
 	input := request.Transition
 	service := server.service.WithRemovedStoreLinkReporter(reportRemovedLink)
 	switch request.Operation {
+	case RecoverOrphaned:
+		return service.RecoverOrphaned(
+			ctx,
+			input.TaskID,
+			input.Generation,
+			input.Reason,
+			input.ClosedOn,
+			herdr.NewClient(server.config.HerdrExecutable),
+		)
 	case CloseRetired:
 		return service.CloseRetired(
 			ctx,
@@ -265,6 +281,8 @@ func validateTransitionResponse(response Response, request Request) error {
 
 	var repeated taskstate.Task
 	switch request.Operation {
+	case RecoverOrphaned:
+		repeated, err = task.RecoverOrphaned(input.Generation, input.Reason, input.ClosedOn)
 	case CloseRetired:
 		repeated, err = task.CloseRetired(input.Generation, input.Reason, input.ClosedOn)
 	case Start:
