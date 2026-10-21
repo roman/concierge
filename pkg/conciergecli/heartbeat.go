@@ -56,6 +56,7 @@ type heartbeatCommands struct {
 type heartbeatEventSelection struct {
 	EventID    string `arg:"" help:"Stable supervisor event ID."`
 	Generation string `required:"" help:"Primary binding generation from the native notification."`
+	Runtime    string `default:"local" enum:"local,host" help:"Use host to require the running host's binary and roots before processing a native wake."`
 }
 
 type heartbeatSettings = heartbeat.Settings

@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -70,14 +72,45 @@ func Notification(
 	generation string,
 ) string {
 	return fmt.Sprintf(
-		"Concierge supervisor event %s. Recheck this event against fresh state before acting. Run %s --root %s --message-root %s --recipient %s heartbeat claim %s --generation %s. Act only on status: current. If the native sandbox hides process identity or blocks the owning Unix socket, retry the exact command through the normal native approval flow (Codex shell sandbox_permissions=require_escalated). Preserve the configured permissions, trust, owner, and binding. Use that same approved access for the later acknowledgement. Read fresh pending messages through the normal bound task-reply protocol. Post the operator update before recording its output acknowledgement. If the claim is stale, paused, in progress, or acknowledged, do not repeat the update.",
+		"Concierge supervisor event %s. Run %s heartbeat claim %s --generation %s --runtime host. Act only on status: current. For blocked process identity or socket access, retry the exact command through the normal native approval flow (Codex sandbox_permissions=require_escalated). Preserve the configured permissions, trust, owner, and binding. Use the same access for acknowledgement. Process fresh pending messages through the bound task-reply protocol. Post the operator update before acknowledgement. Do not repeat output for other claim statuses.",
 		event.ID,
-		shellQuote(executable),
+		wakeInvocation(executable, root, messageRoot, recipient),
+		shellQuote(event.ID),
+		shellQuote(generation),
+	)
+}
+
+// wakeInvocation uses the adopted shell when available. The runtime guard on wake
+// commands checks the caller's actual configuration before changing state.
+func wakeInvocation(executable, root, messageRoot, recipient string) string {
+	name := "concierge"
+	if _, err := exec.LookPath(name); err != nil {
+		name = shellQuote(executable)
+	}
+	if os.Getenv("CONCIERGE_HOME") == root && os.Getenv("TINCAN_HOME") == messageRoot &&
+		recipient == "concierge" {
+		return name
+	}
+	return fmt.Sprintf(
+		"%s --root %s --message-root %s --recipient %s",
+		name,
 		shellQuote(root),
 		shellQuote(messageRoot),
 		shellQuote(recipient),
+	)
+}
+
+func AcknowledgementCommand(
+	executable, root, messageRoot, recipient string,
+	event Event,
+	generation string,
+) string {
+	return fmt.Sprintf(
+		"%s heartbeat ack %s --generation %s --runtime host --token %s --output OUTPUT_REFERENCE",
+		wakeInvocation(executable, root, messageRoot, recipient),
 		shellQuote(event.ID),
 		shellQuote(generation),
+		shellQuote(event.Claim.Token),
 	)
 }
 

@@ -36,7 +36,10 @@ notification, transcript, registry, or mailbox into the environment.
 
 ## Claim, update, acknowledge
 
-Run the notification's exact claim command with its explicit roots and recipient.
+Run the notification's exact claim command, including `--runtime host`.
+The adopted shell supplies the pinned binary and roots. Keep any explicit
+roots and recipient in a fallback command. Restore the adopted shell on a
+runtime mismatch. Do not remove the guard to bypass a mismatch.
 Act only on `status: current`. A mailbox publication grants no processing authority.
 The claim supplies fresh workers, pending messages, completion work, open actions,
 and a two-minute token. Batch independent reads. Reuse these returned states;
@@ -59,7 +62,7 @@ End the update with **Waiting on you**, listing every open request.
 State that no operator action is needed when the list is empty.
 For requested alerts, follow [Operator notifications](references/heartbeat.md#operator-notifications).
 Post the update before its receipt:
-`concierge heartbeat ack EVENT --generation GENERATION --token CLAIM_TOKEN --output OUTPUT_REFERENCE`.
+`concierge heartbeat ack EVENT --generation GENERATION --runtime host --token CLAIM_TOKEN --output OUTPUT_REFERENCE`.
 The reference identifies the posted update. Queue acceptance, hook exit, and a
 drained queue do not acknowledge output. An acknowledged event needs no repeat.
 Stale, paused, expired, or in-progress claims require fresh verification.

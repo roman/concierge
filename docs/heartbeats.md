@@ -103,13 +103,22 @@ Inspect `last_error` and the host log. Pending events survive failures.
 
 ## Claim and output receipt
 
-Use the exact claim command from the native notification. Preserve its explicit
-roots, recipient, event ID, and binding generation:
+Use the exact claim command from the native notification. Preserve its event ID,
+binding generation, and `--runtime host` guard:
 
 ```sh
-concierge heartbeat claim EVENT --generation GENERATION
-concierge heartbeat ack EVENT --generation GENERATION --token CLAIM_TOKEN --output OUTPUT_REFERENCE
+concierge heartbeat claim EVENT --generation GENERATION --runtime host
+concierge heartbeat ack EVENT --generation GENERATION --runtime host --token CLAIM_TOKEN --output OUTPUT_REFERENCE
 ```
+
+The command uses `concierge` on PATH when available. The adopted shell supplies
+`CONCIERGE_HOME` and `TINCAN_HOME`. Notifications retain explicit roots and the
+recipient when their generating process has different or missing settings.
+They retain the absolute executable when `concierge` is absent from PATH.
+The runtime guard checks the caller against the running host's executable,
+revision, roots, and recipient before changing event state. An older binary
+rejects the new flag. Restore the adopted shell if verification fails. Do not
+remove the guard. A generation from another root still fails event verification.
 
 Act only on `status: current`. A claim lasts two minutes and returns fresh
 worker states, pending reply metadata, completion work, and open actions.

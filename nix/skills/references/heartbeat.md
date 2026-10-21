@@ -14,7 +14,12 @@ acknowledged periodic output and cannot clear an operator pause. New pending
 messages remain eligible during both forms of suppression.
 
 A native notification carries an event ID, binding generation, and exact claim
-command. Run that command with its explicit roots and recipient. Act only on
+command. Run that command including `--runtime host`. The adopted shell supplies
+the binary and roots. Keep any explicit roots and recipient in a fallback
+command. The guard checks the running host's executable, revision, message root,
+and recipient before a claim or acknowledgement can change state. An older
+binary rejects the guard flag. Restore the adopted shell on a mismatch.
+Act only on
 `status: current`. The claim returns fresh worker states, pending messages,
 acceptance and cleanup work, open actions, and a two-minute claim token.
 Handle assignments and results through their normal verification protocols.
@@ -31,7 +36,7 @@ A denied approval leaves the event pending. Report the actionable fault.
 Post the operator update before recording its output receipt:
 
 ```sh
-concierge heartbeat ack EVENT --generation GENERATION --token CLAIM_TOKEN --output OUTPUT_REFERENCE
+concierge heartbeat ack EVENT --generation GENERATION --runtime host --token CLAIM_TOKEN --output OUTPUT_REFERENCE
 ```
 
 The output reference identifies the update already posted. End that update

@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/roman/concierge/pkg/codexqueue"
 	"github.com/roman/concierge/pkg/heartbeat"
+	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/primary"
 )
 
@@ -124,6 +126,33 @@ func (command *cli) heartbeatLifecycleResponse(
 ) int {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	var runtime string
+	switch selected {
+	case "heartbeat claim <event-id>":
+		runtime = command.Heartbeat.Claim.Runtime
+	case "heartbeat ack <event-id>":
+		runtime = command.Heartbeat.Ack.Runtime
+	}
+	if runtime == "host" {
+		lease, err := hostactivity.Begin(root)
+		if err != nil {
+			return fail(
+				output,
+				1,
+				err,
+				"wait for host replacement to finish; preserve the pending event and retry the guarded command",
+			)
+		}
+		defer lease.Close()
+		if err := command.checkHeartbeatRuntime(ctx, root); err != nil {
+			return fail(
+				output,
+				1,
+				err,
+				"restore the adopted shell's pinned concierge binary and roots; preserve --runtime host and the pending event",
+			)
+		}
+	}
 	store := heartbeat.Store{Root: root}
 	var err error
 	switch selected {
@@ -194,9 +223,21 @@ func (command *cli) heartbeatLifecycleResponse(
 					"help: Process the new pending messages through their normal verification protocol. Report only their resulting work. Do not use an inbox event to send a periodic reminder.",
 				)
 			}
-			fmt.Fprintln(
+			executable, executableErr := os.Executable()
+			if executableErr != nil {
+				return fail(output, 1, executableErr, heartbeatHelp)
+			}
+			fmt.Fprintf(
 				output,
-				"help: Post the operator update, then run concierge heartbeat ack EVENT --generation GENERATION --token CLAIM_TOKEN --output OUTPUT_REFERENCE. This records a primary-reported output receipt.",
+				"help: Post the operator update, then run %s. This records a primary-reported output receipt.\n",
+				heartbeat.AcknowledgementCommand(
+					executable,
+					root,
+					messageRoot,
+					command.Recipient,
+					event,
+					selection.Generation,
+				),
 			)
 			return 0
 		}
