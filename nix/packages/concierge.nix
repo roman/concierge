@@ -2,8 +2,7 @@ inputs: { pkgs, ... }:
 let
   command = pkgs.callPackage (import ./concierge-command.nix inputs) { };
   system = pkgs.stdenv.hostPlatform.system;
-  processTools = if pkgs.stdenv.isLinux then pkgs.procps else
-    pkgs.writeShellScriptBin "ps" "exec /bin/ps \"$@\"";
+  processTools = import ../process-tools.nix { inherit pkgs; };
   runtime = pkgs.symlinkJoin {
     name = "concierge-runtime";
     paths = [
