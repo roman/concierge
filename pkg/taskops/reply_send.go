@@ -20,6 +20,7 @@ type ReplyInput struct {
 	Key          string
 	AssignmentID string
 	Body         string
+	Attachments  []taskprotocol.Attachment
 }
 
 // ReplyAcknowledgement describes assignment handling after reply publication.
@@ -68,6 +69,9 @@ func (service *Service) sendReply(
 	authorize func(taskstate.Task) error,
 	mode replyPublicationMode,
 ) (ReplyDelivery, error) {
+	if err := taskprotocol.ValidateAttachments(input.Attachments); err != nil {
+		return ReplyDelivery{}, err
+	}
 	if err := taskmeta.ValidateSpawnGeneration(input.Generation); err != nil {
 		return ReplyDelivery{}, err
 	}
@@ -112,9 +116,13 @@ func (service *Service) sendReply(
 			Kind: "task-reply", State: filepath.Join(service.root, "tasks"),
 			Task: input.TaskID, SpawnGeneration: input.Generation,
 			AssignmentID: input.AssignmentID, ReplyKey: replyKey, Body: input.Body,
+			Attachments: taskprotocol.CanonicalAttachments(input.Attachments),
 		})
 		if err != nil {
 			return err
+		}
+		if len(input.Attachments) != 0 && len(envelope) > taskprotocol.MaxReplyBytes {
+			return taskprotocol.ErrInvalidReply
 		}
 		key := fmt.Sprintf(
 			"task-reply:%s:%s:%s:%s",
@@ -138,7 +146,8 @@ func (service *Service) sendReply(
 		if input.AssignmentID != "" {
 			result.Assignment = ReplyAcknowledgementUnconfirmed
 		}
-		if mode == trustedOriginalReply || authorize != nil || input.AssignmentID != "" ||
+		if len(input.Attachments) != 0 || mode == trustedOriginalReply || authorize != nil ||
+			input.AssignmentID != "" ||
 			task.Current().Definition().Kind == "scout" {
 			result.Archive = ReplyUnconfirmed
 			if err := service.archiveReply(message); err != nil {
