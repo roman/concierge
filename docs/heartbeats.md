@@ -35,6 +35,10 @@ New pending messages remain eligible during an operator pause or quiet
 suppression. The event kind is `inbox`. Its claim permits processing the new
 messages through their existing verification protocols. It does not authorize
 a periodic reminder. Old pending messages do not hide a newly arrived ID.
+Replies that arrive before a pending event is claimed share that event. The
+claim collects fresh state. After acknowledged inbox output, periodic events
+wait at least 60 seconds, or the configured interval when longer. New messages
+bypass this delay and remain eligible on the next host check.
 
 The host stops creating periodic events when workers, pending replies,
 acceptance, landing, cleanup, launch intentions, and operator actions are all

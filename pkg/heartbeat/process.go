@@ -13,6 +13,8 @@ import (
 
 var ErrAcknowledged = errors.New("event output is already acknowledged")
 
+const inboxWakeGrace = time.Minute
+
 func claimEvent(state *State, id string, now time.Time) (Claim, error) {
 	event, err := pending(state, id)
 	if err != nil {
@@ -59,7 +61,11 @@ func acknowledgeEvent(state *State, id, token, output string, now time.Time) err
 		MessageID: event.MessageID,
 	}
 	if event.Interval > 0 {
-		state.Next = now.Add(event.Interval).UTC()
+		interval := event.Interval
+		if event.Kind == Inbox {
+			interval = max(interval, inboxWakeGrace)
+		}
+		state.Next = now.Add(interval).UTC()
 	}
 	state.Delivery, state.LastError = "output_reported", ""
 	state.Pending = nil
