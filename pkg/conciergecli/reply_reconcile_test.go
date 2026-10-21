@@ -68,7 +68,7 @@ func TestReplyReconcileForwardsOnlyTheOriginalTupleToTheHost(t *testing.T) {
 	select {
 	case request := <-received:
 		if request.Operation != hostservice.ReconcileReply || request.Reconciliation == nil ||
-			*request.Reconciliation != payload {
+			!request.Reconciliation.Equal(payload) {
 			t.Fatalf("reconciliation changed the original tuple: %+v", request)
 		}
 	case <-ctx.Done():

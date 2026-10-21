@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"syscall"
 	"time"
 
@@ -139,14 +140,14 @@ func (store *Store) update(
 	if err != nil {
 		return Record{}, err
 	}
-	if previous != nil && previous.Payload != payload {
+	if previous != nil && !previous.Payload.Equal(payload) {
 		return Record{}, ErrConflict
 	}
 	updated, err := change(previous)
 	if err != nil {
 		return updated, err
 	}
-	if previous != nil && *previous == updated {
+	if previous != nil && reflect.DeepEqual(*previous, updated) {
 		return updated, store.syncDirectory(root)
 	}
 	if err := updated.validate(); err != nil {

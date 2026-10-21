@@ -10,6 +10,7 @@ import (
 
 	"github.com/roman/concierge/pkg/replyoutbox"
 	"github.com/roman/concierge/pkg/taskops"
+	"github.com/roman/concierge/pkg/taskprotocol"
 	"github.com/roman/concierge/pkg/workeraccess"
 	"github.com/roman/concierge/pkg/workerservice"
 )
@@ -21,6 +22,38 @@ func runRemoteReply(t *testing.T, id, body string) (int, string) {
 		"--generation", "test-generation", "--key", "result", "--assignment-id", id, "--body-file", "-"},
 		strings.NewReader(body), &output, &output)
 	return code, output.String()
+}
+
+func TestOfflineRemoteReplyRetainsAttachmentBytes(t *testing.T) {
+	remoteCLI(t, workerservice.Response{})
+	secretFile := os.Getenv("CONCIERGE_WORKER_SECRET_FILE")
+	socket := filepath.Join(filepath.Dir(secretFile), "offline.sock")
+	attachment, err := taskprotocol.NewAttachment("evidence.bin", []byte{0, 128, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := workerservice.Request{
+		Task:        "task-1",
+		Generation:  "test-generation",
+		Operation:   workeraccess.SendReply,
+		Key:         "result",
+		MessageID:   "k-" + strings.Repeat("a", 64),
+		Body:        "Done",
+		Attachments: []taskprotocol.Attachment{attachment},
+	}
+	_, retained, err := sendRemoteReply(t.Context(), socket, secretFile, request)
+	if err == nil || retained == "" {
+		t.Fatalf("offline reply was not retained: %q %v", retained, err)
+	}
+	data, err := os.ReadFile(retained)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := replyoutbox.DecodeRecord(data)
+	if err != nil || len(record.Payload.Attachments) != 1 ||
+		!bytes.Equal(record.Payload.Attachments[0].Data, attachment.Data) {
+		t.Fatalf("offline attachment lost: %v", err)
+	}
 }
 
 func retainedRemoteReply(t *testing.T, id, body string) replyoutbox.Record {

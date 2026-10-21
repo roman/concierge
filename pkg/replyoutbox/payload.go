@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/roman/concierge/pkg/taskmeta"
+	"github.com/roman/concierge/pkg/taskprotocol"
 	"github.com/roman/tincan/pkg/inbox"
 )
 
@@ -22,13 +23,14 @@ var ErrInvalidPayload = errors.New("reply payload is incomplete, invalid or over
 // Payload contains the complete original tuple. Root and recipient are binding
 // metadata, never resources selected by a remote worker request.
 type Payload struct {
-	Root         string `json:"root"`
-	Task         string `json:"task"`
-	Generation   string `json:"generation"`
-	AssignmentID string `json:"assignment_id"`
-	Key          string `json:"key"`
-	Recipient    string `json:"recipient"`
-	Body         string `json:"body"`
+	Root         string                    `json:"root"`
+	Task         string                    `json:"task"`
+	Generation   string                    `json:"generation"`
+	AssignmentID string                    `json:"assignment_id"`
+	Key          string                    `json:"key"`
+	Recipient    string                    `json:"recipient"`
+	Body         string                    `json:"body"`
+	Attachments  []taskprotocol.Attachment `json:"attachments,omitempty"`
 }
 
 func (payload Payload) Validate() error {
@@ -37,6 +39,9 @@ func (payload Payload) Validate() error {
 }
 
 func (payload Payload) Encode() ([]byte, error) {
+	if err := taskprotocol.ValidateAttachments(payload.Attachments); err != nil {
+		return nil, ErrInvalidPayload
+	}
 	for _, value := range []string{payload.Root, payload.Task, payload.Generation,
 		payload.AssignmentID, payload.Key, payload.Recipient, payload.Body} {
 		if !utf8.ValidString(value) {
@@ -63,6 +68,7 @@ func (payload Payload) Encode() ([]byte, error) {
 			return nil, ErrInvalidPayload
 		}
 	}
+	payload.Attachments = taskprotocol.CanonicalAttachments(payload.Attachments)
 	data, err := json.Marshal(payload)
 	if err != nil || len(data) > maxPayloadBytes {
 		return nil, ErrInvalidPayload
@@ -91,10 +97,17 @@ func (payload Payload) ID() (string, error) {
 	// Primary publication deduplicates bound replies by assignment. Changing
 	// a body or user key must conflict with that entry rather than create one.
 	payload.Body = ""
+	payload.Attachments = nil
 	if payload.AssignmentID != "" {
 		payload.Key = ""
 	}
 	identity, _ := json.Marshal(payload)
 	digest := sha256.Sum256(identity)
 	return hex.EncodeToString(digest[:]), nil
+}
+
+func (payload Payload) Equal(other Payload) bool {
+	left, leftError := payload.Encode()
+	right, rightError := other.Encode()
+	return leftError == nil && rightError == nil && bytes.Equal(left, right)
 }

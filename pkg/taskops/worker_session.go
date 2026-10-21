@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/roman/concierge/pkg/taskmeta"
+	"github.com/roman/concierge/pkg/taskprotocol"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/workeraccess"
 	"github.com/roman/tincan/pkg/inbox"
@@ -108,12 +109,13 @@ func (session *WorkerSession) AcknowledgeAssignment(
 func (session *WorkerSession) SendReply(
 	ctx context.Context,
 	key, assignmentID, body string,
+	attachments ...taskprotocol.Attachment,
 ) (ReplyDelivery, error) {
 	if err := session.preflight(ctx, workeraccess.SendReply); err != nil {
 		return ReplyDelivery{}, err
 	}
 	return session.service.sendReply(ctx, session.messages.Root(), ReplyInput{
 		TaskID: session.taskID, Generation: session.generation, Key: key,
-		AssignmentID: assignmentID, Body: body,
+		AssignmentID: assignmentID, Body: body, Attachments: attachments,
 	}, session.authorize(workeraccess.SendReply), currentGenerationReply)
 }

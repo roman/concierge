@@ -16,6 +16,11 @@ func TestTrustedReconciliationPublishesTheOriginalRetiredGeneration(t *testing.T
 	payload := replyoutbox.Payload{Root: service.root, Task: "task-1", Generation: "gen-existing",
 		AssignmentID: assignment.ID.String(), Key: "original-result", Recipient: service.primaryRecipient.String(),
 		Body: "Original reply retained across revocation\n"}
+	attachment, err := taskprotocol.NewAttachment("evidence.bin", []byte{0, 128, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload.Attachments = []taskprotocol.Attachment{attachment}
 	if _, err := service.Finish(ctx, payload.Task, payload.Generation, taskstate.Close, "2026-10-17"); err != nil {
 		t.Fatal(err)
 	}
@@ -42,6 +47,9 @@ func TestTrustedReconciliationPublishesTheOriginalRetiredGeneration(t *testing.T
 		t.Fatalf("reconciliation changed the original tuple: %+v %v", reply, err)
 	}
 	after, err := service.store.Read(ctx, payload.Task)
+	if !reflect.DeepEqual(reply.Attachments, payload.Attachments) {
+		t.Fatal("reconciliation lost original attachments")
+	}
 	if err != nil || !reflect.DeepEqual(before.Snapshot(), after.Snapshot()) {
 		t.Fatalf("reconciliation reopened or changed the task: %v", err)
 	}

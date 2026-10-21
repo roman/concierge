@@ -19,7 +19,7 @@ func TestPayloadRetainsTheCompleteOriginalReplyTuple(t *testing.T) {
 		t.Fatal(err)
 	}
 	decoded, err := DecodePayload(encoded)
-	if err != nil || decoded != original {
+	if err != nil || !decoded.Equal(original) {
 		t.Fatalf("reply tuple changed: %+v %v", decoded, err)
 	}
 	for _, invalid := range [][]byte{

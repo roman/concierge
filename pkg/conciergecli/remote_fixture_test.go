@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -56,7 +57,7 @@ func TestRemoteFixtureRequiresCompleteRequestFrame(t *testing.T) {
 			}
 			select {
 			case received := <-requests:
-				if received != request {
+				if !reflect.DeepEqual(received, request) {
 					t.Fatalf("fixture changed the request: %v", received)
 				}
 			default:

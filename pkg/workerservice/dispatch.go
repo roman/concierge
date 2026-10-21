@@ -90,7 +90,12 @@ func (server *Server) perform(ctx context.Context, request Request) Response {
 		}
 	case workeraccess.SendReply:
 		var delivery taskops.ReplyDelivery
-		delivery, err = session.SendReply(ctx, request.Key, request.MessageID, request.Body)
+		delivery, err = session.SendReply(
+			ctx,
+			request.Key,
+			request.MessageID,
+			request.Body,
+			request.Attachments...)
 		if delivery.Message.ID.String() != "" {
 			response.Reply = &Reply{
 				Root: server.config.Root, Recipient: server.config.Recipient.String(),

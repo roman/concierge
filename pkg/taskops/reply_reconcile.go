@@ -28,6 +28,6 @@ func (service *Service) ReconcileReply(
 	}
 	return service.sendReply(ctx, messageRoot, ReplyInput{
 		TaskID: payload.Task, Generation: payload.Generation, Key: payload.Key,
-		AssignmentID: payload.AssignmentID, Body: payload.Body,
+		AssignmentID: payload.AssignmentID, Body: payload.Body, Attachments: payload.Attachments,
 	}, nil, trustedOriginalReply)
 }

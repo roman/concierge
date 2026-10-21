@@ -85,6 +85,8 @@ func dispatchFixture(t *testing.T) (*Server, *taskstate.Store, *inbox.Store, Req
 
 func TestWorkerReplyRetainsPublicationWhenArchiveFails(t *testing.T) {
 	server, _, messages, request := dispatchFixture(t)
+	attachment, _ := taskprotocol.NewAttachment("evidence.bin", []byte{0, 255})
+	request.Attachments = []taskprotocol.Attachment{attachment}
 	request.Operation, request.Key, request.Body = workeraccess.SendReply, "result", "Completed"
 	archive := filepath.Join(server.config.Root, "reports")
 	if err := os.WriteFile(archive, []byte("retain"), 0600); err != nil {
@@ -121,6 +123,8 @@ func TestWorkerDispatchDenialHasNoMutation(t *testing.T) {
 	for _, trial := range []string{"secret", "task", "generation", "revoked", "primary operation"} {
 		t.Run(trial, func(t *testing.T) {
 			server, store, messages, request := dispatchFixture(t)
+			attachment, _ := taskprotocol.NewAttachment("evidence.bin", []byte{0, 255})
+			request.Attachments = []taskprotocol.Attachment{attachment}
 			ctx := context.Background()
 			request.Operation, request.Key, request.Body = workeraccess.SendReply, "result", "Done"
 			want := Denied

@@ -31,7 +31,7 @@ func sendRemoteReply(
 	}
 	payload := replyoutbox.Payload{Root: binding.Root, Task: request.Task,
 		Generation: request.Generation, AssignmentID: request.MessageID, Key: request.Key,
-		Recipient: binding.Recipient, Body: request.Body}
+		Recipient: binding.Recipient, Body: request.Body, Attachments: request.Attachments}
 	store, err := replyoutbox.New(filepath.Dir(secretFile))
 	if err != nil {
 		return workerservice.Response{}, "", err

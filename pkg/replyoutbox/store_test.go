@@ -37,7 +37,7 @@ func TestOutboxRetainsOriginalPayloadAndPartialReceiptsAcrossReload(t *testing.T
 	}
 	reloaded, _ := New(directory)
 	retained, err := reloaded.Stage(ctx, payload)
-	if err != nil || retained.Payload != payload || retained.Progress != first.Progress {
+	if err != nil || !retained.Payload.Equal(payload) || retained.Progress != first.Progress {
 		t.Fatalf("reload lost original reply or receipts: %+v %v", retained.Progress, err)
 	}
 	second, err := reloaded.Confirm(ctx, payload, Progress{ArchiveConfirmed: true})
@@ -45,7 +45,7 @@ func TestOutboxRetainsOriginalPayloadAndPartialReceiptsAcrossReload(t *testing.T
 		t.Fatalf("archive alone completed delivery: %+v %v", second.Progress, err)
 	}
 	final, err := reloaded.Confirm(ctx, payload, Progress{AssignmentAcknowledged: true})
-	if err != nil || !final.Complete() || final.Payload != payload {
+	if err != nil || !final.Complete() || !final.Payload.Equal(payload) {
 		t.Fatalf(
 			"separate confirmations did not complete original reply: %+v %v",
 			final.Progress,
@@ -82,7 +82,7 @@ func TestOutboxRefusesAChangedBodyOrKeyAndRetainsRevokedReplies(t *testing.T) {
 	}
 	reloaded, _ := New(directory)
 	record, err := reloaded.Stage(ctx, payload)
-	if !errors.Is(err, ErrRevoked) || record.Payload != payload || !record.Revoked {
+	if !errors.Is(err, ErrRevoked) || !record.Payload.Equal(payload) || !record.Revoked {
 		t.Fatalf("revoked reply was lost or resumed: %+v %v", record.Progress, err)
 	}
 	if _, err := reloaded.Confirm(ctx, payload, Progress{}); !errors.Is(err, ErrRevoked) {

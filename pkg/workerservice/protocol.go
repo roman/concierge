@@ -12,6 +12,7 @@ import (
 
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskops"
+	"github.com/roman/concierge/pkg/taskprotocol"
 	"github.com/roman/concierge/pkg/workeraccess"
 	"github.com/roman/tincan/pkg/inbox"
 )
@@ -23,13 +24,14 @@ var ErrInvalidRequest = errors.New("invalid worker request")
 
 // Request carries content and message IDs. The host selects all resources.
 type Request struct {
-	Task       string                 `json:"task"`
-	Generation string                 `json:"generation"`
-	Secret     string                 `json:"secret"`
-	Operation  workeraccess.Operation `json:"operation"`
-	MessageID  string                 `json:"message_id,omitempty"`
-	Key        string                 `json:"key,omitempty"`
-	Body       string                 `json:"body,omitempty"`
+	Task        string                    `json:"task"`
+	Generation  string                    `json:"generation"`
+	Secret      string                    `json:"secret"`
+	Operation   workeraccess.Operation    `json:"operation"`
+	MessageID   string                    `json:"message_id,omitempty"`
+	Key         string                    `json:"key,omitempty"`
+	Body        string                    `json:"body,omitempty"`
+	Attachments []taskprotocol.Attachment `json:"attachments,omitempty"`
 }
 
 func (request Request) Format(output fmt.State, _ rune) {
@@ -52,6 +54,9 @@ func (request Request) validate() error {
 	}
 	switch request.Operation {
 	case workeraccess.SendReply:
+		if err := taskprotocol.ValidateAttachments(request.Attachments); err != nil {
+			return ErrInvalidRequest
+		}
 		if strings.TrimSpace(request.Key) == "" || len(request.Key) > 1024 ||
 			strings.TrimSpace(request.Body) == "" || len(request.Body) > maxBodyBytes {
 			return ErrInvalidRequest
@@ -66,7 +71,7 @@ func (request Request) validate() error {
 			return ErrInvalidRequest
 		}
 	}
-	if request.Key != "" || request.Body != "" {
+	if request.Key != "" || request.Body != "" || len(request.Attachments) != 0 {
 		return ErrInvalidRequest
 	}
 	return nil
