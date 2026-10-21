@@ -133,6 +133,12 @@ type Receipt struct {
 	Mode         CompletionMode `json:"mode"`
 }
 
+// Closure records an explicit decision without accepting a worker result.
+type Closure struct {
+	Generation string `json:"generation"`
+	Reason     string `json:"reason"`
+}
+
 // AbandonmentKind distinguishes discarded workers from unfinished launches.
 type AbandonmentKind string
 
@@ -162,6 +168,7 @@ type record struct {
 	Completion    *Completion   `json:"completion,omitempty"`
 	Receipt       *Receipt      `json:"receipt,omitempty"`
 	PriorReceipts []Receipt     `json:"prior_receipts,omitempty"`
+	Closure       *Closure      `json:"closure,omitempty"`
 }
 
 // Snapshot carries one complete task across the explicit migration boundary.
@@ -174,6 +181,7 @@ type Snapshot struct {
 	Completion        *Completion
 	Receipt           *Receipt
 	PriorReceipts     []Receipt
+	Closure           *Closure
 }
 
 // Task keeps a validated snapshot private. Changes create a new snapshot.
@@ -197,6 +205,7 @@ func NewMigrated(input Snapshot) (Task, error) {
 		LaunchIntent: cloneLaunchIntent(input.LaunchIntent),
 		Completion:   cloneCompletion(input.Completion),
 		Receipt:      cloneReceipt(input.Receipt), PriorReceipts: slices.Clone(input.PriorReceipts),
+		Closure: cloneClosure(input.Closure),
 	}
 	if recordUsesRemote(selected) {
 		selected.Format = remoteFormatVersion
@@ -262,6 +271,7 @@ func (task Task) Snapshot() Snapshot {
 		Completion:    cloneCompletion(task.record.Completion),
 		Receipt:       cloneReceipt(task.record.Receipt),
 		PriorReceipts: slices.Clone(task.record.PriorReceipts),
+		Closure:       cloneClosure(task.record.Closure),
 	}
 }
 
@@ -333,7 +343,18 @@ func cloneReceipt(input *Receipt) *Receipt {
 	return &selected
 }
 
+func cloneClosure(input *Closure) *Closure {
+	if input == nil {
+		return nil
+	}
+	selected := *input
+	return &selected
+}
+
 func validate(selected record) error {
+	if !validClosure(selected) {
+		return ErrInvalidTask
+	}
 	if !validLaunchAbandonments(selected) {
 		return ErrInvalidTask
 	}
@@ -418,7 +439,7 @@ func validate(selected record) error {
 			return ErrInvalidTask
 		}
 		if selected.Worker == nil && selected.Completion == nil &&
-			((selected.State == Done && selected.Receipt.Mode != Close) ||
+			((selected.State == Done && selected.Receipt.Mode != Close && selected.Closure == nil) ||
 				(selected.State == Queued && selected.Receipt.Mode != Retain)) {
 			return ErrInvalidTask
 		}

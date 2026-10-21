@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/taskmeta"
+	"strings"
 	"time"
 
 	"github.com/roman/concierge/pkg/taskstate"
@@ -22,6 +23,7 @@ const (
 	Cancel          Operation = "cancel"
 	Stop            Operation = "stop"
 	Discard         Operation = "discard"
+	CloseRetired    Operation = "close_retired"
 )
 
 type TransitionRequest struct {
@@ -30,6 +32,7 @@ type TransitionRequest struct {
 	Generation       string                   `json:"generation,omitempty"`
 	Mode             taskstate.CompletionMode `json:"mode,omitempty"`
 	ClosedOn         string                   `json:"closed_on,omitempty"`
+	Reason           string                   `json:"reason,omitempty"`
 	Hold             *taskstate.Hold          `json:"hold,omitempty"`
 }
 
@@ -115,11 +118,28 @@ func validateRequest(request Request) error {
 	if input.OperatorApproved && request.Operation != Discard {
 		return errors.New("operator discard authority is unrelated to this operation")
 	}
+	if input.Reason != "" && request.Operation != CloseRetired {
+		return errors.New("closure reason is unrelated to this operation")
+	}
 	// Validate identifiers and optional hold with the same task contract as intake.
 	if _, err := taskstate.NewQueued(taskstate.Definition{ID: input.TaskID, Title: "validation", Kind: "task", Repo: "validation", Hold: input.Hold}); err != nil {
 		return err
 	}
 	switch request.Operation {
+	case CloseRetired:
+		if input.Mode != "" || input.Hold != nil || strings.TrimSpace(input.Reason) == "" ||
+			strings.ContainsAny(input.Reason, "\r\n\x00") {
+			return errors.New(
+				"close requires only a task ID, retired generation, reason and closing date",
+			)
+		}
+		if err := taskmeta.ValidateSpawnGeneration(input.Generation); err != nil {
+			return err
+		}
+		date, err := time.Parse("2006-01-02", input.ClosedOn)
+		if err != nil || date.Format("2006-01-02") != input.ClosedOn {
+			return errors.New("close requires a valid closing date")
+		}
 	case Discard:
 		if !input.OperatorApproved || input.Generation == "" || input.Mode != "" ||
 			input.ClosedOn != "" ||
@@ -178,6 +198,14 @@ func (server *Server) execute(
 	input := request.Transition
 	service := server.service.WithRemovedStoreLinkReporter(reportRemovedLink)
 	switch request.Operation {
+	case CloseRetired:
+		return service.CloseRetired(
+			ctx,
+			input.TaskID,
+			input.Generation,
+			input.Reason,
+			input.ClosedOn,
+		)
 	case Start:
 		return server.service.Start(ctx, input.TaskID)
 	case Finish:
@@ -237,6 +265,8 @@ func validateTransitionResponse(response Response, request Request) error {
 
 	var repeated taskstate.Task
 	switch request.Operation {
+	case CloseRetired:
+		repeated, err = task.CloseRetired(input.Generation, input.Reason, input.ClosedOn)
 	case Start:
 		repeated, err = task.Start()
 	case Hold:

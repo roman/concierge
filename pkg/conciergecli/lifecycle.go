@@ -41,6 +41,13 @@ func (command *backlogCommands) runLifecycle(
 	request := hostservice.Request{Transition: &hostservice.TransitionRequest{}}
 	input := request.Transition
 	switch selected {
+	case "backlog close <task-id>":
+		request.Operation = hostservice.CloseRetired
+		input.TaskID = command.Close.TaskID
+		input.Generation = command.Close.Generation
+		input.Reason = command.Close.Reason
+		input.ClosedOn = command.Close.ClosedOn
+		generation = input.Generation
 	case "backlog start <task-id>":
 		request.Operation = hostservice.Start
 		input.TaskID = command.Start.TaskID
@@ -122,6 +129,11 @@ func (command *backlogCommands) runLifecycle(
 	}
 	if generation != "" {
 		if _, err := fmt.Fprintf(output, "generation: %s\n", quote(generation)); err != nil {
+			return 1
+		}
+	}
+	if closure := task.Snapshot().Closure; closure != nil {
+		if _, err := fmt.Fprintf(output, "reason: %s\nclosed_on: %s\n", quote(closure.Reason), quote(task.Definition().Closed)); err != nil {
 			return 1
 		}
 	}

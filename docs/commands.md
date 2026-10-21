@@ -10,6 +10,7 @@
 | `tincan notify` | Prompt a Herdr endpoint while its inbox has pending messages. |
 | `concierge state` | Initialize fresh task state, back up legacy state, migrate, and recover. |
 | `concierge backlog` | Queue work, manage holds, dispatch, accept results, and retire worker bindings. |
+| `concierge backlog close TASK_ID --generation GENERATION --reason TEXT --closed-on YYYY-MM-DD` | Close held retired work while preserving receipts and worktree reservations. |
 | `concierge task` | Adopt workers, exchange bound assignments and replies, stop panes, and inspect tasks. |
 | `concierge worker` | Inspect recorded worker identities and recovery markers. |
 | `concierge primary` | Claim, verify, and release root ownership from native lifecycle hooks. |

@@ -169,6 +169,22 @@ additional responsibilities within explicit operator authority.
 
 ### Resolve and retire a worker
 
+Close a held task after its worker has retired or its launch has been abandoned:
+
+```sh
+concierge backlog close TASK_ID --generation GENERATION \
+  --reason "Superseded by a replacement task" --closed-on YYYY-MM-DD
+```
+
+The generation must identify its latest retained result or an abandonment
+receipt. The command records a closure decision separately from result acceptance.
+It preserves the hold, receipts, worktree, commits, and lease reservation. An
+active worker, completion, or launch intent blocks closure. An identical retry
+succeeds; a different reason, generation, or date fails. Inspect the reason and
+date with `backlog show TASK_ID`. Use `backlog list --state held` to find held
+queued tasks. Return a retained lease separately with `backlog release-worktree`
+after reviewing its work.
+
 Act on a reply only when `check` reports `status: current`. Resolution verifies
 its assignment and worker generation, records acceptance, and acknowledges the
 reply. Close requires an explicit valid closing date. Retry the same reply ID,

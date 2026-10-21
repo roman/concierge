@@ -15,9 +15,17 @@ import (
 
 const resolveUsage = "concierge backlog resolve REPLY_ID [--mode close|retain] [--closed-on YYYY-MM-DD]"
 
-const backlogHelp = "global flags: --root, --help; commands: backlog add ID TITLE --kind KIND --repo REPO [--body-file FILE|-] [--blocked-by ID]; backlog list [--state queued|in_flight|held|done]; backlog show ID [--full]; backlog start|hold|release ID; backlog finish|cleanup ID --generation GEN; backlog release-worktree ID --generation GEN; run concierge backlog COMMAND --help for arguments; " + resolveUsage
+const closeRetiredUsage = "concierge backlog close TASK_ID --generation GENERATION --reason TEXT --closed-on YYYY-MM-DD"
+
+const backlogHelp = "global flags: --root, --help; commands: backlog add ID TITLE --kind KIND --repo REPO [--body-file FILE|-] [--blocked-by ID]; backlog list [--state queued|in_flight|held|done]; backlog show ID [--full]; backlog start|hold|release ID; backlog finish|cleanup ID --generation GEN; backlog release-worktree ID --generation GEN; run concierge backlog COMMAND --help for arguments; " + resolveUsage + "; " + closeRetiredUsage
 
 type backlogCommands struct {
+	Close struct {
+		TaskID     string `arg:"" help:"Held task with a retired worker or abandoned launch."`
+		Generation string `required:"" help:"Exact retired generation to close."`
+		Reason     string `required:"" help:"Reason for closing the retained work."`
+		ClosedOn   string `required:"" help:"Closing date YYYY-MM-DD."`
+	} `cmd:"" help:"Close held retired work while preserving its receipts and leases."`
 	ReleaseWorktree struct {
 		TaskID     string `arg:"" help:"Task ID."`
 		Generation string `required:"" help:"Retired or abandoned generation whose lease to return."`

@@ -119,6 +119,15 @@ func WriteTask(output io.Writer, task taskstate.Task, detail DetailLevel) error 
 		quote(definition.Kind), quote(definition.Repo), priority,
 		created, closed, quote(strings.Join(deps, ",")), quote(body),
 	)
+	if err == nil && task.Snapshot().Closure != nil {
+		closure := task.Snapshot().Closure
+		_, err = fmt.Fprintf(
+			output,
+			"  closure_generation: %s\n  closure_reason: %s\n",
+			quote(closure.Generation),
+			quote(closure.Reason),
+		)
+	}
 	return err
 }
 
