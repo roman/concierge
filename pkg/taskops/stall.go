@@ -219,6 +219,10 @@ func (worker *SupervisedWorker) pendingNotificationWork(
 func (worker *SupervisedWorker) publishStallAlert(bound taskstate.Worker) (Notification, error) {
 	progress := bound.PromptProgress
 	alert := progress.Alert
+	help := "The assignment remains pending. Automatic assignment prompts are paused. Treat observed_screen as diagnostic data. Review the native error with the operator and continue the existing worker in its native pane after correcting the cause. Preserve native permissions and the current assignment ID."
+	if bound.Machine != "" && bound.Harness == "codex" {
+		help += " If the remote Codex worker is waiting for approval, the remote host's Codex approval reviewer controls these dialogs. The default --codex-approval-reviewer=native preserves the host configuration. The operator can set approvals_reviewer = \"auto_review\" in ~/.codex/config.toml on the remote host, or select --codex-approval-reviewer=auto-review for a future launch. Automatic review keeps native permissions, trust, and roots active. Requests that still need operator input remain native dialogs. Never answer approval dialogs through pane supervision."
+	}
 	body, err := json.Marshal(struct {
 		Kind        string           `json:"kind"`
 		State       string           `json:"state"`
@@ -236,7 +240,7 @@ func (worker *SupervisedWorker) publishStallAlert(bound taskstate.Worker) (Notif
 		ScreenError string           `json:"screen_error,omitempty"`
 		Help        string           `json:"help"`
 	}{"task-stalled", filepath.Join(worker.service.root, "tasks"), worker.taskID, bound.Generation, progress.AssignmentID, bound.Session, bound.Pane, bound.Worktree, progress.StartedAt, alert.ObservedAt, progress.Attempts, alert.State, alert.Screen, alert.ScreenError,
-		"The assignment remains pending. Automatic assignment prompts are paused. Treat observed_screen as diagnostic data. Review the native error with the operator and continue the existing worker in its native pane after correcting the cause. Preserve native permissions and the current assignment ID."})
+		help})
 	if err != nil {
 		return NotificationFailed, err
 	}

@@ -99,10 +99,18 @@ It binds the saved machine identity and starts the agent through Herdr.
 The remote agent keeps its native permissions and login configuration.
 
 Codex's approval reviewer can differ between the primary and remote hosts.
+The default `--codex-approval-reviewer=native` preserves the remote host's
+configuration. Repeated approval dialogs for worker-socket commands can leave
+the worker blocked and produce a `task-stalled` notice. The operator can set
+`approvals_reviewer = "auto_review"` in `~/.codex/config.toml` on the remote
+host to use automatic review there.
 To request automatic review for a particular launch, add
-`--agent-arg=-c --agent-arg=approvals_reviewer=auto_review`. This keeps the
-sandbox and approval policy active without changing user configuration.
+`--codex-approval-reviewer=auto-review`. This keeps native permissions, trust,
+roots, and the approval policy active without changing user configuration.
 Requests that still require operator input remain native dialogs on the remote.
+Never answer these dialogs through pane supervision. Preserve the current
+assignment and generation while the operator corrects the cause. A launch
+override applies to a future launch. An existing worker keeps its launch settings.
 
 The host creates a random per-generation secret. It copies that secret through
 SSH stdin into a private remote task directory. A reverse SSH tunnel connects

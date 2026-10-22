@@ -166,6 +166,56 @@ func TestBackgroundShellTextDoesNotHideOtherStalls(t *testing.T) {
 	}
 }
 
+func TestStallNoticeExplainsRemoteCodexApprovalReviewer(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		machine string
+		harness string
+		want    bool
+	}{
+		{"remote Codex", "baker", "codex", true},
+		{"local Codex", "", "codex", false},
+		{"remote Claude", "baker", "claude", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service, runner, messageRoot := runningWorkerService(t)
+			worker, err := service.SupervisedWorker(
+				"task-1", messageRoot, herdr.Client{SessionRunner: runner},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bound := taskstate.Worker{
+				Machine: test.machine, Harness: test.harness, Generation: "gen-1",
+				PromptProgress: &taskstate.PromptProgress{Alert: &taskstate.StallAlert{
+					State: herdr.Blocked, Screen: "Permission required",
+				}},
+			}
+			if _, err := worker.publishStallAlert(bound); err != nil {
+				t.Fatal(err)
+			}
+			notices, err := worker.messages.List(service.primaryRecipient)
+			if err != nil || len(notices) != 1 {
+				t.Fatalf("stall notices = %+v, %v", notices, err)
+			}
+			var notice struct {
+				Help string `json:"help"`
+			}
+			if err := json.Unmarshal([]byte(notices[0].Body), &notice); err != nil {
+				t.Fatal(err)
+			}
+			for _, advice := range []string{
+				"remote host", "~/.codex/config.toml", `approvals_reviewer = "auto_review"`,
+				"--codex-approval-reviewer=auto-review", "--codex-approval-reviewer=native", "Never answer",
+			} {
+				if strings.Contains(notice.Help, advice) != test.want {
+					t.Errorf("help contains %q: want %t; help=%s", advice, test.want, notice.Help)
+				}
+			}
+		})
+	}
+}
+
 func TestStalledAssignmentBoundsPromptsAndAlertsPrimary(t *testing.T) {
 	service, runner, messageRoot := runningWorkerService(t)
 	runner.agentStatus = herdr.Done

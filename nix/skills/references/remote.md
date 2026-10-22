@@ -10,6 +10,17 @@ Keep native permissions and login settings active. Operator approval requests
 remain native dialogs on the remote. Never answer a permission dialog through
 pane supervision.
 
+For a remote Codex worker waiting at an approval dialog, check the remote
+host's Codex approval reviewer with the operator. The launch default
+`--codex-approval-reviewer=native` preserves that host's configuration.
+The operator can set `approvals_reviewer = "auto_review"` in
+`~/.codex/config.toml` on the remote host. A future launch can select
+`--codex-approval-reviewer=auto-review` explicitly. Automatic review keeps
+native permissions, trust, and roots active. Requests that still need operator
+input remain native dialogs. A `task-stalled` notice includes this advice for
+remote Codex workers. Preserve the current assignment and generation while
+the operator corrects the cause. Never answer the dialog through supervision.
+
 Read the component table and version warnings from `machine check`,
 `machine status`, and launch output. Relay each warning and repair step to the
 operator. The comparison uses the running primary host's commit, rather than
