@@ -56,9 +56,8 @@ func (service *Service) CheckReply(
 	if err != nil {
 		return CheckedReply{}, err
 	}
-	worker, err := assignmentWorker(task)
-	if err != nil ||
-		(worker.Generation != reply.SpawnGeneration && !preservedReply(worker, messageID)) {
+	worker, current := currentReplyWorker(task, reply, messageID)
+	if !current {
 		return stale, nil
 	}
 	if reply.AssignmentID != "" {
@@ -71,4 +70,14 @@ func (service *Service) CheckReply(
 		State: ReplyCurrent, TaskID: reply.Task, Generation: worker.Generation,
 		AssignmentID: reply.AssignmentID, Body: reply.Body, Attachments: reply.Attachments,
 	}, nil
+}
+
+func currentReplyWorker(
+	task taskstate.Task,
+	reply taskprotocol.Reply,
+	messageID string,
+) (taskstate.Worker, bool) {
+	worker, err := assignmentWorker(task)
+	return worker, err == nil &&
+		(worker.Generation == reply.SpawnGeneration || preservedReply(worker, messageID))
 }

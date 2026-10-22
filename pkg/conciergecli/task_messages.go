@@ -10,7 +10,7 @@ import (
 	"github.com/roman/tincan/pkg/inbox"
 )
 
-const taskMessageHelp = "concierge task send TASK_ID [--key KEY] --body-file FILE|-; concierge task receive|ack TASK_ID MESSAGE_ID --generation GENERATION; global flags: --root, --message-root, --recipient, --help; " + replySendUsage + "; " + replyCheckUsage
+const taskMessageHelp = "concierge task send TASK_ID [--key KEY] --body-file FILE|-; concierge task receive|ack TASK_ID MESSAGE_ID --generation GENERATION; global flags: --root, --message-root, --recipient, --help; " + replySendUsage + "; " + replyCheckUsage + "; " + replyRetireUsage
 
 type assignmentSelection struct {
 	TaskID     string `arg:"" help:"Task ID."`
@@ -92,7 +92,9 @@ func (command *cli) runTaskMessages(
 	}
 	var service *taskops.Service
 	switch selected {
-	case "task reply send <task-id>", "task reply check <message-id>":
+	case "task reply send <task-id>",
+		"task reply check <message-id>",
+		"task reply retire-stale <message-id>":
 		recipient, parseErr := inbox.ParseRecipient(command.Recipient)
 		if parseErr != nil {
 			return fail(output, 2, parseErr, "use a valid primary --recipient name")
@@ -119,6 +121,8 @@ func (command *cli) runTaskMessages(
 			command.Task.Reply.Check.MessageID,
 		) + " --format toon"
 		return command.Task.Reply.check(ctx, service, messageRoot, fullCommand, output)
+	case "task reply retire-stale <message-id>":
+		return command.Task.Reply.retireStale(ctx, service, messageRoot, output)
 	case "task receive <task-id> <message-id>":
 		input := command.Task.Receive
 		result, err = service.ReadAssignment(

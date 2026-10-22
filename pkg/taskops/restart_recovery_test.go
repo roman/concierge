@@ -56,6 +56,9 @@ func TestRestartPreservesPublishedReplyAcrossGenerations(t *testing.T) {
 	if checked.Generation != current.Snapshot().Worker.Generation {
 		t.Fatalf("reply inspection selected an obsolete stop generation: %+v", checked)
 	}
+	if _, err := service.RetireStaleReply(ctx, messageRoot, reply.Message.ID.String()); err == nil {
+		t.Fatal("retired a reply preserved across worker restarts")
+	}
 	retry, err := service.SendReply(ctx, messageRoot, input)
 	if err != nil || retry.Message.ID != reply.Message.ID {
 		t.Fatalf("existing old reply retry changed: %+v, %v", retry, err)

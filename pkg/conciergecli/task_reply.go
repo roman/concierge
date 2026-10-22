@@ -10,8 +10,12 @@ import (
 
 const replySendUsage = "concierge [--recipient NAME] task reply send TASK_ID --generation GEN --key KEY [--assignment-id ID] --body-file FILE|- [--attach NAME=PATH ...]"
 const replyCheckUsage = "concierge [--recipient NAME] task reply check MESSAGE_ID"
+const replyRetireUsage = "concierge [--recipient NAME] task reply retire-stale MESSAGE_ID"
 
 type replyCommands struct {
+	RetireStale struct {
+		MessageID string `arg:"" help:"Stale reply message ID in the primary inbox."`
+	} `cmd:"" help:"Move a stale reply to handled after checking its task under lock. Current replies are refused."`
 	Reconcile struct {
 		File string `required:"" help:"Retained outbox record; use - for stdin. Its original tuple is never changed."`
 	} `cmd:"" help:"Ask the primary host to reconcile an identical original reply after access is revoked."`
@@ -27,6 +31,27 @@ type replyCommands struct {
 		MessageID string `arg:"" help:"Reply message ID in the primary inbox."`
 		Format    string `default:"toon" enum:"toon,concise" help:"Output format. Concise previews the outcome, headings and decisions; toon includes the full current body."`
 	} `cmd:"" help:"Read current reply content without accepting or acknowledging it."`
+}
+
+func (command *replyCommands) retireStale(
+	ctx context.Context,
+	service *taskops.Service,
+	messageRoot string,
+	output io.Writer,
+) int {
+	taskID, err := service.RetireStaleReply(ctx, messageRoot, command.RetireStale.MessageID)
+	if err != nil {
+		return fail(
+			output,
+			1,
+			err,
+			replyRetireUsage+"; inspect the reply with task reply check; preserve messages with missing or invalid task records",
+		)
+	}
+	if _, err := fmt.Fprintf(output, "status: retired\ntask: %s\n", quote(taskID)); err != nil {
+		return 1
+	}
+	return 0
 }
 
 func (command *replyCommands) send(

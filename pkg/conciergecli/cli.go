@@ -319,7 +319,10 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return command.Task.Adopt.run(ctx, root, command.hostExpectations, stdout)
 	case "task reply reconcile":
 		return command.reconcileReply(ctx, root, stdin, stdout)
-	case "task reply send <task-id>", "task reply check <message-id>", "task send <task-id>",
+	case "task reply send <task-id>",
+		"task reply check <message-id>",
+		"task reply retire-stale <message-id>",
+		"task send <task-id>",
 		"task receive <task-id> <message-id>",
 		"task ack <task-id> <message-id>":
 		return command.runTaskMessages(ctx, root, selected.Command(), stdin, stdout)

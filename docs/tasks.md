@@ -338,6 +338,22 @@ reminder settings.
 
 ## Worktree lease cleanup
 
+Stale replies remain in the primary inbox until explicitly retired. Checking a
+reply never acknowledges it. To remove an obsolete reply from heartbeat's
+`pending_replies`, use the same roots and recipient as the primary:
+
+```sh
+concierge task reply check MESSAGE_ID
+concierge task reply retire-stale MESSAGE_ID
+```
+
+Retirement checks the binding again under the task lock. It refuses current
+replies, including replies preserved across a worker restart. It moves only the
+selected stale message to handled. It changes no task state and keeps the report
+archive. Identical retries succeed. Messages with missing or corrupt task
+records, invalid envelopes, or unrelated keys remain for inspection. This
+command runs locally and does not require a new host protocol operation.
+
 Accept the result, stop the worker, and retire the accepted generation:
 
 ```sh
@@ -384,8 +400,20 @@ the process's owner or pane hint. It never kills a blocking process.
 
 Before checking cleanliness, return removes ignored symlinks whose targets are
 inside `/nix/store`. Cleanup and explicit worktree release report each removed
-link in `removed_store_links`. Other ignored entries and untracked files still
-block return. Return never removes regular files or directories.
+link in `removed_store_links`. Return also removes empty ignored directories,
+including directories left after store-link removal on an earlier attempt.
+Other ignored entries and untracked files still block return. Return never
+removes regular files or follows directory symlinks while pruning directories.
+
+All workers, including scouts, must remove generated ignored outputs created by
+their tools before reporting. Preserve pre-existing ignored files and report
+cleanup blockers. Inspect `git status --short --ignored` to include ignored
+directories in the check.
+
+The diagnostic `task supervision is stopped` describes the wakeup controller
+after a lifecycle operation. It does not prevent another cleanup attempt.
+Resolve the reported checkout or process condition and repeat the same cleanup
+command with the same generation. A host restart is unnecessary for a retry.
 
 Return requires a clean checkout after this removal. Hidden index flags,
 detached result commits, changed branches, and dirty work prevent return and
