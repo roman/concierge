@@ -53,6 +53,12 @@ Argument parsing rejects other sandbox modes or an omitted mode before reading
 the assignment, resolving the machine, or creating launch resources. Concierge
 does not add sandbox arguments automatically. Local launches keep native defaults.
 
+Development-shell startup permits 20 minutes for a cold build and native startup.
+The enclosing host request and recovered launch attempt permit 23 minutes.
+Inspect build progress in the recorded Herdr pane. Keep the captured launch
+while a build is active. An unbound `agent_requested` launch becomes overdue
+after 20 minutes. Inspect its resources before following the abandonment hint.
+
 Fresh launches and controlled resumes receive a static protocol as their native
 initial user prompt. Setup checks the inherited generation and waits without
 mailbox access. A short notification supplies the expected generation and an

@@ -77,7 +77,7 @@ func TestStartInWorktreeWrapsNativeResume(t *testing.T) {
 				t.Fatal(err)
 			}
 			start := runner.calls[3]
-			if !strings.Contains(strings.Join(start, " "), "--timeout 120000 --") {
+			if !strings.Contains(strings.Join(start, " "), "--timeout 1200000 --") {
 				t.Fatalf("devshell startup lacks time for evaluation: %q", start)
 			}
 			if !reflect.DeepEqual(start[len(start)-2:], arguments) {

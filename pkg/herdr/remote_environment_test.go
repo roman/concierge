@@ -53,6 +53,9 @@ func TestRemoteWorktreeEnvironmentStartsWithoutPrimaryFilesystemProbes(t *testin
 			if environment == PlainWorktree && strings.Contains(joined, "concierge-environment-") {
 				t.Fatal("injected a shell environment into a plain worktree")
 			}
+			if environment != PlainWorktree && !strings.Contains(joined, "--timeout 1200000") {
+				t.Fatalf("remote shell startup lacks its build allowance: %s", joined)
+			}
 		})
 	}
 }

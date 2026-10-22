@@ -57,15 +57,18 @@ launch instead of silently starting outside the environment. Add
 `.envrc.template` for optional local direnv setup; a fresh worktree needs no
 `.envrc` when its flake provides the default devShell.
 
-Devshell launches pass a 120-second startup timeout to Herdr. Cold evaluation
+Devshell launches pass a 20-minute startup timeout to Herdr. Cold evaluation
 and shell hooks run inside that allowance before the native agent becomes ready.
+The host request and recovered launch attempt permit 23 minutes, including
+preparation and response time. Local and remote startup use the same budget.
+Follow Nix build output in the recorded pane. The launch help states the budget.
 Native launches without a devshell keep Herdr's default timeout. A timeout can
 release the requested agent name while the pane process continues running.
 
 The primary heartbeat and `concierge task pending` report an unbound launch in
-`agent_requested` after two minutes from its recorded request time. The report
+`agent_requested` after 20 minutes from its recorded request time. The report
 includes the session, pane, generation, deadline, and an abandonment hint.
-The two-minute reporting threshold applies to all initial launches. Older
+The 20-minute reporting threshold applies to all initial launches. Older
 records without a request time appear immediately with an unknown deadline.
 Inspect the named session and pane before closing verified launch resources.
 Then use the reported abandonment command. The report does not stop a pane or

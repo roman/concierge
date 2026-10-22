@@ -15,7 +15,7 @@ import (
 )
 
 // WorktreeStartupTimeout includes cold devshell evaluation before native startup.
-const WorktreeStartupTimeout = 2 * time.Minute
+const WorktreeStartupTimeout = 20 * time.Minute
 
 type WorktreeEnvironment string
 

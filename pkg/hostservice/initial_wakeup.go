@@ -56,7 +56,7 @@ func (server *Server) reconcileInitialTasks(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		attempt, cancel := context.WithTimeout(ctx, operationTimeout)
+		attempt, cancel := context.WithTimeout(ctx, requestTimeout(Launch))
 		err := server.reconcileInitialTask(attempt, key)
 		cancel()
 		if err != nil && !errors.Is(err, errControllerBusy) &&

@@ -45,7 +45,7 @@ type cli struct {
 	WorkerSocket   workerSocketCommands   `cmd:"" help:"Prepare an owned worker socket for primary-controlled SSH setup."`
 	WorkerContext  workerContextCommands  `cmd:"" help:"Install immutable reply metadata for primary-controlled SSH setup."`
 	WorkerWorktree workerWorktreeCommands `cmd:"" help:"Manage an owned remote worktree for primary-controlled SSH setup."`
-	Launch         launchCommand          `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host."`
+	Launch         launchCommand          `cmd:"" help:"Launch an isolated worker and dispatch its assignment through the host. Development-shell startup permits 20 minutes."`
 	Land           landCommand            `cmd:"" help:"Land an accepted worker result using the repository settings."`
 	LandRecovered  landRecoveredCommand   `cmd:"" help:"Land an approved local result from a closed task with a returned worktree lease."`
 	Project        projectCommands        `cmd:"" help:"Inspect and set operator-owned repository settings."`

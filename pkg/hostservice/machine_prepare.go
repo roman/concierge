@@ -45,6 +45,9 @@ func requestTimeout(operation Operation) time.Duration {
 	if operation == PrepareMachine {
 		return 25 * time.Minute
 	}
+	if operation == Launch {
+		return herdr.WorktreeStartupTimeout + 3*time.Minute
+	}
 	return operationTimeout
 }
 

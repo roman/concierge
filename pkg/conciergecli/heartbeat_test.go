@@ -20,7 +20,7 @@ func TestUnregisteredLaunchStatus(t *testing.T) {
 			root := taskRoot(t, t.TempDir())
 			requested := time.Now().UTC()
 			if overdue {
-				requested = requested.Add(-3 * time.Minute)
+				requested = requested.Add(-21 * time.Minute)
 			}
 			task, err := taskstate.NewMigrated(taskstate.Snapshot{
 				Definition: taskstate.Definition{

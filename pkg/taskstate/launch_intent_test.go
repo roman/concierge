@@ -17,9 +17,10 @@ func TestUnregisteredLaunchOverdue(t *testing.T) {
 		requested time.Time
 		want      bool
 	}{
-		{"before deadline", LaunchAgentRequested, now.Add(-119 * time.Second), false},
-		{"at deadline", LaunchAgentRequested, now.Add(-2 * time.Minute), true},
-		{"after deadline", LaunchAgentRequested, now.Add(-3 * time.Minute), true},
+		{"cold build beyond old deadline", LaunchAgentRequested, now.Add(-3 * time.Minute), false},
+		{"before deadline", LaunchAgentRequested, now.Add(-20*time.Minute + time.Second), false},
+		{"at deadline", LaunchAgentRequested, now.Add(-20 * time.Minute), true},
+		{"after deadline", LaunchAgentRequested, now.Add(-21 * time.Minute), true},
 		{"legacy unknown deadline", LaunchAgentRequested, time.Time{}, true},
 		{"preparing", LaunchPreparing, time.Time{}, false},
 	} {
