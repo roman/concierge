@@ -122,7 +122,12 @@ func (command *landRecoveredCommand) run(ctx context.Context, root string, outpu
 				lease:    lease,
 				commit:   command.Commit,
 			}
-			target, err = prepareLandingSource(ctx, source, taskstate.LeaseReturned)
+			target, err = prepareLandingSource(
+				ctx,
+				source,
+				taskstate.LeaseReturned,
+				settings.Branch,
+			)
 			if err != nil {
 				return err
 			}

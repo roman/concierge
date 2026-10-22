@@ -15,11 +15,15 @@ var ErrResultNotLanded = errors.New("selected result is not on the fetched defau
 type DefaultBranch struct{ Name, Tip string }
 
 // VerifyUnlanded requires committed work that is absent from the fetched target.
-func (client Client) VerifyUnlanded(ctx context.Context, specification Specification) error {
+func (client Client) VerifyUnlanded(
+	ctx context.Context,
+	specification Specification,
+	targetBranch string,
+) error {
 	if err := client.VerifyIdentity(ctx, specification); err != nil {
 		return err
 	}
-	branch, err := client.FetchDefaultBranch(ctx, specification.Project)
+	branch, err := client.FetchBranch(ctx, specification.Project, targetBranch)
 	if err != nil {
 		return err
 	}
@@ -49,11 +53,25 @@ func (client Client) FetchDefaultBranch(
 	ctx context.Context,
 	project string,
 ) (DefaultBranch, error) {
+	return client.FetchBranch(ctx, project, "")
+}
+
+// FetchBranch uses an explicit target or discovers the advertised default.
+func (client Client) FetchBranch(ctx context.Context, project, name string) (DefaultBranch, error) {
 	if !filepath.IsAbs(client.Executable) || !filepath.IsAbs(project) {
 		return DefaultBranch{}, ErrIdentity
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
+	if name != "" {
+		if name == "HEAD" || strings.HasPrefix(name, "-") {
+			return DefaultBranch{}, ErrIdentity
+		}
+		if _, err := client.git(ctx, project, "check-ref-format", "refs/heads/"+name); err != nil {
+			return DefaultBranch{}, err
+		}
+		return client.fetchBranchTip(ctx, project, name)
+	}
 	advertised, err := client.git(ctx, project, "ls-remote", "--symref", "origin", "HEAD")
 	if err != nil {
 		return DefaultBranch{}, err
@@ -82,7 +100,14 @@ func (client Client) FetchDefaultBranch(
 	if _, err := client.git(ctx, project, "check-ref-format", reference); err != nil {
 		return DefaultBranch{}, err
 	}
-	name := strings.TrimPrefix(reference, "refs/heads/")
+	return client.fetchBranchTip(ctx, project, strings.TrimPrefix(reference, "refs/heads/"))
+}
+
+func (client Client) fetchBranchTip(
+	ctx context.Context,
+	project, name string,
+) (DefaultBranch, error) {
+	reference := "refs/heads/" + name
 	tracking := "refs/remotes/origin/" + name
 	if _, err := client.git(ctx, project, "fetch", "--no-tags", "--no-write-fetch-head", "origin", reference+":"+tracking); err != nil {
 		return DefaultBranch{}, err

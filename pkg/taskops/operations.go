@@ -27,6 +27,7 @@ type Service struct {
 	workerCommands   CommandPaths
 	pool             worktree.PoolClient
 	git              worktree.Client
+	readSettings     func(string) (WorkerSettings, error)
 	remoteLeases     RemoteLeases
 	remoteResults    RemoteResultExporter
 	remoteResultMu   *sync.Mutex

@@ -12,9 +12,10 @@ import (
 
 // WorkerTools fixes the executable dependencies used by hosted workers.
 type WorkerTools struct {
-	Commands CommandPaths
-	Pool     worktree.PoolClient
-	Git      worktree.Client
+	Commands     CommandPaths
+	Pool         worktree.PoolClient
+	Git          worktree.Client
+	ReadSettings func(string) (WorkerSettings, error)
 }
 
 // WithRemovedStoreLinkReporter scopes return diagnostics to one operation.
@@ -42,6 +43,7 @@ func NewWithWorkerTools(
 	}
 	service.pool = tools.Pool
 	service.git = tools.Git
+	service.readSettings = tools.ReadSettings
 	return service, nil
 }
 

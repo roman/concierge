@@ -20,7 +20,7 @@ defaults in that file instead of repeating them by hand in every brief.
 Run settings commands only after the operator approves the exact change:
 
 ```sh
-concierge project set REPO [--merge on|off] [--delivery pr|fast-forward]
+concierge project set REPO [--merge on|off] [--delivery pr|fast-forward] [--branch BRANCH]
 concierge brief-include set --file FILE
 concierge brief-include clear
 ```
@@ -28,8 +28,10 @@ concierge brief-include clear
 The commands validate and atomically replace configuration. They create `config/`
 on demand. Unspecified project settings remain unchanged.
 
-Launch a queued task through the host. Resolve the exact base commit before
-launch. Choose a new task branch. Concierge leases its worktree and owns one workspace:
+Launch a queued task through the host. Choose a new task branch.
+Omit `--base-commit` to fetch the configured project target branch, or origin's
+advertised default when no branch is configured. An explicit full commit ID
+overrides this default. Concierge leases its worktree and owns one workspace:
 
 ```sh
 concierge launch TASK_ID --harness codex \

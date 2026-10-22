@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 type projectCommands struct {
@@ -14,15 +16,17 @@ type projectCommands struct {
 		Repo     string  `arg:"" help:"Repository name used by backlog intake."`
 		Merge    *string `enum:"on,off" help:"Operator-approved merge authority."`
 		Delivery *string `enum:"pr,fast-forward" help:"Operator-approved delivery mode."`
+		Branch   *string `help:"Operator-approved target branch; an empty value restores the remote default."`
 	} `cmd:"" help:"Set approved repository settings atomically."`
 	Show struct {
 		Repo string `arg:"" help:"Repository name used by backlog intake."`
-	} `cmd:"" help:"Read operator-owned merge and delivery settings; defaults are off and pr."`
+	} `cmd:"" help:"Read operator-owned settings; defaults are merge off, delivery pr, and the remote default branch."`
 }
 
 type projectSettings struct {
 	Merge    string `json:"merge"`
 	Delivery string `json:"delivery"`
+	Branch   string `json:"branch,omitempty"`
 }
 
 func (command *projectCommands) show(root string, output io.Writer) int {
@@ -38,6 +42,11 @@ func (command *projectCommands) show(root string, output io.Writer) int {
 	}
 	if _, err := fmt.Fprintf(output, "repo: %s\nmerge: %s\ndelivery: %s\n", quote(command.Show.Repo), settings.Merge, settings.Delivery); err != nil {
 		return 1
+	}
+	if settings.Branch != "" {
+		if _, err := fmt.Fprintf(output, "branch: %s\n", quote(settings.Branch)); err != nil {
+			return 1
+		}
 	}
 	return 0
 }
@@ -79,6 +88,14 @@ func readProjects(path string) (map[string]projectSettings, error) {
 		return nil, errors.New("project settings must contain one JSON object")
 	}
 	for name, settings := range projects {
+		if settings.Branch != "" {
+			if settings.Branch == "HEAD" || strings.HasPrefix(settings.Branch, "-") {
+				return nil, fmt.Errorf("invalid target branch for %q", name)
+			}
+			if err := exec.Command("git", "check-ref-format", "refs/heads/"+settings.Branch).Run(); err != nil {
+				return nil, fmt.Errorf("invalid target branch for %q: %w", name, err)
+			}
+		}
 		if settings.Merge != "" && settings.Merge != "off" && settings.Merge != "on" {
 			return nil, fmt.Errorf("invalid merge setting for %q", name)
 		}

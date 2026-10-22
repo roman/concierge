@@ -140,9 +140,10 @@ func New(config Config) (*Server, error) {
 		root,
 		recipient,
 		taskops.WorkerTools{
-			Commands: config.WorkerCommands,
-			Pool:     worktree.PoolClient{Executable: config.TreehouseExecutable},
-			Git:      worktree.Client{Executable: config.GitExecutable},
+			Commands:     config.WorkerCommands,
+			Pool:         worktree.PoolClient{Executable: config.TreehouseExecutable},
+			Git:          worktree.Client{Executable: config.GitExecutable},
+			ReadSettings: config.WorkerSettings,
 		},
 	)
 	if err != nil {

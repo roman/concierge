@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/hostservice"
 	"github.com/roman/concierge/pkg/taskops"
+	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/worktree"
 )
 
 type launchCommand struct {
@@ -22,7 +25,7 @@ type launchCommand struct {
 	Project               string   `required:"" help:"Absolute source repository path."`
 	Worktree              string   `help:"Existing launch worktree path; omit for a treehouse lease."`
 	Branch                string   `required:"" help:"New literal worktree branch."`
-	BaseCommit            string   `required:"" help:"Full commit ID from the source repository."`
+	BaseCommit            string   `help:"Full source commit ID; omit to fetch the project's target branch or remote default."`
 	Workspace             string   `help:"Existing shared Herdr workspace ID; omit to create a task-owned workspace. Labels are unsupported."`
 	AgentArgs             []string `name:"agent-arg" sep:"none" help:"Worker launch argument; repeat in order, using --agent-arg=VALUE for options."`
 	CodexApprovalReviewer string   `default:"native" enum:"native,auto-review" help:"Remote Codex approval reviewer. Native preserves current settings. Auto-review explicitly selects automatic review."`
@@ -60,6 +63,17 @@ func (command *launchCommand) run(
 			err,
 			"ask the operator to correct config/brief-include.md; no launch was requested",
 		)
+	}
+	if command.BaseCommit == "" {
+		command.BaseCommit, err = command.defaultBaseCommit(ctx, root)
+		if err != nil {
+			return fail(
+				output,
+				2,
+				err,
+				"inspect the project target branch or supply --base-commit with a full commit ID",
+			)
+		}
 	}
 	machineID := ""
 	if command.Machine != "" {
@@ -123,6 +137,37 @@ func (command *launchCommand) run(
 		}
 	}
 	return 0
+}
+
+func (command launchCommand) defaultBaseCommit(ctx context.Context, root string) (string, error) {
+	store, err := taskstate.NewStore(root)
+	if err != nil {
+		return "", err
+	}
+	task, err := store.Read(ctx, command.TaskID)
+	if err != nil {
+		return "", err
+	}
+	if intent := task.Snapshot().LaunchIntent; intent != nil {
+		return intent.BaseCommit, nil
+	}
+	settings, err := readProjectSettings(
+		filepath.Join(root, "config", "projects.json"),
+		task.Definition().Repo,
+	)
+	if err != nil {
+		return "", err
+	}
+	git, err := exec.LookPath("git")
+	if err != nil {
+		return "", err
+	}
+	branch, err := (worktree.Client{Executable: git}).FetchBranch(
+		ctx,
+		command.Project,
+		settings.Branch,
+	)
+	return branch.Tip, err
 }
 
 func (command launchCommand) agentArguments() ([]string, error) {

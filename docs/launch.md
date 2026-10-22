@@ -10,6 +10,12 @@ concierge launch task-1 --harness codex \
   --base-commit FULL_COMMIT_ID --body-file brief.txt
 ```
 
+Omit `--base-commit` to fetch the operator's project target branch. An absent
+`project set REPO --branch BRANCH` setting uses origin's advertised default.
+Concierge records the resolved commit in the launch intent. A retry preserves
+that commit even if the remote branch advances. An explicit full commit ID
+keeps its existing behavior.
+
 By default, Concierge creates a task-owned workspace and runs the worker in its
 first pane. The reserved workspace label supports recovery after a lost creation
 response. Stop closes only the recorded worker pane. Herdr removes the workspace

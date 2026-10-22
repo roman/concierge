@@ -61,7 +61,15 @@ func (leases hostRemoteLeases) resultReturnProof(
 		return remoteworker.WorktreeReturnProof{}, err
 	}
 	git := worktree.Client{Executable: leases.server.config.GitExecutable}
-	branch, err := git.FetchDefaultBranch(ctx, project)
+	targetBranch := ""
+	if leases.server.config.WorkerSettings != nil {
+		settings, err := leases.server.config.WorkerSettings(task.Definition().Repo)
+		if err != nil {
+			return remoteworker.WorktreeReturnProof{}, err
+		}
+		targetBranch = settings.Branch
+	}
+	branch, err := git.FetchBranch(ctx, project, targetBranch)
 	if err != nil {
 		return remoteworker.WorktreeReturnProof{}, err
 	}

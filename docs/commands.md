@@ -96,6 +96,7 @@ For example:
 
 ```sh
 concierge project set my-project --merge on --delivery fast-forward
+concierge project set my-project --branch v3
 concierge brief-include set --file ./worker-defaults.md
 concierge brief-include clear
 ```
@@ -113,6 +114,11 @@ Keys match the repository name passed to `backlog add --repo`. Read effective
 settings with `concierge project show my-project`. An absent repository or
 omitted field uses its default. Invalid values and unknown fields stop the
 read. The primary must ask the operator to correct invalid settings.
+
+The optional `branch` setting selects the target for landing and the default
+launch base. An omitted branch uses origin's advertised default branch.
+Use `concierge project set REPO --branch=''` to restore that behavior.
+The same target controls remote result landing evidence during lease return.
 
 Merge authority and delivery mode are independent. `merge: on` authorizes the
 primary to land green, in-scope work. `merge: off` requires approval for each

@@ -11,11 +11,12 @@ import (
 
 	"github.com/roman/concierge/pkg/machineprep"
 	"github.com/roman/concierge/pkg/remoteworker"
+	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
 func TestNativeCleanupRequiresMatchingLandedResultIncludingSquash(t *testing.T) {
-	for _, mode := range []string{"fast-forward", "squash", "wrong PR head", "unlanded merge", "unavailable PR", "oversized PR", "retained abandonment"} {
+	for _, mode := range []string{"fast-forward", "target branch", "squash", "wrong PR head", "unlanded merge", "unavailable PR", "oversized PR", "retained abandonment"} {
 		t.Run(mode, func(t *testing.T) {
 			fixture := newRemoteActivationFixture(t)
 			t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
@@ -51,11 +52,16 @@ func TestNativeCleanupRequiresMatchingLandedResultIncludingSquash(t *testing.T) 
 			selected := runGit("rev-parse", "HEAD")
 			merged := runGit("commit-tree", selected+"^{tree}", "-p", base, "-m", "Squash result")
 			landed := merged
-			if mode == "fast-forward" {
+			if mode == "fast-forward" || mode == "target branch" {
 				landed = selected
 			}
+			targetBranch := "main"
+			if mode == "target branch" {
+				targetBranch = "v3"
+				fixture.server.config.WorkerSettings = func(string) (taskops.WorkerSettings, error) { return taskops.WorkerSettings{Branch: "v3"}, nil }
+			}
 			if mode != "unlanded merge" && mode != "retained abandonment" {
-				runGit("push", "origin", landed+":refs/heads/main")
+				runGit("push", "origin", landed+":refs/heads/"+targetBranch)
 			}
 			current, err := fixture.server.store.Read(context.Background(), "task-1")
 			if err != nil {
@@ -153,7 +159,7 @@ func TestNativeCleanupRequiresMatchingLandedResultIncludingSquash(t *testing.T) 
 				lease,
 				fixture.profile,
 			)
-			if mode == "fast-forward" || mode == "squash" {
+			if mode == "fast-forward" || mode == "target branch" || mode == "squash" {
 				if err != nil || proof.Outcome != remoteworker.WorktreeLanded ||
 					proof.Commit != selected {
 					t.Fatalf("native result proof changed the selected HEAD: %+v %v", proof, err)

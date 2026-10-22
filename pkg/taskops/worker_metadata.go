@@ -31,6 +31,7 @@ type WorkerSettings struct {
 	Repo     string `json:"repo"`
 	Merge    string `json:"merge"`
 	Delivery string `json:"delivery"`
+	Branch   string `json:"branch,omitempty"`
 }
 
 func (session *WorkerSession) withTask(

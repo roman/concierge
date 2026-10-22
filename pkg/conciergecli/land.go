@@ -12,6 +12,7 @@ import (
 
 	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/worktree"
 )
 
 type landCommand struct {
@@ -69,7 +70,7 @@ func (command *landCommand) run(ctx context.Context, root string, output io.Writ
 			)
 		}
 		delivery = settings.Delivery
-		target, err = prepareLanding(ctx, *snapshot.Worker)
+		target, err = prepareLanding(ctx, *snapshot.Worker, settings.Branch)
 		if err != nil {
 			return err
 		}
@@ -147,18 +148,23 @@ func landingGitCommand(ctx context.Context, directory string, args ...string) (s
 	return runLandingCommand(ctx, directory, "git", args...)
 }
 
-func prepareLanding(ctx context.Context, worker taskstate.Worker) (landing, error) {
+func prepareLanding(
+	ctx context.Context,
+	worker taskstate.Worker,
+	targetBranch string,
+) (landing, error) {
 	source, err := workerLandingSource(worker)
 	if err != nil {
 		return landing{}, err
 	}
-	return prepareLandingSource(ctx, source, taskstate.LeaseHeld)
+	return prepareLandingSource(ctx, source, taskstate.LeaseHeld, targetBranch)
 }
 
 func prepareLandingSource(
 	ctx context.Context,
 	source landingSource,
 	requiredState taskstate.LeaseState,
+	targetBranch string,
 ) (landing, error) {
 	lease := source.lease
 	if lease.Branch == "" || lease.Path != source.worktree || lease.Project != source.project ||
@@ -240,30 +246,26 @@ func prepareLandingSource(
 			"primary worktree HEAD differs from the selected remote result",
 		)
 	}
-	remote, err = landingGitCommand(ctx, target.project, "ls-remote", "--symref", "origin", "HEAD")
+	git, err := exec.LookPath("git")
 	if err != nil {
 		return landing{}, err
 	}
-	for _, line := range strings.Split(remote, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 3 && fields[0] == "ref:" && fields[2] == "HEAD" &&
-			strings.HasPrefix(fields[1], "refs/heads/") {
-			target.defaultBranch = strings.TrimPrefix(fields[1], "refs/heads/")
-		}
+	branchTip, err := (worktree.Client{Executable: git}).FetchBranch(
+		ctx,
+		target.project,
+		targetBranch,
+	)
+	if err != nil {
+		return landing{}, err
 	}
-	if target.defaultBranch == "" {
-		return landing{}, errors.New("remote origin does not advertise a default branch")
-	}
+	target.defaultBranch = branchTip.Name
 	if target.branch == target.defaultBranch {
 		return landing{}, errors.New("task branch must differ from the default branch")
 	}
 	remoteRef := "refs/remotes/origin/" + target.defaultBranch
-	if _, err := landingGitCommand(ctx, target.project, "fetch", "origin", "refs/heads/"+target.defaultBranch+":"+remoteRef); err != nil {
-		return landing{}, err
-	}
 	if _, err := landingGitCommand(ctx, target.project, "merge-base", "--is-ancestor", remoteRef, target.head); err != nil {
 		return landing{}, errors.New(
-			"task branch does not contain the remote default branch tip. Rebase before landing",
+			"task branch does not contain the remote target branch tip. Reopen the local task, request a rebase and checks, then accept its fresh result before landing",
 		)
 	}
 	return target, nil

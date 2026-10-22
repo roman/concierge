@@ -7,7 +7,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/roman/concierge/pkg/taskstate"
 )
 
 func TestProjectShowOperatorSettings(t *testing.T) {
@@ -58,5 +61,85 @@ func TestProjectShowOperatorSettings(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestProjectTargetBranch(t *testing.T) {
+	for _, branch := range []string{"v3", "release/stable", "", "../bad", "--bad", "HEAD", "a b"} {
+		t.Run(branch, func(t *testing.T) {
+			root := t.TempDir()
+			var output bytes.Buffer
+			code := Run(
+				t.Context(),
+				[]string{"--root", root, "project", "set", "repo", "--branch=" + branch},
+				nil,
+				&output,
+				io.Discard,
+			)
+			valid := branch == "v3" || branch == "release/stable" || branch == ""
+			if valid {
+				if code != 0 {
+					t.Fatalf("set branch: %d %s", code, &output)
+				}
+				if branch != "" &&
+					!strings.Contains(
+						invoke(t, root, "", "project", "show", "repo"),
+						"branch: "+quote(branch),
+					) {
+					t.Fatal("missing branch setting")
+				}
+			} else if code == 0 {
+				t.Fatal("invalid branch accepted")
+			}
+		})
+	}
+}
+
+func TestConfiguredBranchControlsLandingAndLaunchBase(t *testing.T) {
+	f := newLandingFixture(t)
+	landingGit(t, f.project, "push", "origin", "trunk:refs/heads/v3")
+	defaultTip := landingGit(t, f.project, "rev-parse", "HEAD")
+	invoke(t, f.root, "", "project", "set", "repo", "--branch=v3")
+	got := invoke(t, f.root, "", "land", "task-1")
+	if !strings.Contains(got, "default_branch: \"v3\"") {
+		t.Fatal(got)
+	}
+	if landingGit(t, f.remote, "rev-parse", "v3") != f.head {
+		t.Fatal("target did not advance")
+	}
+	if landingGit(t, f.remote, "rev-parse", "trunk") != defaultTip {
+		t.Fatal("default branch changed")
+	}
+	command := launchCommand{TaskID: "task-1", Project: f.project}
+	base, err := command.defaultBaseCommit(t.Context(), f.root)
+	if err != nil || base != f.head {
+		t.Fatalf("launch base: %s %v", base, err)
+	}
+	seedViewTask(t, f.root, "task-2", taskstate.Queued, nil, nil)
+	store, _ := taskstate.NewStore(f.root)
+	intent := taskstate.LaunchIntent{
+		Generation: "gen-2",
+		Name:       "worker-2",
+		Label:      "task-2",
+		Harness:    "codex",
+		Session:    "work",
+		Project:    f.project,
+		Branch:     "task/new",
+		BaseCommit: defaultTip,
+		Body:       "Work",
+	}
+	if _, err := store.ReserveInitialLaunch(t.Context(), "task-2", intent); err != nil {
+		t.Fatal(err)
+	}
+	command.TaskID = "task-2"
+	base, err = command.defaultBaseCommit(t.Context(), f.root)
+	if err != nil || base != defaultTip {
+		t.Fatalf("retry changed captured base: %s %v", base, err)
+	}
+	invoke(t, f.root, "", "project", "set", "repo", "--branch=")
+	command.TaskID = "task-1"
+	base, err = command.defaultBaseCommit(t.Context(), f.root)
+	if err != nil || base != defaultTip {
+		t.Fatalf("default branch fallback: %s %v", base, err)
 	}
 }

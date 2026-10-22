@@ -85,6 +85,7 @@ func (command *cli) runHost(ctx context.Context, root string, output io.Writer) 
 					Repo:     repo,
 					Merge:    settings.Merge,
 					Delivery: settings.Delivery,
+					Branch:   settings.Branch,
 				}, err
 			},
 			Revision:    revision,

@@ -219,6 +219,11 @@ func (command *cli) writeRemoteResponse(
 		if _, err := fmt.Fprintf(output, "repo: %s\nmerge: %s\ndelivery: %s\n", quote(settings.Repo), settings.Merge, settings.Delivery); err != nil {
 			return 1
 		}
+		if settings.Branch != "" {
+			if _, err := fmt.Fprintf(output, "branch: %s\n", quote(settings.Branch)); err != nil {
+				return 1
+			}
+		}
 	}
 	return 0
 }

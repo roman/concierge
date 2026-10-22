@@ -28,10 +28,18 @@ func (service *Service) Reopen(
 		}
 		bound := current.Snapshot().Worker
 		if current.Definition().Kind != "scout" {
+			targetBranch := ""
+			if service.readSettings != nil {
+				settings, err := service.readSettings(current.Definition().Repo)
+				if err != nil {
+					return err
+				}
+				targetBranch = settings.Branch
+			}
 			lease := bound.Lease
 			if err := service.git.VerifyUnlanded(ctx, worktree.Specification{
 				Project: lease.Project, Path: lease.Path, Branch: lease.Branch, BaseCommit: lease.BaseCommit,
-			}); err != nil {
+			}, targetBranch); err != nil {
 				return err
 			}
 		}
