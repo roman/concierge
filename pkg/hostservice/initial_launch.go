@@ -12,6 +12,7 @@ import (
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/versioncheck"
 	"github.com/roman/concierge/pkg/worktree"
 )
 
@@ -92,6 +93,7 @@ func (server *Server) launch(ctx context.Context, input LaunchRequest) (Response
 	response, err := server.executeInitialLaunch(ctx, input, operatorLaunch)
 	if err != nil {
 		tracked, inspectionErr := server.trackedLaunchResult(ctx, input, err)
+		tracked.Versions = response.Versions
 		if inspectionErr == nil {
 			tracked.Checkpoint = response.Checkpoint
 		}
@@ -109,7 +111,7 @@ func (server *Server) executeInitialLaunch(
 	ctx context.Context,
 	input LaunchRequest,
 	admission launchAdmission,
-) (Response, error) {
+) (response Response, resultErr error) {
 	if _, err := taskmeta.ParseAbsolutePath(server.config.GitExecutable); err != nil {
 		return Response{}, errors.New("host launch requires an absolute Git executable")
 	}
@@ -171,6 +173,11 @@ func (server *Server) executeInitialLaunch(
 		if err := server.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
 			return Response{}, err
 		}
+	}
+	versions, err := server.checkLaunchVersions(ctx, input, versioncheck.Options{})
+	defer func() { response.Versions = &versions }()
+	if err != nil {
+		return Response{}, err
 	}
 	task, err := server.reserveInitialLaunch(ctx, input)
 	if err != nil {

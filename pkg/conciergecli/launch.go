@@ -108,6 +108,11 @@ func (command *launchCommand) run(
 			Workspace: command.Workspace, AgentArgs: agentArguments, Body: body,
 		},
 	})
+	if response.Versions != nil {
+		if writeErr := response.Versions.Write(output); writeErr != nil {
+			return 1
+		}
+	}
 	if err == nil &&
 		(response.Outcome == hostservice.Pending || response.Outcome == hostservice.Blocked) {
 		return writeLaunchProgress(output, command.TaskID, response)

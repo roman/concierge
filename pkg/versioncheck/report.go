@@ -24,6 +24,7 @@ type Warning struct {
 	Detail       string `json:"detail"`
 	Step         string `json:"step"`
 	Incompatible bool   `json:"incompatible,omitempty"`
+	Unconfirmed  bool   `json:"unconfirmed,omitempty"`
 }
 
 type Report struct {
@@ -50,10 +51,11 @@ func Compare(primary Snapshot, machine *Snapshot, agent, label string) Report {
 				report.Warnings = append(
 					report.Warnings,
 					Warning{
-						Side:      side,
-						Component: component.name,
-						Detail:    "version or compatibility is unconfirmed",
-						Step:      repairStep(component.name, side, agent, label),
+						Side:        side,
+						Component:   component.name,
+						Detail:      "version or compatibility is unconfirmed",
+						Unconfirmed: true,
+						Step:        repairStep(component.name, side, agent, label),
 					},
 				)
 			}

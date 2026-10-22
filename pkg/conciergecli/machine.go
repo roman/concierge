@@ -271,6 +271,9 @@ func inspectMachine(
 	primaryCommit := ""
 	if hostErr == nil && host.Status != nil {
 		primaryCommit = host.Status.Revision
+		if host.Status.HerdrExecutable != "" {
+			collector.Herdr = host.Status.HerdrExecutable
+		}
 	}
 	if remoteReady {
 		collector.Remote = runner

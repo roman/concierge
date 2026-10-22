@@ -12,6 +12,7 @@ import (
 	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/versioncheck"
 	"github.com/roman/concierge/pkg/worktree"
 )
 
@@ -19,7 +20,7 @@ func (server *Server) executeRemoteInitialLaunch(
 	ctx context.Context,
 	input LaunchRequest,
 	admission launchAdmission,
-) (Response, error) {
+) (response Response, resultErr error) {
 	if err := validateLaunchInput(&input); err != nil {
 		return Response{}, err
 	}
@@ -86,6 +87,19 @@ func (server *Server) executeRemoteInitialLaunch(
 		if err := server.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: input.TaskID}); err != nil {
 			return Response{}, err
 		}
+	}
+	versions, err := server.checkLaunchVersions(
+		ctx,
+		input,
+		versioncheck.Options{
+			Machine:        profile,
+			RemoteCommit:   location.ClientCommit,
+			Authentication: location.Authentication,
+		},
+	)
+	defer func() { response.Versions = &versions }()
+	if err != nil {
+		return Response{}, err
 	}
 	if existing.Snapshot().LaunchIntent == nil {
 		intent.Generation = "s" + rand.Text()

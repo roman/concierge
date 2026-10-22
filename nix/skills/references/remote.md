@@ -10,6 +10,13 @@ Keep native permissions and login settings active. Operator approval requests
 remain native dialogs on the remote. Never answer a permission dialog through
 pane supervision.
 
+Read the component table and version warnings from `machine check`,
+`machine status`, and launch output. Relay each warning and repair step to the
+operator. The comparison uses the running primary host's commit, rather than
+the invoking CLI's commit. A plain version difference permits launch. An
+explicit incompatible Herdr protocol stops it before resource creation.
+Save work and obtain approval before restarting a stale Herdr server.
+
 Remote delivery differs from local worker delivery. The remote worker commits
 its result and removes ignored files. Acceptance imports the selected commit
 into a primary worktree. The primary runs `concierge land TASK_ID` with the

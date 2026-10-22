@@ -22,6 +22,7 @@ import (
 	"github.com/roman/concierge/pkg/supervise"
 	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/versioncheck"
 	"github.com/roman/concierge/pkg/workerservice"
 	"github.com/roman/concierge/pkg/worktree"
 )
@@ -76,6 +77,7 @@ type StopResult struct {
 }
 
 type Response struct {
+	Versions          *versioncheck.Report   `json:"versions,omitempty"`
 	PreparedMachine   *PreparedMachineResult `json:"prepared_machine,omitempty"`
 	Reconciled        *workerservice.Reply   `json:"reconciled,omitempty"`
 	RemovedStoreLinks []string               `json:"removed_store_links,omitempty"`
@@ -95,6 +97,7 @@ type Response struct {
 
 // Server binds operations to roots selected by the host process.
 type Server struct {
+	versionProbe        versioncheck.Probe
 	machineMu           sync.Mutex
 	preparationMachines herdr.MachineResolver
 	preparationSSH      sshcommand.Runner
@@ -395,6 +398,9 @@ func Call(ctx context.Context, socket string, request Request) (Response, error)
 }
 
 func validateResponse(response Response, request Request) error {
+	if response.Versions != nil && request.Operation != Launch {
+		return errors.New("host returned unrelated component version data")
+	}
 	if request.Operation == PrepareMachine || response.PreparedMachine != nil {
 		return validateMachinePreparationResponse(response, request)
 	}

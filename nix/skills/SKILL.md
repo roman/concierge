@@ -41,10 +41,10 @@ The adopted shell supplies the pinned binary and roots. Keep any explicit
 roots and recipient in a fallback command. Restore the adopted shell on a
 runtime mismatch. Do not remove the guard to bypass a mismatch.
 Act only on `status: current`. A mailbox publication grants no processing authority.
-The claim supplies fresh workers, pending messages, completion work, open actions,
-and a two-minute token. Batch independent reads. Reuse these returned states;
-read status again only for a new decision or the required current pane check.
-Wait longer on running commands instead of repeatedly polling them.
+The claim supplies fresh workers, messages, completion work, actions, and a two-minute token.
+Batch independent reads. Reuse returned states. Read status again for a new decision
+or the required pane check. Wait longer on running commands.
+Relay component warnings and repair steps before acknowledging warning messages.
 
 First inspect a pending bound reply with
 `concierge task reply check REPLY_ID --format concise`; act only on `status: current`.

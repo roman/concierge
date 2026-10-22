@@ -1,5 +1,27 @@
 # Worker launch
 
+Remote launches compare the running Concierge host commit with the prepared
+remote client commit before reserving launch resources. They also compare
+the Herdr clients, running Herdr servers, and selected agent CLI versions.
+`herdr status` supplies server versions, compatibility flags, and
+`server_binary_stale`. `codex --version` or `claude --version` supplies the agent
+version. `concierge machine check MACHINE` and `machine status MACHINE` print
+the same component table and operator repair steps. An unavailable probe is
+reported as unconfirmed.
+
+Plain version differences and stale servers warn without blocking launch.
+An explicit Herdr private or endpoint protocol incompatibility blocks launch
+before resource creation. Herdr cannot safely process the required commands
+with an incompatible protocol. Unknown compatibility warns without inferring
+incompatibility from a version number. Existing prerequisite checks still apply.
+Local launches report observed stale-server and protocol problems.
+
+Launch output includes component warnings even when later startup fails or
+remains pending. The primary's heartbeat claim includes pending warnings and
+their repair steps. The supervisor relays them before acknowledging the warning
+message. Warning publication precedes launch resource creation. A publication
+failure stops that launch attempt. Identical warnings use one durable message
+across retries and acknowledgements.
 
 Queue the task first, then ask the host to lease a treehouse worktree and
 launch its worker:

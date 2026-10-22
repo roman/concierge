@@ -75,17 +75,17 @@ func machineLabel(machine herdr.SavedMachine) string {
 func inspect(ctx context.Context, probe Probe, herdrExecutable, agent string) Snapshot {
 	var snapshot Snapshot
 	statusContext, cancel := context.WithTimeout(ctx, 5*time.Second)
-	output, err := probe(statusContext, herdrExecutable, "status")
+	output, _ := probe(statusContext, herdrExecutable, "status")
 	cancel()
-	if err == nil {
-		snapshot, _ = parseHerdrStatus(output)
-	}
+	// A status command can report incompatibility through both its exit status
+	// and its structured output. Preserve explicit protocol failures in that case.
+	snapshot, _ = parseHerdrStatus(output)
 	if agent != "codex" && agent != "claude" {
 		return snapshot
 	}
 	agentContext, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	output, err = probe(agentContext, agent, "--version")
+	output, err := probe(agentContext, agent, "--version")
 	if err == nil {
 		snapshot.Agent = cleanVersion(string(output))
 	}

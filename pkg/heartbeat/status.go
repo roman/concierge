@@ -18,6 +18,7 @@ import (
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/taskview"
+	"github.com/roman/concierge/pkg/versioncheck"
 	"github.com/roman/tincan/pkg/inbox"
 )
 
@@ -114,6 +115,20 @@ func Collect(
 		}
 	}
 	var view strings.Builder
+	for _, message := range pending {
+		if notice, ok := versioncheck.PendingNotification(message, root); ok {
+			fmt.Fprintf(
+				&view,
+				"version_warning_task: %s\nversion_warning_message: %s\n",
+				strconv.Quote(notice.Task),
+				strconv.Quote(message.ID.String()),
+			)
+			if err := notice.Report.Write(&view); err != nil {
+				return Observation{}, err
+			}
+			notify = true
+		}
+	}
 	fmt.Fprintf(
 		&view,
 		"workers: %d bound\npending_replies: %d\nawaiting_cleanup: %d\n",

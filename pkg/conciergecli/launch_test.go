@@ -15,6 +15,7 @@ import (
 
 	"github.com/roman/concierge/pkg/hostservice"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/versioncheck"
 )
 
 func launchArguments(root string) []string {
@@ -196,6 +197,16 @@ func TestLaunchPreservesRequestAndReportsHostOutcome(t *testing.T) {
 						Notification: "sent",
 					}
 				}
+				response.Versions = &versioncheck.Report{
+					Warnings: []versioncheck.Warning{
+						{
+							Side:      "machine",
+							Component: "herdr-server",
+							Detail:    "server_binary_stale: yes",
+							Step:      "Restart Herdr on baker.",
+						},
+					},
+				}
 				done <- json.NewEncoder(connection).Encode(response)
 			}()
 			body := " \nDo the requested work.\n "
@@ -212,6 +223,10 @@ func TestLaunchPreservesRequestAndReportsHostOutcome(t *testing.T) {
 				}
 			}
 			code := Run(ctx, arguments, strings.NewReader(body), &output, io.Discard)
+			if mode != "lost response" &&
+				(!strings.Contains(output.String(), "version_warnings[") || !strings.Contains(output.String(), "Restart Herdr on baker.")) {
+				t.Fatalf("lost version warning: %s", &output)
+			}
 			if mode == "completed" || mode == "include" || mode == "owned" {
 				if code != 0 || !strings.Contains(output.String(), "generation: \"gen-1\"") ||
 					!strings.Contains(output.String(), "pane: \"w1:p1\"") {

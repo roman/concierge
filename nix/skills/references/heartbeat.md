@@ -81,9 +81,12 @@ processing. Leave activation and external hook settings to the operator.
 
 ## Operator notifications
 
+For component warnings, also follow [Version warnings](#version-warnings).
+
 Send an alert only when a current claim requests a notification for a waiting
-decision or a finished worker. Never alert for routine progress or a quiet
-periodic turn. Send at most one alert per event ID. Retain the event ID with
+decision, a finished worker, or a component version warning. Never alert for
+routine progress or a quiet periodic turn. Send at most one alert per event ID.
+Retain the event ID with
 the notification attempt in the session context, including across compaction.
 Do not repeat the alert on re-claim, including after a failed attempt.
 
@@ -100,3 +103,15 @@ is available and put the request in the update text. Do not use raw escape
 sequences. If the command fails, report the failure in the update and continue
 the update and acknowledgement workflow. Command success does not confirm
 that the operator saw the alert.
+
+## Version warnings
+
+Machine checks and remote launches compare the running host commit, prepared
+remote client, Herdr clients and running servers, stale-server flags, and selected
+agent CLI. Plain version differences warn. Explicit Herdr protocol incompatibility
+blocks launch before resource creation. Local launches warn about stale servers.
+A `task-version-warning` message contains observations, not an assignment.
+The heartbeat claim includes pending warning details, repair steps, and message
+IDs. Relay every warning and its repair step to the operator. Acknowledge each
+warning message with Tincan only after relaying it. Keep native permissions
+active. Ask before restarting Herdr or changing an installation.
