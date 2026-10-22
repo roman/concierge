@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"time"
 
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/hostservice"
 	"github.com/roman/concierge/pkg/machineprep"
 	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/sshcommand"
+	"github.com/roman/concierge/pkg/versioncheck"
 )
 
 type machineLabelCommand struct {
@@ -49,21 +52,25 @@ func (commands machineCommands) run(
 ) int {
 	catalog := herdr.MachineCatalog{Runner: herdr.NewClient(commands.Herdr).Runner}
 	if selected == "machine status <label>" {
-		return runMachineStatus(
+		return inspectMachine(
 			ctx,
 			root,
 			commands.Status.Label,
 			catalog,
 			sshcommand.SystemRunner{},
+			inspectPreparedClient,
+			versioncheck.Collector{Herdr: commands.Herdr},
 			output,
 		)
 	}
-	return runMachineCheck(
+	return inspectMachine(
 		ctx,
 		root,
 		commands.Check.Label,
 		catalog,
 		sshcommand.SystemRunner{},
+		inspectPrerequisites,
+		versioncheck.Collector{Herdr: commands.Herdr},
 		output,
 	)
 }
@@ -82,7 +89,16 @@ func runMachineCheck(
 	runner sshcommand.Runner,
 	output io.Writer,
 ) int {
-	return inspectMachine(ctx, root, label, machines, runner, inspectPrerequisites, output)
+	return inspectMachine(
+		ctx,
+		root,
+		label,
+		machines,
+		runner,
+		inspectPrerequisites,
+		versioncheck.Collector{},
+		output,
+	)
 }
 
 func runMachineStatus(
@@ -92,7 +108,16 @@ func runMachineStatus(
 	runner sshcommand.Runner,
 	output io.Writer,
 ) int {
-	return inspectMachine(ctx, root, label, machines, runner, inspectPreparedClient, output)
+	return inspectMachine(
+		ctx,
+		root,
+		label,
+		machines,
+		runner,
+		inspectPreparedClient,
+		versioncheck.Collector{},
+		output,
+	)
 }
 
 func inspectMachine(
@@ -101,6 +126,7 @@ func inspectMachine(
 	machines herdr.MachineResolver,
 	runner sshcommand.Runner,
 	inspection machineInspection,
+	collector versioncheck.Collector,
 	output io.Writer,
 ) int {
 	machine, err := machines.Resolve(ctx, label)
@@ -130,8 +156,10 @@ func inspectMachine(
 	if err != nil {
 		return fail(output, 1, err, "correct "+configurationPath+" and retry")
 	}
+	remoteReady := false
 	for _, check := range report.Checks {
 		if check.Name == "ssh-policy" && check.Status == "ready" {
+			remoteReady = true
 			configuration.Base, err = (machineprep.Preparer{Runner: runner}).ResolveBase(
 				ctx,
 				machine,
@@ -186,7 +214,7 @@ func inspectMachine(
 				label,
 			) + " through the primary.",
 		}
-		if len(report.Checks) > 0 && report.Checks[0].Status == "ready" {
+		if remoteReady {
 			client, err = (machineprep.Preparer{Runner: runner}).ReadClient(
 				ctx,
 				machine,
@@ -226,6 +254,39 @@ func inspectMachine(
 				return 1
 			}
 		}
+	}
+	if remoteReady && client.Commit == "" {
+		client, _ = (machineprep.Preparer{Runner: runner}).ReadClient(ctx, machine, configuration)
+	}
+	probe, cancel := context.WithTimeout(ctx, 2*time.Second)
+	host, hostErr := hostservice.Call(
+		probe,
+		filepath.Join(root, "host.sock"),
+		hostservice.Request{
+			Operation: hostservice.HostStatus,
+			Status:    &hostservice.StatusRequest{},
+		},
+	)
+	cancel()
+	primaryCommit := ""
+	if hostErr == nil && host.Status != nil {
+		primaryCommit = host.Status.Revision
+	}
+	if remoteReady {
+		collector.Remote = runner
+	}
+	versions := collector.Inspect(
+		ctx,
+		versioncheck.Options{
+			PrimaryCommit:  primaryCommit,
+			RemoteCommit:   client.Commit,
+			Agent:          configuration.Agent,
+			Machine:        machine,
+			Authentication: configuration.Authentication,
+		},
+	)
+	if err := versions.Write(output); err != nil {
+		return 1
 	}
 	if !report.Ready() {
 		return 1

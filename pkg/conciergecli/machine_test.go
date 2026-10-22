@@ -172,6 +172,13 @@ func TestMachineConfigurationBindsSavedIdentityAndDestination(t *testing.T) {
 				(!strings.Contains(output.String(), "status: ready") || !strings.Contains(output.String(), `machine_id: "machine-id"`)) {
 				t.Fatal(output.String())
 			}
+			if code == 0 {
+				for _, text := range []string{"versions[", "version_warnings[", "primary", "machine", "herdr-server", "server_binary_stale", "codex"} {
+					if !strings.Contains(output.String(), text) {
+						t.Fatalf("missing version report %q: %s", text, &output)
+					}
+				}
+			}
 			if code != 0 && !strings.Contains(output.String(), "machines.json") {
 				t.Fatal("missing configuration repair step")
 			}
