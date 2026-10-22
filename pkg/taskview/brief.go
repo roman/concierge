@@ -40,6 +40,7 @@ func WriteBrief(
 		}
 	}
 	wakeCount := min(len(wakes), options.Limit)
+	var hasReplies, hasOtherWakes bool
 	queueCount := min(len(queued), options.Limit)
 	workerCount := min(len(workers), options.Limit)
 	adoptionCount := min(len(adoptions), options.Limit)
@@ -60,9 +61,19 @@ func WriteBrief(
 		"pending for "+options.Recipient.String(),
 	)
 	if wakeCount > 0 {
-		fmt.Fprintf(&view, "wakes[%d]{id,body}:\n", wakeCount)
+		fmt.Fprintf(&view, "wakes[%d]{id,kind,task,preview}:\n", wakeCount)
 		for _, wake := range wakes[:wakeCount] {
-			fmt.Fprintf(&view, "  %s,%s\n", quote(wake.ID.String()), quote(wakePreview(wake.Body)))
+			summary := summarizeWake(wake.Body)
+			hasReplies = hasReplies || summary.kind == "task-reply"
+			hasOtherWakes = hasOtherWakes || summary.kind != "task-reply"
+			fmt.Fprintf(
+				&view,
+				"  %s,%s,%s,%s\n",
+				quote(wake.ID.String()),
+				quote(summary.kind),
+				quote(summary.task),
+				quote(wakePreview(summary.preview)),
+			)
 		}
 	}
 	writeBriefCount(&view, "backlog", queueCount, len(queued), "queued")
@@ -100,7 +111,17 @@ func WriteBrief(
 	supervisor := "concierge --root " + shellQuote(options.Root)
 	transport := "tincan --root " + shellQuote(options.MessageRoot) + " inbox"
 	var hints []string
-	if wakeCount > 0 {
+	if hasReplies {
+		hints = append(
+			hints,
+			supervisor+" --message-root "+shellQuote(
+				options.MessageRoot,
+			)+" --recipient "+shellQuote(
+				options.Recipient.String(),
+			)+" task reply check <id> --format concise",
+		)
+	}
+	if hasOtherWakes {
 		hints = append(hints, transport+" read "+options.Recipient.String()+" <id>")
 	}
 	if wakeCount < len(wakes) {

@@ -28,6 +28,13 @@
 | `concierge land TASK_ID [--operator-approved]` | Land an accepted result with the configured delivery mode. |
 | `concierge land-recovered TASK_ID --generation GENERATION --commit COMMIT --operator-approved` | Land an explicitly approved local result after the task closes and its lease returns. |
 
+The brief shows each wake's full message ID, envelope kind, task ID, and a
+preview bounded to 120 characters. Known task envelopes show their content or
+checkpoint details. Unknown or malformed envelopes keep a bounded raw preview.
+The SessionStart brief uses the same view. Reply previews are navigation aids;
+use the scoped `task reply check` hint to validate the current binding and read
+the report. Other wakes retain the inbox-read hint.
+
 ## Host upgrades
 
 The host is the background process. The primary is the agent session.
@@ -198,6 +205,9 @@ and open-decision preview with the reply ID and body size. Full-body output
 remains the default; `--format toon` requests it explicitly. Use report
 `--format body` for exact text. See [task reports](tasks.md) for preview limits
 and supervisor adoption requirements.
+Concise previews include a complete command for reading the full body. Reply
+check hints preserve the state root, message root, primary recipient, and reply
+ID. Archived report hints preserve the state root, task ID, and reply ID.
 When recording accepted results elsewhere, the primary reads them from these reports,
 including after `backlog resolve`, worker stop, and cleanup.
 Worker replies accept repeated `--attach NAME=PATH` arguments. Report

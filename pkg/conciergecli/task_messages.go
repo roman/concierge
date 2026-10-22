@@ -109,7 +109,16 @@ func (command *cli) runTaskMessages(
 	case "task reply send <task-id>":
 		return command.Task.Reply.send(ctx, service, messageRoot, stdin, output)
 	case "task reply check <message-id>":
-		return command.Task.Reply.check(ctx, service, messageRoot, output)
+		fullCommand := "concierge --root " + reportShellQuote(
+			root,
+		) + " --message-root " + reportShellQuote(
+			messageRoot,
+		) + " --recipient " + reportShellQuote(
+			command.Recipient,
+		) + " task reply check " + reportShellQuote(
+			command.Task.Reply.Check.MessageID,
+		) + " --format toon"
+		return command.Task.Reply.check(ctx, service, messageRoot, fullCommand, output)
 	case "task receive <task-id> <message-id>":
 		input := command.Task.Receive
 		result, err = service.ReadAssignment(

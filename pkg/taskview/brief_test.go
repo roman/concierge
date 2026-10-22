@@ -2,6 +2,7 @@ package taskview
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -10,6 +11,67 @@ import (
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/tincan/pkg/inbox"
 )
+
+func TestBriefSummarizesWakeEnvelopes(t *testing.T) {
+	for _, test := range []struct {
+		name, body, kind, task, preview string
+		replyHint                       bool
+	}{
+		{"reply", `{"kind":"task-reply","task":"worker","body":"Completed the fix."}`, "task-reply", "worker", "Completed the fix.", true},
+		{"stalled", `{"kind":"task-stalled","task":"worker","observed_state":"blocked","observed_screen":"Permission required"}`, "task-stalled", "worker", "blocked: Permission required", false},
+		{"checkpoint", `{"kind":"task-native-checkpoint","task":"worker","checkpoint":"command_approval"}`, "task-native-checkpoint", "worker", "command_approval", false},
+		{"restart", `{"kind":"task-restart","task":"worker","target_generation":"gen-2","preserved_replies":["reply"],"redelivered_assignments":["assignment"]}`, "task-restart", "worker", "1 preserved replies; 1 redelivered assignments", false},
+		{"assignment", `{"kind":"task-assignment","task":"worker","body":"Fix the view"}`, "task-assignment", "worker", "Fix the view", false},
+		{"bootstrap", `{"kind":"task-bootstrap","task":"worker"}`, "task-bootstrap", "worker", "Worker bootstrap", false},
+		{"unknown", `{"kind":"future","task":"worker","body":"opaque"}`, "unknown", "", `{"kind":"future","task":"worker","body":"opaque"}`, false},
+		{"malformed", `{"kind":"task-reply",`, "unknown", "", `{"kind":"task-reply",`, false},
+		{"invalid field", `{"kind":"task-reply","task":12}`, "unknown", "", `{"kind":"task-reply","task":12}`, false},
+		{"missing task", `{"kind":"task-reply","body":"unbound"}`, "unknown", "", `{"kind":"task-reply","body":"unbound"}`, false},
+		{"text", "A plain wake", "unknown", "", "A plain wake", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			options := briefOptions(t)
+			id, _ := inbox.ParseMessageID("k-" + strings.Repeat("c", 64))
+			var output bytes.Buffer
+			if err := WriteBrief(&output, nil, []inbox.Message{{ID: id, Body: test.body}}, options); err != nil {
+				t.Fatal(err)
+			}
+			want := "wakes[1]{id,kind,task,preview}:\n  " + quote(
+				id.String(),
+			) + "," + quote(
+				test.kind,
+			) + "," + quote(
+				test.task,
+			) + "," + quote(
+				test.preview,
+			)
+			if !strings.Contains(output.String(), want) {
+				t.Fatalf("missing %s in %s", want, &output)
+			}
+			hint := "concierge --root '/state'\\''s/root' --message-root '/messages'\\''root' --recipient 'operator' task reply check <id> --format concise"
+			if strings.Contains(output.String(), quote(hint)) != test.replyHint {
+				t.Fatalf("reply hint: %s", &output)
+			}
+			if strings.Contains(output.String(), "inbox read") == test.replyHint {
+				t.Fatalf("transport hint: %s", &output)
+			}
+		})
+	}
+}
+
+func TestBriefBoundsDecodedPreview(t *testing.T) {
+	body, _ := json.Marshal(
+		map[string]string{"kind": "task-reply", "task": "worker", "body": strings.Repeat("界", 121)},
+	)
+	id, _ := inbox.ParseMessageID("k-" + strings.Repeat("d", 64))
+	var output bytes.Buffer
+	if err := WriteBrief(&output, nil, []inbox.Message{{ID: id, Body: string(body)}}, briefOptions(t)); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), strings.Repeat("界", 120)+"… (121 chars total)") {
+		t.Fatalf("unbounded preview: %s", &output)
+	}
+}
 
 func briefOptions(t *testing.T) BriefOptions {
 	t.Helper()

@@ -73,6 +73,7 @@ func (command *replyCommands) check(
 	ctx context.Context,
 	service *taskops.Service,
 	messageRoot string,
+	fullCommand string,
 	output io.Writer,
 ) int {
 	result, err := service.CheckReply(ctx, messageRoot, command.Check.MessageID)
@@ -99,7 +100,7 @@ func (command *replyCommands) check(
 		}
 	}
 	if command.Check.Format == "concise" {
-		if err := writeReportPreview(output, command.Check.MessageID, result.Body, "toon"); err != nil {
+		if err := writeReportPreview(output, command.Check.MessageID, result.Body, fullCommand); err != nil {
 			return 1
 		}
 		if err := writeAttachmentSummary(output, result.Attachments); err != nil {

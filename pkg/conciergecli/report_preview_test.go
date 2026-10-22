@@ -59,7 +59,7 @@ func TestConciseReplyAndReport(t *testing.T) {
 	t.Setenv(workerLaunchGeneration, "gen-1")
 	root := lifecycleRoot(t)
 	startFixtureTask(t, root)
-	messages := t.TempDir()
+	messages := t.TempDir() + "/messages'root"
 	assignment := assignmentMessage(t, root, messages, "gen-1", "Work")
 	body := "## Handoff\n### Outcome\nReady ✓.\n### Current state\nSECRET DETAILS\n## Gaps\n### Follow-up\nMore details.\n## Open decisions\nApprove deployment?\n"
 	invoke(
@@ -68,6 +68,8 @@ func TestConciseReplyAndReport(t *testing.T) {
 		body,
 		"--message-root",
 		messages,
+		"--recipient",
+		"operator",
 		"task",
 		"reply",
 		"send",
@@ -82,13 +84,22 @@ func TestConciseReplyAndReport(t *testing.T) {
 		"-",
 	)
 	mailbox, _ := inbox.New(messages)
-	primary, _ := inbox.ParseRecipient("concierge")
+	primary, _ := inbox.ParseRecipient("operator")
 	replies, err := mailbox.List(primary)
 	if err != nil || len(replies) != 1 {
 		t.Fatalf("replies: %v %v", replies, err)
 	}
 	id := replies[0].ID.String()
-	check := []string{"--message-root", messages, "task", "reply", "check", id}
+	check := []string{
+		"--message-root",
+		messages,
+		"--recipient",
+		"operator",
+		"task",
+		"reply",
+		"check",
+		id,
+	}
 	for _, command := range [][]string{check, {"task", "report", "task-1", id}} {
 		got := invoke(t, root, "", append(command, "--format", "concise")...)
 		for _, want := range []string{"task: \"task-1\"", "generation: \"gen-1\"", "reply_id: " + quote(id), fmt.Sprintf("body_bytes: %d", len(body)), "outcome: \"Ready ✓.\"", "\"Follow-up\"", "\"Approve deployment?\""} {
@@ -98,6 +109,19 @@ func TestConciseReplyAndReport(t *testing.T) {
 		}
 		if strings.Contains(got, "SECRET") || strings.Contains(got, "body:") {
 			t.Fatalf("full body leaked: %s", got)
+		}
+		fullCommand := "concierge --root " + previewShellQuote(root)
+		if command[0] == "--message-root" {
+			fullCommand += " --message-root " + previewShellQuote(
+				messages,
+			) + " --recipient 'operator' task reply check " + previewShellQuote(
+				id,
+			) + " --format toon"
+		} else {
+			fullCommand += " task report 'task-1' " + previewShellQuote(id) + " --format body"
+		}
+		if !strings.Contains(got, quote("Preview only; read the full body with "+fullCommand)) {
+			t.Fatalf("missing scoped command %q: %s", fullCommand, got)
 		}
 		if got := invoke(t, root, "", append(command, "--format", "toon")...); !strings.Contains(
 			got,
@@ -122,6 +146,10 @@ func TestConciseReplyAndReport(t *testing.T) {
 			t.Fatalf("stale leak: %s", got)
 		}
 	}
+}
+
+func previewShellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func TestReportPreviewLimitsAndWriterFailure(t *testing.T) {

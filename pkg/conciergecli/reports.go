@@ -92,7 +92,14 @@ func (command *taskCommands) report(ctx context.Context, root string, output io.
 		if _, err := fmt.Fprintf(output, "status: archived\ntask: %s\ngeneration: %s\n", quote(report.Task), quote(report.SpawnGeneration)); err != nil {
 			return 1
 		}
-		if err := writeReportPreview(output, command.Report.ReplyID, report.Body, "body"); err != nil {
+		fullCommand := "concierge --root " + reportShellQuote(
+			root,
+		) + " task report " + reportShellQuote(
+			command.Report.TaskID,
+		) + " " + reportShellQuote(
+			command.Report.ReplyID,
+		) + " --format body"
+		if err := writeReportPreview(output, command.Report.ReplyID, report.Body, fullCommand); err != nil {
 			return 1
 		}
 		if err := writeAttachmentSummary(output, report.Attachments); err != nil {

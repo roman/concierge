@@ -139,7 +139,7 @@ func previewText(value string, limit int) string {
 	return string([]rune(value)[:limit]) + "…"
 }
 
-func writeReportPreview(output io.Writer, replyID, body, fullFormat string) error {
+func writeReportPreview(output io.Writer, replyID, body, fullCommand string) error {
 	preview := previewReport(body)
 	if _, err := fmt.Fprintf(output, "reply_id: %s\nbody_bytes: %d\noutcome: %s\n", quote(replyID), len(body), quote(preview.Outcome)); err != nil {
 		return err
@@ -162,7 +162,11 @@ func writeReportPreview(output io.Writer, replyID, body, fullFormat string) erro
 	_, err := fmt.Fprintf(
 		output,
 		"help: %s\n",
-		quote("Preview only; read the full body with --format "+fullFormat),
+		quote("Preview only; read the full body with "+fullCommand),
 	)
 	return err
+}
+
+func reportShellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
