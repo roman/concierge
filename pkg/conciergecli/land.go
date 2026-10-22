@@ -276,14 +276,13 @@ func requireCleanLandingTree(ctx context.Context, directory string) error {
 		"status",
 		"--porcelain=v1",
 		"--untracked-files=all",
-		"--ignored",
 		"--ignore-submodules=none",
 	)
 	if err != nil {
 		return err
 	}
 	if status != "" {
-		return errors.New("worktree contains changed, untracked, or ignored files")
+		return errors.New("worktree contains changed or untracked files")
 	}
 	return nil
 }
@@ -374,7 +373,7 @@ func (target landing) advanceCheckout(ctx context.Context) string {
 	if err != nil || status != "" {
 		return "skipped: main checkout is dirty or unreadable"
 	}
-	if _, err := landingGitCommand(ctx, target.project, "merge", "--ff-only", target.head); err != nil {
+	if _, err := landingGitCommand(ctx, target.project, "merge", "--ff-only", "--no-overwrite-ignore", target.head); err != nil {
 		return "skipped: main checkout cannot fast-forward"
 	}
 	return "advanced"

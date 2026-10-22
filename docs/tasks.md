@@ -340,6 +340,11 @@ reminder settings.
 
 ## Worktree lease cleanup
 
+Landing permits ignored development-shell outputs in a worker checkout. Changed
+tracked files and untracked files still block landing. Landing preserves ignored
+files and skips advancing the main checkout if a committed file would overwrite
+an ignored local file. Worktree lease return retains its stricter cleanup checks.
+
 Stale replies remain in the primary inbox until explicitly retired. Checking a
 reply never acknowledges it. To remove an obsolete reply from heartbeat's
 `pending_replies`, use the same roots and recipient as the primary:

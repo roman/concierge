@@ -109,6 +109,10 @@ completion work.
 
 ## Repairing an accepted local result
 
+Landing permits ignored shell outputs. It still refuses tracked changes and
+untracked files. It preserves local files when advancing the main checkout.
+Lease return keeps its separate cleanliness and ownership checks.
+
 For an accepted, unlanded local project task, run `concierge task reopen TASK_ID`
 before sending follow-up work. The task must retain its held worktree lease.
 Request the rebase and project checks with `task send`, then accept the fresh

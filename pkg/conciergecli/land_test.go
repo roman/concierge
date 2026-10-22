@@ -238,7 +238,7 @@ func TestLandResolvesCheckoutAction(t *testing.T) {
 }
 
 func TestLandRefusals(t *testing.T) {
-	for _, reason := range []string{"merge off", "not accepted", "retired", "no worker", "no lease", "wrong branch", "detached", "dirty", "ignored", "diverged", "wrong repository", "missing worktree", "default branch"} {
+	for _, reason := range []string{"merge off", "not accepted", "retired", "no worker", "no lease", "wrong branch", "detached", "dirty", "diverged", "wrong repository", "missing worktree", "default branch"} {
 		t.Run(reason, func(t *testing.T) {
 			f := newLandingFixture(t)
 			switch reason {
@@ -277,13 +277,6 @@ func TestLandRefusals(t *testing.T) {
 				if err := os.WriteFile(filepath.Join(f.worktree, "dirty"), []byte("dirty"), 0600); err != nil {
 					t.Fatal(err)
 				}
-			case "ignored":
-				if err := os.WriteFile(filepath.Join(f.project, ".git", "info", "exclude"), []byte("ignored\n"), 0600); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(filepath.Join(f.worktree, "ignored"), []byte("ignored"), 0600); err != nil {
-					t.Fatal(err)
-				}
 			case "diverged":
 				landingGit(t, f.project, "commit", "--allow-empty", "-m", "remote advance")
 				landingGit(t, f.project, "push", "origin", "trunk")
@@ -314,6 +307,37 @@ func TestLandRefusals(t *testing.T) {
 				t.Fatal("refusal changed remote")
 			}
 		})
+	}
+}
+
+func TestLandPreservesIgnoredWorkerFiles(t *testing.T) {
+	f := newLandingFixture(t)
+	writeLandingFile(t, f.project, ".git/info/exclude", "generated\n")
+	writeLandingFile(t, f.worktree, "generated", "keep shell output")
+	invoke(t, f.root, "", "land", "task-1")
+	data, err := os.ReadFile(filepath.Join(f.worktree, "generated"))
+	if err != nil || string(data) != "keep shell output" {
+		t.Fatalf("ignored file changed: %q %v", data, err)
+	}
+	if landed := landingGit(t, f.remote, "rev-parse", "trunk"); landed != f.head {
+		t.Fatal(landed)
+	}
+}
+
+func TestLandPreservesIgnoredCheckoutCollision(t *testing.T) {
+	f := newLandingFixture(t)
+	writeLandingFile(t, f.worktree, "collision", "committed")
+	landingGit(t, f.worktree, "add", "collision")
+	landingGit(t, f.worktree, "commit", "-m", "result file")
+	writeLandingFile(t, f.project, ".git/info/exclude", "collision\n")
+	writeLandingFile(t, f.project, "collision", "keep local output")
+	got := invoke(t, f.root, "", "land", "task-1")
+	if !strings.Contains(got, "skipped: main checkout cannot fast-forward") {
+		t.Fatal(got)
+	}
+	data, err := os.ReadFile(filepath.Join(f.project, "collision"))
+	if err != nil || string(data) != "keep local output" {
+		t.Fatalf("ignored collision overwritten: %q %v", data, err)
 	}
 }
 
