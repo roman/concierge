@@ -79,9 +79,12 @@ launch instead of silently starting outside the environment. Add
 `.envrc.template` for optional local direnv setup; a fresh worktree needs no
 `.envrc` when its flake provides the default devShell.
 
-Devshell launches pass a 20-minute startup timeout to Herdr. Cold evaluation
-and shell hooks run inside that allowance before the native agent becomes ready.
-The host request and recovered launch attempt permit 23 minutes, including
+Devshell launches permit 20 minutes for startup. Herdr accepts an agent start
+timeout of at most five minutes, so the pane first builds the devshell with
+`true` as its command and waits up to 15 minutes for a readiness marker. Cold
+evaluation and shell hooks run in that step. A failed build stops the launch
+before Herdr starts the agent. Herdr then starts the agent from the warm
+devshell with a five-minute timeout. The host request and recovered launch attempt permit 23 minutes, including
 preparation and response time. Local and remote startup use the same budget.
 Follow Nix build output in the recorded pane. The launch help states the budget.
 Native launches without a devshell keep Herdr's default timeout. A timeout can

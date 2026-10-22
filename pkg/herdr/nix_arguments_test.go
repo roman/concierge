@@ -21,15 +21,21 @@ func TestNixDevelopArgumentsReachLocalAndRemoteStartup(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Setenv("PATH", bin)
-			runner := &fakeRunner{responses: []runResponse{
-				{stderr: []byte(`{"error":{"code":"agent_not_found"}}`), err: errors.New("absent")},
-				{}, {}, {},
-				{
-					stdout: []byte(
-						`{"result":{"agent":{"agent":"codex","agent_status":"idle","pane_id":"p1"}}}`,
-					),
-				},
-			}}
+			runner := &environmentWaitRunner{
+				outcome: "ready",
+				fakeRunner: fakeRunner{responses: []runResponse{
+					{
+						stderr: []byte(`{"error":{"code":"agent_not_found"}}`),
+						err:    errors.New("absent"),
+					},
+					{}, {}, {},
+					{
+						stdout: []byte(
+							`{"result":{"agent":{"agent":"codex","agent_status":"idle","pane_id":"p1"}}}`,
+						),
+					},
+				}},
+			}
 			client := Client{
 				Runner: runner,
 				NixDevelopArgs: []string{
@@ -58,11 +64,12 @@ func TestNixDevelopArgumentsReachLocalAndRemoteStartup(t *testing.T) {
 				t.Fatal(err)
 			}
 			command := runner.calls[1][3]
-			if !strings.Contains(
+			// The devshell build and the native wrapper must share one cache entry.
+			if strings.Count(
 				command,
 				"'--impure' '--option' 'test-option' 'value with spaces' '-c'",
-			) {
-				t.Fatalf("missing Nix arguments: %s", command)
+			) != 2 {
+				t.Fatalf("Nix arguments missing from the build or the wrapper: %s", command)
 			}
 		})
 	}

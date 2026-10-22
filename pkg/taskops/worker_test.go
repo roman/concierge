@@ -67,7 +67,8 @@ func (runner *workerRunner) RunSession(
 		runner.environmentSetup = args[3]
 		return nil, nil, nil
 	case "pane wait-output":
-		return nil, nil, nil
+		marker := strings.TrimSuffix(strings.TrimPrefix(args[4], "^"), "-(ready|failed)$")
+		return []byte(fmt.Sprintf(`{"result":{"matched_line":%q}}`, marker+"-ready")), nil, nil
 	case "pane get":
 		return []byte(
 			fmt.Sprintf(

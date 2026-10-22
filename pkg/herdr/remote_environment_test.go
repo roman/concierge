@@ -27,7 +27,10 @@ func TestRemoteWorktreeEnvironmentStartsWithoutPrimaryFilesystemProbes(t *testin
 					),
 				},
 			)
-			runner := &fakeRunner{responses: responses}
+			runner := &environmentWaitRunner{
+				outcome:    "ready",
+				fakeRunner: fakeRunner{responses: responses},
+			}
 			client := Client{Runner: runner, machine: "remote-machine"}
 			path := "/remote-only/worker's checkout"
 			if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -53,8 +56,11 @@ func TestRemoteWorktreeEnvironmentStartsWithoutPrimaryFilesystemProbes(t *testin
 			if environment == PlainWorktree && strings.Contains(joined, "concierge-environment-") {
 				t.Fatal("injected a shell environment into a plain worktree")
 			}
-			if environment != PlainWorktree && !strings.Contains(joined, "--timeout 1200000") {
+			if environment != PlainWorktree && !strings.Contains(joined, "--timeout 900000") {
 				t.Fatalf("remote shell startup lacks its build allowance: %s", joined)
+			}
+			if environment != PlainWorktree && !strings.Contains(joined, "--timeout 300000 --") {
+				t.Fatalf("remote native startup timeout exceeds Herdr's limit: %s", joined)
 			}
 		})
 	}

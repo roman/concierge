@@ -17,6 +17,13 @@ import (
 // WorktreeStartupTimeout includes cold devshell evaluation before native startup.
 const WorktreeStartupTimeout = 20 * time.Minute
 
+// Herdr rejects agent start timeouts above five minutes, so the devshell build
+// receives the rest of the startup budget before the agent starts.
+const (
+	nativeStartupTimeout    = 5 * time.Minute
+	environmentBuildTimeout = WorktreeStartupTimeout - nativeStartupTimeout
+)
+
 type WorktreeEnvironment string
 
 const (
@@ -186,22 +193,53 @@ func (client Client) prepareEnvironment(
 		parts[index] = shellQuote(argument)
 	}
 	// Herdr owns native arguments and readiness detection. A one-use shell function
-	// wraps its canonical executable without changing either contract.
+	// wraps its canonical executable without changing either contract. Running the
+	// wrapper once with `true` builds the devshell before Herdr's capped start wait.
+	// The marker and its outcome are joined at runtime so the echoed command line
+	// never matches the wait.
 	marker := "concierge-environment-" + rand.Text()
-	command := fmt.Sprintf("%s() { unset -f %s; command %s %s \"$@\"; }; printf '%%s\\n' %s",
-		kind, kind, strings.Join(parts, " "), shellQuote(kind), shellQuote(marker))
+	wrapper := strings.Join(parts, " ")
+	command := fmt.Sprintf(
+		"%s() { unset -f %s; command %s %s \"$@\"; }; "+
+			"if command %s true; then printf '%%s-%%s\\n' %s ready; "+
+			"else printf '%%s-%%s\\n' %s failed; fi",
+		kind, kind, wrapper, shellQuote(kind), wrapper, shellQuote(marker), shellQuote(marker))
 	if _, err := client.shared().Run(ctx, "pane", "run", paneID, command); err != nil {
 		return err
 	}
-	_, err := client.shared().Run(
+	output, err := client.shared().Run(
 		ctx,
 		"pane",
 		"wait-output",
 		paneID,
 		"--regex",
-		"^"+marker+"$",
+		"^"+marker+"-(ready|failed)$",
 		"--timeout",
-		"10000",
+		fmt.Sprint(environmentBuildTimeout.Milliseconds()),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	var response struct {
+		Result struct {
+			MatchedLine string `json:"matched_line"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(output, &response); err != nil {
+		return fmt.Errorf("%w: %v", ErrResponse, err)
+	}
+	if response.Result.MatchedLine == marker+"-ready" {
+		return nil
+	}
+	detail := "development shell did not start"
+	if screen, err := client.VisibleScreen(ctx, paneID); err == nil {
+		if line := nativeErrorLine(screen); line != "" {
+			detail += ": " + line
+		}
+	}
+	return fmt.Errorf(
+		"%w: %s; inspect the recorded pane, then close its launch resources before task abandon",
+		ErrNativeStartup,
+		detail,
+	)
 }

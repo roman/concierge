@@ -159,7 +159,7 @@ func (c Client) startWithEnvironment(
 	}
 	args := []string{"agent", "start", name, "--kind", kind, "--pane", paneID}
 	if len(prefix) > 0 {
-		args = append(args, "--timeout", fmt.Sprint(WorktreeStartupTimeout.Milliseconds()))
+		args = append(args, "--timeout", fmt.Sprint(nativeStartupTimeout.Milliseconds()))
 	}
 	if len(agentArgs) > 0 {
 		args = append(append(args, "--"), agentArgs...)
