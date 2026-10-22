@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -120,7 +122,7 @@ func TestReopenStates(t *testing.T) {
 		{"accepted live worker", ""},
 		{"closed missing agent", ""},
 		{"identity missing", "native session identity"},
-		{"landed project task", "only local scouts"},
+		{"landed project task", "held worktree lease"},
 		{"retired worker", "worker binding"},
 		{"unreadable endpoint", "worker liveness"},
 	} {
@@ -200,6 +202,84 @@ func TestReopenStates(t *testing.T) {
 					!strings.Contains(strings.Join(runner.startArgs, " "), "resume thread-1") {
 					t.Fatal("restart lost session identity or generation fencing")
 				}
+			}
+		})
+	}
+}
+
+func TestReopenUnlandedProject(t *testing.T) {
+	for _, landed := range []bool{false, true} {
+		t.Run(fmt.Sprint(landed), func(t *testing.T) {
+			ctx := context.Background()
+			service, runner, _ := runningWorkerService(t)
+			project := t.TempDir()
+			git := func(directory string, args ...string) string {
+				t.Helper()
+				data, err := exec.Command("git", append([]string{"-C", directory}, args...)...).
+					CombinedOutput()
+				if err != nil {
+					t.Fatalf("git %v: %s %v", args, data, err)
+				}
+				return strings.TrimSpace(string(data))
+			}
+			git(project, "init", "-b", "main")
+			commit := func(directory string) {
+				git(
+					directory,
+					"-c",
+					"user.name=Test",
+					"-c",
+					"user.email=test@example.com",
+					"commit",
+					"--allow-empty",
+					"-m",
+					"work",
+				)
+			}
+			commit(project)
+			base := git(project, "rev-parse", "HEAD")
+			remote := filepath.Join(t.TempDir(), "remote.git")
+			git(project, "clone", "--bare", project, remote)
+			git(project, "remote", "add", "origin", remote)
+			git(project, "worktree", "add", "-b", "task/work", runner.worktree)
+			commit(runner.worktree)
+			if landed {
+				git(project, "push", "origin", "task/work:main")
+			}
+			_, err := service.store.Update(
+				ctx,
+				"task-1",
+				func(task taskstate.Task) (taskstate.Task, error) {
+					snapshot := task.Snapshot()
+					snapshot.Worker.Project = project
+					snapshot.Worker.Lease = taskstate.WorktreeLease{
+						ID:         "lease",
+						Holder:     "task-1",
+						Project:    project,
+						Path:       runner.worktree,
+						Branch:     "task/work",
+						BaseCommit: base,
+						State:      taskstate.LeaseHeld,
+					}
+					return taskstate.NewMigrated(snapshot)
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Finish(ctx, "task-1", "gen-1", taskstate.Close, "2026-10-22"); err != nil {
+				t.Fatal(err)
+			}
+			service.git.Executable, _ = exec.LookPath("git")
+			_, err = service.Reopen(ctx, "task-1", herdr.Client{SessionRunner: runner})
+			if landed {
+				if err == nil || !strings.Contains(err.Error(), "already landed") {
+					t.Fatalf("landed reopen: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

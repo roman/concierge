@@ -11,9 +11,10 @@ import (
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/taskview"
+	"github.com/roman/concierge/pkg/worktree"
 )
 
-// Reopen returns an accepted scout to active work with its recorded binding.
+// Reopen returns accepted local work to its recorded worker.
 func (service *Service) Reopen(
 	ctx context.Context,
 	taskID string,
@@ -26,6 +27,14 @@ func (service *Service) Reopen(
 			return err
 		}
 		bound := current.Snapshot().Worker
+		if current.Definition().Kind != "scout" {
+			lease := bound.Lease
+			if err := service.git.VerifyUnlanded(ctx, worktree.Specification{
+				Project: lease.Project, Path: lease.Path, Branch: lease.Branch, BaseCommit: lease.BaseCommit,
+			}); err != nil {
+				return err
+			}
+		}
 		client, err := client.ForEndpoint(bound.Machine, bound.Session)
 		if err != nil {
 			return err

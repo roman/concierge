@@ -67,3 +67,40 @@ func TestReopenPreservesAcceptanceHistory(t *testing.T) {
 		})
 	}
 }
+
+func TestReopenAcceptedProjectWithHeldLease(t *testing.T) {
+	worker := workerForTransition()
+	worker.Workspace, worker.Tab = "workspace-1", "tab-1"
+	worker.Lease = WorktreeLease{ID: "lease", Holder: "task-1", Project: worker.Project,
+		Path: worker.Worktree, Branch: "task/work", BaseCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", State: LeaseHeld}
+	for _, state := range []LeaseState{LeaseHeld, LeaseReturned} {
+		t.Run(string(state), func(t *testing.T) {
+			worker.Lease.State = state
+			task, err := NewMigrated(Snapshot{
+				Definition: Definition{
+					ID:     "task-1",
+					Title:  "Work",
+					Repo:   "repo",
+					Kind:   "task",
+					Closed: "2026-10-22",
+				},
+				State: Done, Worker: &worker,
+				Completion: &Completion{
+					Generation: worker.Generation,
+					Mode:       Close,
+					Phase:      Accepted,
+				},
+			})
+			if err != nil {
+				if state == LeaseReturned {
+					return
+				}
+				t.Fatal(err)
+			}
+			_, err = task.Reopen(time.Now())
+			if (err == nil) != (state == LeaseHeld) {
+				t.Fatalf("reopen %s: %v", state, err)
+			}
+		})
+	}
+}

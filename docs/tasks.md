@@ -167,8 +167,10 @@ an unresolved creation instead of creating another workspace. Retry `task reopen
 after fixing the reported problem. Repeating a successful reopen is a no-op for
 the task history.
 
-Only local scouts can reopen. Project tasks, including landed tasks, require a
-new task. This keeps landing and worktree ownership rules unchanged. Remote
+Local project tasks can also reopen while their worktree lease is held and their
+committed result is absent from the fetched target branch. Use `task reopen TASK_ID`,
+then `task send` to request a rebase and fresh project checks. Accept the new result
+before retrying `land`. Landed project tasks require a new task. Remote
 workers, held tasks, and workers retired by cleanup cannot reopen. An active
 stop or cleanup operation blocks reopen and appears by name in the error.
 

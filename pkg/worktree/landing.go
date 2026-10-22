@@ -14,6 +14,29 @@ var ErrResultNotLanded = errors.New("selected result is not on the fetched defau
 
 type DefaultBranch struct{ Name, Tip string }
 
+// VerifyUnlanded requires committed work that is absent from the fetched target.
+func (client Client) VerifyUnlanded(ctx context.Context, specification Specification) error {
+	if err := client.VerifyIdentity(ctx, specification); err != nil {
+		return err
+	}
+	branch, err := client.FetchDefaultBranch(ctx, specification.Project)
+	if err != nil {
+		return err
+	}
+	head, err := client.git(ctx, specification.Path, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	err = client.VerifyLanded(ctx, specification.Project, strings.TrimSpace(head), branch)
+	if errors.Is(err, ErrResultNotLanded) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return errors.New("project work is already landed; create a new task")
+}
+
 func immutableCommitID(value string) bool {
 	decoded, err := hex.DecodeString(value)
 	return err == nil && (len(decoded) == 20 || len(decoded) == 32) &&

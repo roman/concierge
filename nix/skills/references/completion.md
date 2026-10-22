@@ -106,3 +106,10 @@ original tab. A receipt-based stop retry preserves newer workers. Cleanup
 verifies pane departure and retires the accepted binding. Do not adopt another
 worker before cleanup completes. `concierge task pending` lists unfinished
 completion work.
+
+## Repairing an accepted local result
+
+For an accepted, unlanded local project task, run `concierge task reopen TASK_ID`
+before sending follow-up work. The task must retain its held worktree lease.
+Request the rebase and project checks with `task send`, then accept the fresh
+result before landing. Landed tasks and remote workers require a new task.

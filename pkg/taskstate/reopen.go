@@ -50,17 +50,19 @@ func validReopens(history []ReopenRecord) bool {
 	return true
 }
 
-// CheckReopen restricts follow-up work to scouts whose binding is still retained.
+// CheckReopen requires a retained local binding for follow-up work.
 func (task Task) CheckReopen() error {
 	snapshot := task.Snapshot()
-	if snapshot.Definition.Kind != "scout" ||
-		(snapshot.Worker != nil && snapshot.Worker.Machine != "") {
-		return fmt.Errorf("reopen supports only local scouts; create a new task for project work")
+	if snapshot.Worker != nil && snapshot.Worker.Machine != "" {
+		return fmt.Errorf("reopen supports only local workers; create a new task for remote work")
 	}
 	if snapshot.Worker == nil {
 		return fmt.Errorf(
 			"reopen requires a retained worker binding; cleanup has retired this worker",
 		)
+	}
+	if snapshot.Definition.Kind != "scout" && snapshot.Worker.Lease.State != LeaseHeld {
+		return fmt.Errorf("project reopen requires a held worktree lease")
 	}
 	if snapshot.LaunchIntent != nil || snapshot.Worker.PendingAdoption ||
 		snapshot.Definition.Hold != nil ||
