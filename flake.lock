@@ -546,17 +546,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1792041648,
-        "narHash": "sha256-3sGXHUyDJTuKisH0ui7VPuFoxfrmVs1omR6BY4qwueQ=",
+        "lastModified": 1792650651,
+        "narHash": "sha256-4vtt9E3Q74hgMwvPEaKQ7ieb7rft8tSPseo2znoVdNM=",
         "owner": "roman",
         "repo": "tincan",
-        "rev": "497b0d8dd6ebabe1d85f8047d652fdad7e36541a",
+        "rev": "3a965c1f676bfef916185ca2c21972e5f3c3e41b",
         "type": "github"
       },
       "original": {
         "owner": "roman",
         "repo": "tincan",
-        "rev": "497b0d8dd6ebabe1d85f8047d652fdad7e36541a",
+        "rev": "3a965c1f676bfef916185ca2c21972e5f3c3e41b",
         "type": "github"
       }
     },

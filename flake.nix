@@ -9,7 +9,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     tincan = {
-      url = "github:roman/tincan/497b0d8dd6ebabe1d85f8047d652fdad7e36541a";
+      url = "github:roman/tincan/3a965c1f676bfef916185ca2c21972e5f3c3e41b";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.herdr.follows = "herdr";
       inputs.flake-parts.follows = "flake-parts";
