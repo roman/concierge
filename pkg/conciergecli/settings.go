@@ -20,12 +20,22 @@ type briefIncludeCommands struct {
 }
 
 func (command *projectCommands) set(root string, output io.Writer) int {
-	if command.Set.Merge == nil && command.Set.Delivery == nil && command.Set.Branch == nil {
+	if command.Set.Merge == nil && command.Set.Delivery == nil && command.Set.Branch == nil &&
+		len(command.Set.NixDevelopArgs) == 0 &&
+		!command.Set.ClearNixDevelopArgs {
 		return fail(
 			output,
 			2,
 			errors.New("provide at least one setting"),
 			"concierge project set REPO [--merge on|off] [--delivery pr|fast-forward] [--branch BRANCH]",
+		)
+	}
+	if command.Set.ClearNixDevelopArgs && len(command.Set.NixDevelopArgs) != 0 {
+		return fail(
+			output,
+			2,
+			errors.New("cannot set and clear Nix arguments together"),
+			"choose --nix-develop-arg or --clear-nix-develop-args",
 		)
 	}
 	path := filepath.Join(root, "config", "projects.json")
@@ -45,6 +55,12 @@ func (command *projectCommands) set(root string, output io.Writer) int {
 		}
 		if command.Set.Branch != nil {
 			settings.Branch = *command.Set.Branch
+		}
+		if len(command.Set.NixDevelopArgs) != 0 {
+			settings.NixDevelopArgs = command.Set.NixDevelopArgs
+		}
+		if command.Set.ClearNixDevelopArgs {
+			settings.NixDevelopArgs = nil
 		}
 		projects[command.Set.Repo] = settings
 		var data []byte

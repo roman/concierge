@@ -25,3 +25,11 @@ procedure. Never copy a generation into the worker environment to bypass it.
 Cleanup must confirm agent and worktree quiescence. Unknown ownership, active
 listeners, dirty files, or unconfirmed lease returns require inspection.
 Do not remove arbitrary sockets or reset worktrees to make cleanup pass.
+
+## Worker development shells
+
+Read the operator-owned project settings before launch. For flakes that require
+impure evaluation, ask the operator to configure
+`concierge project set REPO --nix-develop-arg=--impure`. The saved arguments apply
+to local and remote launches and resumes. Do not seed an untracked `.envrc`.
+An existing `.envrc` retains its own `direnv exec` policy.

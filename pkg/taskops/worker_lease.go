@@ -3,6 +3,9 @@ package taskops
 import (
 	"context"
 	"fmt"
+	"slices"
+
+	"github.com/roman/concierge/pkg/herdr"
 
 	"github.com/roman/concierge/pkg/taskmeta"
 	"github.com/roman/concierge/pkg/taskstate"
@@ -16,6 +19,18 @@ type WorkerTools struct {
 	Pool         worktree.PoolClient
 	Git          worktree.Client
 	ReadSettings func(string) (WorkerSettings, error)
+}
+
+func (service *Service) worktreeClient(repo string, client herdr.Client) (herdr.Client, error) {
+	if service.readSettings == nil {
+		return client, nil
+	}
+	settings, err := service.readSettings(repo)
+	if err != nil {
+		return herdr.Client{}, err
+	}
+	client.NixDevelopArgs = slices.Clone(settings.NixDevelopArgs)
+	return client, nil
 }
 
 // WithRemovedStoreLinkReporter scopes return diagnostics to one operation.

@@ -54,13 +54,14 @@ var (
 type Runner = base.Runner
 
 type Client struct {
-	machine       string
-	session       string
-	Runner        Runner
-	SessionRunner SessionRunner
-	MachineRunner MachineRunner
-	RemoteChecks  RemoteChecks
-	Processes     ProcessInspector
+	machine        string
+	session        string
+	Runner         Runner
+	SessionRunner  SessionRunner
+	MachineRunner  MachineRunner
+	RemoteChecks   RemoteChecks
+	Processes      ProcessInspector
+	NixDevelopArgs []string
 }
 
 func NewClient(executable string) Client {

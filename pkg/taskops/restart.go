@@ -48,6 +48,10 @@ func (worker *SupervisedWorker) Restart(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			client, err = worker.service.worktreeClient(task.Current().Definition().Repo, client)
+			if err != nil {
+				return err
+			}
 			if _, err := client.Get(ctx, bound.Pane); err == nil {
 				return herdr.ErrAgentPresent
 			} else if !errors.Is(err, herdr.ErrNotFound) {

@@ -13,10 +13,12 @@ import (
 
 type projectCommands struct {
 	Set struct {
-		Repo     string  `arg:"" help:"Repository name used by backlog intake."`
-		Merge    *string `enum:"on,off" help:"Operator-approved merge authority."`
-		Delivery *string `enum:"pr,fast-forward" help:"Operator-approved delivery mode."`
-		Branch   *string `help:"Operator-approved target branch; an empty value restores the remote default."`
+		Repo                string   `arg:"" help:"Repository name used by backlog intake."`
+		Merge               *string  `enum:"on,off" help:"Operator-approved merge authority."`
+		Delivery            *string  `enum:"pr,fast-forward" help:"Operator-approved delivery mode."`
+		Branch              *string  `help:"Operator-approved target branch; an empty value restores the remote default."`
+		NixDevelopArgs      []string `name:"nix-develop-arg" sep:"none" help:"Operator-approved extra nix develop argument; repeat in order with --nix-develop-arg=VALUE."`
+		ClearNixDevelopArgs bool     `help:"Restore nix develop without extra project arguments."`
 	} `cmd:"" help:"Set approved repository settings atomically."`
 	Show struct {
 		Repo string `arg:"" help:"Repository name used by backlog intake."`
@@ -24,9 +26,10 @@ type projectCommands struct {
 }
 
 type projectSettings struct {
-	Merge    string `json:"merge"`
-	Delivery string `json:"delivery"`
-	Branch   string `json:"branch,omitempty"`
+	Merge          string   `json:"merge"`
+	Delivery       string   `json:"delivery"`
+	Branch         string   `json:"branch,omitempty"`
+	NixDevelopArgs []string `json:"nix_develop_args,omitempty"`
 }
 
 func (command *projectCommands) show(root string, output io.Writer) int {
@@ -48,7 +51,27 @@ func (command *projectCommands) show(root string, output io.Writer) int {
 			return 1
 		}
 	}
+	if err := writeNixDevelopArguments(output, settings.NixDevelopArgs); err != nil {
+		return 1
+	}
 	return 0
+}
+
+func writeNixDevelopArguments(output io.Writer, arguments []string) error {
+	if len(arguments) == 0 {
+		return nil
+	}
+	values := make([]string, len(arguments))
+	for index, argument := range arguments {
+		values[index] = quote(argument)
+	}
+	_, err := fmt.Fprintf(
+		output,
+		"nix_develop_args[%d]: %s\n",
+		len(values),
+		strings.Join(values, ","),
+	)
+	return err
 }
 
 func readProjectSettings(path, repo string) (projectSettings, error) {
@@ -88,6 +111,11 @@ func readProjects(path string) (map[string]projectSettings, error) {
 		return nil, errors.New("project settings must contain one JSON object")
 	}
 	for name, settings := range projects {
+		for _, argument := range settings.NixDevelopArgs {
+			if argument == "" || strings.ContainsAny(argument, "\x00\r\n") {
+				return nil, fmt.Errorf("invalid nix develop argument for %q", name)
+			}
+		}
 		if settings.Branch != "" {
 			if settings.Branch == "HEAD" || strings.HasPrefix(settings.Branch, "-") {
 				return nil, fmt.Errorf("invalid target branch for %q", name)

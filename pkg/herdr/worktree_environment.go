@@ -127,7 +127,14 @@ func (client Client) StartRemoteInWorktree(
 			"-c",
 		}
 	}
-	return client.startWithEnvironment(ctx, paneID, name, kind, arguments, prefix)
+	return client.startWithEnvironment(
+		ctx,
+		paneID,
+		name,
+		kind,
+		arguments,
+		client.nixDevelopPrefix(prefix),
+	)
 }
 
 // StartInWorktree applies the environment to the native executable after pane shell startup.
@@ -143,7 +150,23 @@ func (client Client) StartInWorktree(
 	if err != nil {
 		return err
 	}
-	return client.startWithEnvironment(ctx, paneID, name, kind, arguments, prefix)
+	return client.startWithEnvironment(
+		ctx,
+		paneID,
+		name,
+		kind,
+		arguments,
+		client.nixDevelopPrefix(prefix),
+	)
+}
+
+func (client Client) nixDevelopPrefix(prefix []string) []string {
+	if len(prefix) == 0 || prefix[0] != "nix" || len(client.NixDevelopArgs) == 0 {
+		return prefix
+	}
+	arguments := append([]string{}, prefix[:len(prefix)-1]...)
+	arguments = append(arguments, client.NixDevelopArgs...)
+	return append(arguments, "-c")
 }
 
 func shellQuote(value string) string {

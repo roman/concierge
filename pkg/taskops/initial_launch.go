@@ -91,6 +91,10 @@ func (service *Service) ContinueInitialLaunch(
 	if err != nil {
 		return taskstate.Task{}, err
 	}
+	client, err = service.worktreeClient(task.Definition().Repo, client)
+	if err != nil {
+		return taskstate.Task{}, err
+	}
 	if err := service.checkLaunchLease(ctx, taskID, intent, config); err != nil {
 		return taskstate.Task{}, err
 	}

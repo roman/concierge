@@ -1,5 +1,14 @@
 # Development shell integration
 
+For worker repositories whose flake shell needs impure evaluation, the operator
+can set `concierge project set REPO --nix-develop-arg=--impure`. Repeat
+`--nix-develop-arg=VALUE` to preserve an ordered argument list, including values
+with spaces. Local and remote launches and controlled resumes apply these
+arguments to `nix develop`. They do not require a generated `.envrc`.
+Existing `.envrc` files continue to select `direnv exec` and keep their own policy.
+Plain worktrees receive no Nix wrapper. Inspect the setting with `project show`.
+Use `project set REPO --clear-nix-develop-args` to restore the default.
+
 
 Concierge exports `devenvModules.default` for devshell-modules. Add both flake
 inputs, import the devshell-modules flake-parts module, and configure the shell:

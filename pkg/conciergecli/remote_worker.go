@@ -224,6 +224,9 @@ func (command *cli) writeRemoteResponse(
 				return 1
 			}
 		}
+		if err := writeNixDevelopArguments(output, settings.NixDevelopArgs); err != nil {
+			return 1
+		}
 	}
 	return 0
 }

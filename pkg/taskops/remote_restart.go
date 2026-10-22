@@ -35,6 +35,10 @@ func (worker *SupervisedWorker) restartRemote(
 	if err != nil {
 		return worker.remoteRestartFailure(ctx, task, taskstate.HerdrChannel, err)
 	}
+	client, err = worker.service.worktreeClient(task.Current().Definition().Repo, client)
+	if err != nil {
+		return err
+	}
 	_, err = client.Get(ctx, bound.Name)
 	if err == nil {
 		return herdr.ErrAgentPresent
