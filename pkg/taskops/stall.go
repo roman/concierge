@@ -3,6 +3,7 @@ package taskops
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -251,7 +252,10 @@ func (worker *SupervisedWorker) publishStallAlert(bound taskstate.Worker) (Notif
 		bound.Generation,
 		progress.AssignmentID,
 	)
-	if _, err := worker.messages.Send(worker.service.primaryRecipient, key, string(body)); err != nil {
+	// The key identifies the frozen stall episode. A host upgrade can change
+	// derived fields, but an existing pending or handled notice remains published.
+	if _, err := worker.messages.Send(worker.service.primaryRecipient, key, string(body)); err != nil &&
+		!errors.Is(err, inbox.ErrKeyConflict) {
 		return NotificationFailed, fmt.Errorf("stall notification is unconfirmed: %w", err)
 	}
 	return NotificationDeferred, nil

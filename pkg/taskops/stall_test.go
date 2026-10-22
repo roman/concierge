@@ -216,6 +216,86 @@ func TestStallNoticeExplainsRemoteCodexApprovalReviewer(t *testing.T) {
 	}
 }
 
+func TestStallNoticePreservesPublishedBodyAcrossUpgrade(t *testing.T) {
+	for _, disposition := range []string{"pending", "handled"} {
+		for _, change := range []string{"help", "pane"} {
+			t.Run(disposition+"/"+change, func(t *testing.T) {
+				service, runner, root := runningWorkerService(t)
+				worker, err := service.SupervisedWorker(
+					"task-1",
+					root,
+					herdr.Client{SessionRunner: runner},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				bound := taskstate.Worker{
+					Harness: "codex", Generation: "gen-1", Pane: "%1",
+					PromptProgress: &taskstate.PromptProgress{
+						AssignmentID: "assignment-1",
+						Alert: &taskstate.StallAlert{
+							State:  herdr.Blocked,
+							Screen: "Approval required",
+						},
+					},
+				}
+				if _, err := worker.publishStallAlert(bound); err != nil {
+					t.Fatal(err)
+				}
+				notices, err := worker.messages.List(service.primaryRecipient)
+				if err != nil || len(notices) != 1 {
+					t.Fatalf("initial notices = %+v, %v", notices, err)
+				}
+				original := notices[0]
+				if disposition == "handled" {
+					if err := worker.messages.Acknowledge(service.primaryRecipient, original.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if change == "help" {
+					// Remote Codex advice changes the derived body without changing its key.
+					bound.Machine = "baker"
+				} else {
+					bound.Pane = "%2"
+				}
+				replacement, err := service.SupervisedWorker(
+					"task-1",
+					root,
+					herdr.Client{SessionRunner: runner},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for attempt := 0; attempt < 2; attempt++ {
+					status, err := replacement.publishStallAlert(bound)
+					if err != nil || status != NotificationDeferred {
+						t.Fatalf("upgrade retry = %s, %v", status, err)
+					}
+				}
+				notices, err = worker.messages.List(service.primaryRecipient)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var saved inbox.Message
+				if disposition == "handled" {
+					if len(notices) != 0 {
+						t.Fatalf("republished handled notice: %+v", notices)
+					}
+					saved, err = worker.messages.ReadHandled(service.primaryRecipient, original.ID)
+				} else {
+					if len(notices) != 1 {
+						t.Fatalf("retry notices = %+v", notices)
+					}
+					saved = notices[0]
+				}
+				if err != nil || saved.ID != original.ID || saved.Body != original.Body {
+					t.Fatalf("retry changed the published notice: %+v, %v", saved, err)
+				}
+			})
+		}
+	}
+}
+
 func TestStalledAssignmentBoundsPromptsAndAlertsPrimary(t *testing.T) {
 	service, runner, messageRoot := runningWorkerService(t)
 	runner.agentStatus = herdr.Done
