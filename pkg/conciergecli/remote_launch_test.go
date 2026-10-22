@@ -26,7 +26,13 @@ func TestLaunchResolvesMachineLabelAndSendsPrimaryProject(t *testing.T) {
 
 func TestLaunchNamedAutomaticReviewIsExplicitAndCaptured(t *testing.T) {
 	request := testRemoteLaunchRequest(t, []string{"--codex-approval-reviewer=auto-review"})
-	want := []string{"--model", "example,model", "-c", "approvals_reviewer=auto_review"}
+	want := []string{
+		"--model",
+		"example,model",
+		"--sandbox=workspace-write",
+		"-c",
+		"approvals_reviewer=auto_review",
+	}
 	if !reflect.DeepEqual(request.Launch.AgentArgs, want) {
 		t.Fatalf("automatic review was not captured in the launch: %v", request.Launch.AgentArgs)
 	}
@@ -125,7 +131,14 @@ printf '%s' '[{"id":"saved-id","label":"dev-remote","target":"synthetic-target",
 			Outcome: hostservice.Pending, Error: "import confirmation pending", Transition: &snapshot,
 		})
 	}()
-	arguments := append(launchArguments(root), "--machine", "dev-remote", "--herdr", herdr)
+	arguments := append(
+		launchArguments(root),
+		"--machine",
+		"dev-remote",
+		"--herdr",
+		herdr,
+		"--agent-arg=--sandbox=workspace-write",
+	)
 	arguments = append(arguments, additional...)
 	var output bytes.Buffer
 	code := Run(ctx, arguments, strings.NewReader("Work remotely."), &output, io.Discard)

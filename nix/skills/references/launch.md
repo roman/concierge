@@ -48,6 +48,11 @@ and dispatches the keyed assignment. The host supplies fixed command paths,
 roots, worker instructions, and native generation settings. Keep normal harness
 permissions active. Released Herdr v0.9.3 is sufficient.
 
+For remote Codex, explicitly include `--agent-arg=--sandbox=workspace-write`.
+Argument parsing rejects other sandbox modes or an omitted mode before reading
+the assignment, resolving the machine, or creating launch resources. Concierge
+does not add sandbox arguments automatically. Local launches keep native defaults.
+
 Fresh launches and controlled resumes receive a static protocol as their native
 initial user prompt. Setup checks the inherited generation and waits without
 mailbox access. A short notification supplies the expected generation and an

@@ -133,7 +133,7 @@ func TestRemotePermissionsRequireAnExplicitCompleteMode(t *testing.T) {
 		{"incomplete", []string{"--sandbox=workspace-write", "--sandbox"}, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			err := validateRemotePermissions(
+			err := ValidateRemotePermissions(
 				LaunchRequest{Harness: "codex", AgentArgs: test.arguments},
 			)
 			if (err == nil) != test.accepted {
@@ -141,7 +141,7 @@ func TestRemotePermissionsRequireAnExplicitCompleteMode(t *testing.T) {
 			}
 		})
 	}
-	if err := validateRemotePermissions(LaunchRequest{Harness: "claude"}); err != nil {
+	if err := ValidateRemotePermissions(LaunchRequest{Harness: "claude"}); err != nil {
 		t.Fatal(err)
 	}
 }

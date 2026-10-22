@@ -164,8 +164,9 @@ another creation attempt.
 ## Native checkpoints
 
 New remote Codex launches require
-`--agent-arg=--sandbox=workspace-write`. Concierge rejects the request before
-remote preparation when the explicit mode is missing or incompatible. Codex's
+`--agent-arg=--sandbox=workspace-write`. Argument parsing rejects a missing or
+incompatible sandbox before reading the assignment or resolving the machine.
+Concierge validates the mode again on the host before remote preparation. Codex's
 default read-only permissions cannot add the private task directory as a
 writable root. Captured launches retain their original arguments on recovery.
 Local launches and Claude launches keep their existing permission settings.

@@ -27,9 +27,18 @@ type launchCommand struct {
 	Branch                string   `required:"" help:"New literal worktree branch."`
 	BaseCommit            string   `help:"Full source commit ID; omit to fetch the project's target branch or remote default."`
 	Workspace             string   `help:"Existing shared Herdr workspace ID; omit to create a task-owned workspace. Labels are unsupported."`
-	AgentArgs             []string `name:"agent-arg" sep:"none" help:"Worker launch argument; repeat in order, using --agent-arg=VALUE for options."`
+	AgentArgs             []string `name:"agent-arg" sep:"none" help:"Worker launch argument; repeat in order, using --agent-arg=VALUE for options. Remote Codex requires --agent-arg=--sandbox=workspace-write explicitly."`
 	CodexApprovalReviewer string   `default:"native" enum:"native,auto-review" help:"Remote Codex approval reviewer. Native preserves current settings. Auto-review explicitly selects automatic review."`
 	BodyFile              string   `required:"" help:"Assignment file, or - for stdin."`
+}
+
+func (command launchCommand) Validate() error {
+	if command.Machine == "" {
+		return nil
+	}
+	return hostservice.ValidateRemotePermissions(hostservice.LaunchRequest{
+		Harness: command.Harness, AgentArgs: command.AgentArgs,
+	})
 }
 
 func (command *launchCommand) run(

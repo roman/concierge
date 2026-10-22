@@ -40,7 +40,7 @@ func (server *Server) executeRemoteInitialLaunch(
 	}
 	// Captured launches retain their original arguments during reconciliation.
 	if existing.Snapshot().LaunchIntent == nil {
-		if err := validateRemotePermissions(input); err != nil {
+		if err := ValidateRemotePermissions(input); err != nil {
 			return Response{}, err
 		}
 	}
@@ -139,7 +139,8 @@ func (server *Server) executeRemoteInitialLaunch(
 	return Response{Transition: &snapshot}, nil
 }
 
-func validateRemotePermissions(input LaunchRequest) error {
+// ValidateRemotePermissions lets clients reject unsupported permissions before resource creation.
+func ValidateRemotePermissions(input LaunchRequest) error {
 	if input.Harness != "codex" {
 		return nil
 	}
