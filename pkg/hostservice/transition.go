@@ -200,6 +200,23 @@ func (server *Server) execute(
 	request Request,
 	reportRemovedLink func(string),
 ) (taskstate.Task, error) {
+	updated, err := server.executeTransition(ctx, request, reportRemovedLink)
+	if err != nil {
+		return updated, err
+	}
+	switch request.Operation {
+	case Cleanup, CloseRetired, Discard, RecoverOrphaned:
+		return updated, server.service.RetireStalePrimaryWakes(ctx, server.config.MessageRoot)
+	default:
+		return updated, nil
+	}
+}
+
+func (server *Server) executeTransition(
+	ctx context.Context,
+	request Request,
+	reportRemovedLink func(string),
+) (taskstate.Task, error) {
 	if request.Operation == Intake {
 		return server.create(ctx, *request.Intake)
 	}

@@ -1,11 +1,13 @@
 package hostservice
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/tincan/pkg/inbox"
 )
 
 func TestCloseOrphanQuiescesControllerAndValidatesResponse(t *testing.T) {
@@ -34,6 +36,12 @@ func TestCloseOrphanQuiescesControllerAndValidatesResponse(t *testing.T) {
 	request := Request{Operation: CloseRetired, Transition: &TransitionRequest{
 		TaskID: "task-1", Generation: "gen-1", Reason: "Superseded", ClosedOn: "2026-10-21",
 	}}
+	messages, _ := inbox.New(server.config.MessageRoot)
+	wake, err := messages.Send(server.config.Recipient,
+		fmt.Sprintf("task-restart:%s:task-1:gen-1", server.config.Root), "diagnostic")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for range 2 {
 		response, err := server.perform(t.Context(), request)
 		if err != nil {
@@ -47,6 +55,9 @@ func TestCloseOrphanQuiescesControllerAndValidatesResponse(t *testing.T) {
 		response.Outcome = Completed
 		if err := validateResponse(response, request); err != nil {
 			t.Fatal(err)
+		}
+		if _, err := messages.ReadHandled(server.config.Recipient, wake.ID); err != nil {
+			t.Fatalf("closure left wake pending: %v", err)
 		}
 	}
 }

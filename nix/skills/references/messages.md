@@ -16,6 +16,15 @@ Stale results have no actionable body. Leave unfamiliar messages pending and
 report them. Resolve accepted bound replies through the completion procedure
 below. Acknowledge other handled messages with `tincan inbox ack concierge
 MESSAGE_ID`.
+
+The host acknowledges pending stall, restart, and native checkpoint wakes for
+closed tasks or retired generations during startup and after worker cleanup,
+discard, or explicit closure.
+It preserves wakes for live workers and launch reservations, including a new
+generation of the same task. Unrecognized keys and wakes without a valid task
+record or retirement evidence remain pending for inspection.
+Startup sweep failures appear in the host diagnostics and leave unprocessed
+wakes pending. The host remains available for repairs.
 ## Open operator actions
 
 Record each request before asking the operator for an approval, a command,

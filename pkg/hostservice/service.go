@@ -209,6 +209,9 @@ func (server *Server) ServeReady(
 		}
 	}()
 	workerResult = server.startWorkerSocket(ctx, cancel, &running)
+	if err := server.service.RetireStalePrimaryWakes(ctx, server.config.MessageRoot); err != nil {
+		server.report(fmt.Errorf("retire stale primary wakes: %w", err))
+	}
 	if err := server.restoreTaskControllers(ctx); err != nil {
 		return err
 	}
