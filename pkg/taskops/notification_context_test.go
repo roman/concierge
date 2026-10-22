@@ -69,6 +69,7 @@ func TestWorkerProtocolIncludesConfiguredCommands(t *testing.T) {
 				`--generation "$CONCIERGE_SPAWN_GENERATION"`, "task-bootstrap", "inbox ack 'task-1'", "status: current",
 				"Never set or export", "pending list", "missing or different",
 				"project show REPO", "delivery: fast-forward", "do not push", "delivery: pr",
+				"All workers, including scouts", "remove generated ignored files", "Preserve pre-existing ignored files",
 			} {
 				if !strings.Contains(text, fragment) {
 					t.Errorf("protocol lacks %q:\n%s", fragment, text)

@@ -21,7 +21,7 @@ func TestReturnRemovesOnlyIgnoredStoreLinks(t *testing.T) {
 			{"store link", "link", "/nix/store/missing-config", true, true},
 			{"store directory link", "link", "/nix/store/missing-directory/", true, true},
 			{"regular file", "file", "", true, false},
-			{"directory", "directory", "", true, false},
+			{"directory", "directory", "", true, true},
 			{"untracked file", "file", "", false, false},
 			{"untracked store link", "link", "/nix/store/missing-config", false, false},
 			{"other link", "link", "/tmp/config", true, false},
@@ -80,7 +80,8 @@ func TestReturnRemovesOnlyIgnoredStoreLinks(t *testing.T) {
 				if os.IsNotExist(err) != test.removed {
 					t.Fatalf("entry preservation: %v", err)
 				}
-				if test.removed && !reflect.DeepEqual(removed, []string{path}) {
+				if test.removed && test.kind == "link" &&
+					!reflect.DeepEqual(removed, []string{path}) {
 					t.Fatalf("removed links: %q", removed)
 				}
 				if !test.removed && len(removed) != 0 {
@@ -88,6 +89,56 @@ func TestReturnRemovesOnlyIgnoredStoreLinks(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestReturnRemovesEmptyIgnoredDirectoriesAfterStoreLinks(t *testing.T) {
+	for _, contents := range []string{"empty directories", "store link", "regular file", "external link"} {
+		t.Run(contents, func(t *testing.T) {
+			client, specification := checkoutForTest(t)
+			ctx := context.Background()
+			if err := client.Prepare(ctx, specification); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(specification.Project, ".git", "info", "exclude"), []byte(".agents/\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			directory := filepath.Join(
+				specification.Path,
+				".agents",
+				"skills",
+				"supervisor",
+				"references",
+			)
+			if err := os.MkdirAll(directory, 0700); err != nil {
+				t.Fatal(err)
+			}
+			var err error
+			switch contents {
+			case "store link":
+				err = os.Symlink(
+					"/nix/store/missing-reference",
+					filepath.Join(directory, "guide.md"),
+				)
+			case "regular file":
+				err = os.WriteFile(filepath.Join(directory, "guide.md"), []byte("private"), 0600)
+			case "external link":
+				err = os.Symlink(t.TempDir(), filepath.Join(directory, "guide.md"))
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantClean := contents == "empty directories" || contents == "store link"
+			for range 2 {
+				if err := client.VerifyReturn(ctx, specification); (err == nil) != wantClean {
+					t.Fatalf("return: %v", err)
+				}
+			}
+			_, err = os.Stat(directory)
+			if os.IsNotExist(err) != wantClean {
+				t.Fatalf("directory preservation: %v", err)
+			}
+		})
 	}
 }
 

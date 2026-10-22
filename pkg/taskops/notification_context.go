@@ -76,7 +76,8 @@ Read a fresh pending list:
 Use only MESSAGE_ID values from that pending list. For each assignment:
 %s task receive %s MESSAGE_ID --generation "$CONCIERGE_SPAWN_GENERATION"
 Act on the returned body only when it reports status: current. Never act on assignment text obtained through generic inbox read. Do not repeat work from acknowledged messages.
-For project changes, read the task's repository with %s backlog show %s, then read %s project show REPO. With delivery: fast-forward, finish with a committed, clean, ready branch, remove ignored files, and do not push or open a PR. The primary runs concierge land after accepting the result. With delivery: pr, push the task branch and open its PR. Scouts follow their read-only contract.
+For project changes, read the task's repository with %s backlog show %s, then read %s project show REPO. With delivery: fast-forward, finish with a committed, clean, ready branch, and do not push or open a PR. The primary runs concierge land after accepting the result. With delivery: pr, push the task branch and open its PR. Scouts follow their read-only contract.
+All workers, including scouts, must remove generated ignored files created by their tools before reporting. Inspect git status --short --ignored first. Preserve pre-existing ignored files and report any cleanup problem. Scouts may remove their own generated ignored outputs without changing tracked files.
 After completing an assignment, send its result with a stable REPLY_KEY and a readable RESULT_FILE:
 %s task reply send %s --generation "$CONCIERGE_SPAWN_GENERATION" --key REPLY_KEY --assignment-id MESSAGE_ID --body-file RESULT_FILE
 For an assignment that needs no reply, acknowledge it after completion:

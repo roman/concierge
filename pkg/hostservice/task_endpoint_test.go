@@ -274,3 +274,29 @@ func TestTaskStopCleanupFailureReportsStoppedSupervision(t *testing.T) {
 	}
 	release()
 }
+
+func TestCleanupRetriesAfterCheckoutFailureWithoutRestart(t *testing.T) {
+	server, key, endpoint := taskEndpointFixture(t)
+	ctx := context.Background()
+	if _, err := server.service.Finish(ctx, "task-1", "gen-1", taskstate.Close, "2026-10-12"); err != nil {
+		t.Fatal(err)
+	}
+	startEndpointWakeup(t, server, key, endpoint, nil)
+	request := Request{
+		Operation:  Cleanup,
+		Transition: &TransitionRequest{TaskID: "task-1", Generation: "gen-1"},
+	}
+	refusal := errors.New("return requires a clean checkout without ignored files")
+	if _, err := server.withTaskEndpoint(ctx, request, func() (Response, error) {
+		return Response{}, refusal
+	}); !errors.Is(err, refusal) {
+		t.Fatalf("first cleanup: %v", err)
+	}
+	called := false
+	if _, err := server.withTaskEndpoint(ctx, request, func() (Response, error) {
+		called = true
+		return Response{}, nil
+	}); err != nil || !called {
+		t.Fatalf("cleanup retry blocked: called=%t, error=%v", called, err)
+	}
+}

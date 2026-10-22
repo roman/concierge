@@ -30,6 +30,7 @@ func TestRemoteProtocolUsesOnlyRemoteWorkerCommands(t *testing.T) {
 		"'/remote/tasks/task one/result.md'", "task ack 'task-1' MESSAGE_ID",
 		"primary fetches the branch", "do not push or open a PR",
 		"Scouts follow their read-only contract",
+		"All workers, including scouts", "remove generated ignored files", "Preserve pre-existing ignored files",
 	} {
 		if !strings.Contains(protocol, required) {
 			t.Errorf("remote protocol lacks %q", required)

@@ -2,10 +2,13 @@ package worktree
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // VerifyReturn protects a result checkout before the pool parks it on another commit.
@@ -23,6 +26,9 @@ func (client Client) verifyReturnContents(ctx context.Context, specification Spe
 	if err := client.removeIgnoredStoreLinks(ctx, specification.Path); err != nil {
 		return err
 	}
+	if err := client.removeEmptyIgnoredDirectories(ctx, specification.Path); err != nil {
+		return err
+	}
 	// A reset can remove .gitignore before cleaning files that were ignored.
 	status, err := client.git(
 		ctx,
@@ -38,6 +44,61 @@ func (client Client) verifyReturnContents(ctx context.Context, specification Spe
 	}
 	if status != "" {
 		return fmt.Errorf("%w: return requires a clean checkout without ignored files", ErrIdentity)
+	}
+	return nil
+}
+
+func (client Client) removeEmptyIgnoredDirectories(ctx context.Context, directory string) error {
+	entries, err := client.git(
+		ctx,
+		directory,
+		"ls-files",
+		"--others",
+		"--ignored",
+		"--exclude-standard",
+		"--directory",
+		"-z",
+	)
+	if err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(directory)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	for _, name := range strings.Split(entries, "\x00") {
+		if !strings.HasSuffix(name, "/") {
+			continue
+		}
+		var directories []string
+		err := fs.WalkDir(
+			root.FS(),
+			strings.TrimSuffix(name, "/"),
+			func(path string, entry fs.DirEntry, err error) error {
+				if errors.Is(err, fs.ErrNotExist) {
+					return fs.SkipDir
+				}
+				if err != nil {
+					return err
+				}
+				if entry.IsDir() {
+					directories = append(directories, path)
+				}
+				return nil
+			},
+		)
+		if err != nil {
+			return err
+		}
+		for index := len(directories) - 1; index >= 0; index-- {
+			// Remove only empty directories. Files and symlink targets remain protected.
+			if err := root.Remove(directories[index]); err != nil &&
+				!errors.Is(err, syscall.ENOTEMPTY) && !errors.Is(err, syscall.EEXIST) &&
+				!errors.Is(err, fs.ErrNotExist) {
+				return err
+			}
+		}
 	}
 	return nil
 }

@@ -34,7 +34,8 @@ Act on its body only when status is current. Never repeat acknowledged work. The
 If a native sandbox restriction blocks a socket connection, request permission through the normal native approval workflow. Keep the sandbox and approval rules active. Stop and report a rejected native approval. A native socket restriction does not establish that Concierge access is revoked.
 Read settings for the assigned project with:
 %[2]s task settings %[1]s --generation "$CONCIERGE_SPAWN_GENERATION"
-For project changes, finish with a committed, clean, ready branch. Remove ignored build files. Workers do not push or open a PR. The primary fetches the branch. It handles landing or PR delivery under the project settings. Preserve the worktree and branch until the primary confirms cleanup. Scouts follow their read-only contract.
+For project changes, finish with a committed, clean, ready branch. Workers do not push or open a PR. The primary fetches the branch. It handles landing or PR delivery under the project settings. Preserve the worktree and branch until the primary confirms cleanup. Scouts follow their read-only contract.
+All workers, including scouts, must remove generated ignored files created by their tools before reporting. Inspect git status --short --ignored first. Preserve pre-existing ignored files and report any cleanup problem. Scouts may remove their own generated ignored outputs without changing tracked files.
 Write the result to %[3]s. Send it with a stable REPLY_KEY:
 %[2]s task reply send %[1]s --generation "$CONCIERGE_SPAWN_GENERATION" --key REPLY_KEY --assignment-id MESSAGE_ID --body-file %[3]s
 Retain the result until publication, archive and assignment acknowledgement are confirmed. Retry only the identical original reply. Stop retries after access is revoked. Ask the primary to reconcile it. Never resubmit under a new generation.
