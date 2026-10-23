@@ -24,7 +24,7 @@ func TestProjectGitDisablesFsmonitor(t *testing.T) {
 }
 
 func TestReturnStopsFsmonitorAfterIdentityBeforeProcessChecks(t *testing.T) {
-	for _, condition := range []string{"running", "not running", "other error", "wrong HEAD", "wrong lease"} {
+	for _, condition := range []string{"running", "not running", "unsupported", "other error", "wrong HEAD", "wrong lease"} {
 		t.Run(condition, func(t *testing.T) {
 			manager, request := remoteReturnFixture(t)
 			remoteProjectGit(
@@ -40,6 +40,9 @@ func TestReturnStopsFsmonitorAfterIdentityBeforeProcessChecks(t *testing.T) {
 			stop := "touch '" + marker + "'; exit 0"
 			if condition == "not running" {
 				stop = "touch '" + marker + "'; echo 'fatal: fsmonitor--daemon is not running' >&2; exit 128"
+			}
+			if condition == "unsupported" {
+				stop = "touch '" + marker + "'; echo 'fatal: fsmonitor--daemon not supported on this platform' >&2; exit 128"
 			}
 			if condition == "other error" {
 				stop = "echo 'fatal: permission denied' >&2; exit 128"
@@ -65,7 +68,8 @@ func TestReturnStopsFsmonitorAfterIdentityBeforeProcessChecks(t *testing.T) {
 				return nil
 			}
 			_, err := manager.Return(t.Context(), request)
-			wantSuccess := condition == "running" || condition == "not running"
+			wantSuccess := condition == "running" || condition == "not running" ||
+				condition == "unsupported"
 			if (err == nil) != wantSuccess || (checks > 0) != wantSuccess {
 				t.Fatalf("return checks=%d: %v", checks, err)
 			}

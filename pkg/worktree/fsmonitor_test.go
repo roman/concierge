@@ -1,10 +1,43 @@
 package worktree
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestStopFsmonitorAcceptsOnlyKnownAbsentDaemonResponses(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		message  string
+		exitCode int
+		wantErr  bool
+	}{
+		{"not running", "fatal: fsmonitor--daemon is not running", 128, false},
+		{"unsupported", "fatal: fsmonitor--daemon not supported on this platform", 128, false},
+		{"other error", "fatal: permission denied", 128, true},
+		{"wrong exit", "fatal: fsmonitor--daemon not supported on this platform", 1, true},
+		{"extra diagnostic", "fatal: fsmonitor--daemon not supported on this platform\nerror: cleanup failed", 128, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			wrapper := filepath.Join(t.TempDir(), "git")
+			script := fmt.Sprintf(
+				"#!/bin/sh\ncase \"$*\" in\n*'config --get core.fsmonitor') echo true;;\n*'fsmonitor--daemon stop') echo '%s' >&2; exit %d;;\n*) exit 2;;\nesac\n",
+				test.message,
+				test.exitCode,
+			)
+			if err := os.WriteFile(wrapper, []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			client := Client{Executable: wrapper}
+			err := client.StopFsmonitor(t.Context(), t.TempDir())
+			if (err != nil) != test.wantErr {
+				t.Fatalf("StopFsmonitor: %v; want error=%t", err, test.wantErr)
+			}
+		})
+	}
+}
 
 func TestInspectionsDoNotRunConfiguredFsmonitor(t *testing.T) {
 	client, specification := checkoutForTest(t)

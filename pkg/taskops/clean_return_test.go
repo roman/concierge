@@ -12,7 +12,7 @@ import (
 )
 
 func TestReturnCleanupRequiresAcceptanceLandingAndQuietLease(t *testing.T) {
-	for _, condition := range []string{"landed", "unlanded", "unaccepted", "busy", "scout", "fsmonitor", "fsmonitor error"} {
+	for _, condition := range []string{"landed", "unlanded", "unaccepted", "busy", "scout", "fsmonitor", "fsmonitor not running", "fsmonitor unsupported", "fsmonitor error"} {
 		t.Run(condition, func(t *testing.T) {
 			service, _, config, _ := pooledLaunchFixture(t)
 			launched, err := service.ContinueInitialLaunch(t.Context(), "task-1", "gen-1", config)
@@ -26,6 +26,7 @@ func TestReturnCleanupRequiresAcceptanceLandingAndQuietLease(t *testing.T) {
 					t.Fatalf("git: %s %v", output, err)
 				}
 			}
+			run("config", "core.fsmonitor", "false")
 			run(
 				"-c",
 				"user.name=Test",
@@ -53,6 +54,12 @@ func TestReturnCleanupRequiresAcceptanceLandingAndQuietLease(t *testing.T) {
 				run("config", "core.fsmonitor", "true")
 				wrapper := filepath.Join(t.TempDir(), "git")
 				stop := "touch '" + monitorStopped + "'; exit 0"
+				if condition == "fsmonitor not running" {
+					stop = "echo 'fatal: fsmonitor--daemon is not running' >&2; exit 128"
+				}
+				if condition == "fsmonitor unsupported" {
+					stop = "echo 'fatal: fsmonitor--daemon not supported on this platform' >&2; exit 128"
+				}
 				if condition == "fsmonitor error" {
 					stop = "echo 'fatal: permission denied' >&2; exit 128"
 				}
@@ -102,7 +109,10 @@ func TestReturnCleanupRequiresAcceptanceLandingAndQuietLease(t *testing.T) {
 				"gen-1",
 				herdr.Client{SessionRunner: runner},
 			)
-			wantClean := condition == "landed" || condition == "scout" || condition == "fsmonitor"
+			wantClean := condition == "landed" || condition == "scout" ||
+				condition == "fsmonitor" ||
+				condition == "fsmonitor not running" ||
+				condition == "fsmonitor unsupported"
 			if (err == nil) != wantClean {
 				t.Fatalf("return: %v", err)
 			}

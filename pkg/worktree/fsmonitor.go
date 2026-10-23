@@ -51,9 +51,12 @@ func (client Client) StopFsmonitor(ctx context.Context, directory string) error 
 		return nil
 	}
 	var exit *exec.ExitError
-	if ctx.Err() == nil && errors.As(err, &exit) && exit.ExitCode() == 128 &&
-		strings.TrimSpace(string(output)) == "fatal: fsmonitor--daemon is not running" {
-		return nil
+	if ctx.Err() == nil && errors.As(err, &exit) && exit.ExitCode() == 128 {
+		switch strings.TrimSpace(string(output)) {
+		case "fatal: fsmonitor--daemon is not running",
+			"fatal: fsmonitor--daemon not supported on this platform":
+			return nil
+		}
 	}
 	return fmt.Errorf("stop checkout fsmonitor: %w: %s", err, strings.TrimSpace(string(output)))
 }

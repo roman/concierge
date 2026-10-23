@@ -11,7 +11,7 @@ import (
 )
 
 func TestRemoteRetirementReturnsBothLeasesAndRecoversLostPrimaryConfirmation(t *testing.T) {
-	for _, mode := range []string{"complete", "lost primary return", "unlanded"} {
+	for _, mode := range []string{"complete", "lost primary return", "unlanded", "fsmonitor unsupported", "fsmonitor not running", "fsmonitor error"} {
 		t.Run(mode, func(t *testing.T) {
 			service, _, directory := remoteResultMaterializationFixture(t)
 			ctx := context.Background()
@@ -34,6 +34,25 @@ func TestRemoteRetirementReturnsBothLeasesAndRecoversLostPrimaryConfirmation(t *
 				if output, err := exec.Command(service.git.Executable, "-C", result.Lease.Project, "push", "origin", result.Commit+":refs/heads/main").CombinedOutput(); err != nil {
 					t.Fatalf("land result: %s %v", output, err)
 				}
+			}
+			if mode == "fsmonitor unsupported" || mode == "fsmonitor not running" ||
+				mode == "fsmonitor error" {
+				if output, err := exec.Command(service.git.Executable, "-C", result.Lease.Project, "config", "core.fsmonitor", "true").CombinedOutput(); err != nil {
+					t.Fatalf("configure fsmonitor: %s %v", output, err)
+				}
+				message := "fatal: fsmonitor--daemon not supported on this platform"
+				if mode == "fsmonitor not running" {
+					message = "fatal: fsmonitor--daemon is not running"
+				}
+				if mode == "fsmonitor error" {
+					message = "fatal: permission denied"
+				}
+				wrapper := filepath.Join(t.TempDir(), "git")
+				script := "#!/bin/sh\ncase \"$*\" in *'fsmonitor--daemon stop'*) echo '" + message + "' >&2; exit 128;; esac\nexec '" + service.git.Executable + "' \"$@\"\n"
+				if err := os.WriteFile(wrapper, []byte(script), 0700); err != nil {
+					t.Fatal(err)
+				}
+				service.git.Executable = wrapper
 			}
 			if err := os.WriteFile(filepath.Join(result.Lease.Project, ".git", "info", "exclude"), []byte("ignored\n"), 0600); err != nil {
 				t.Fatal(err)
@@ -79,9 +98,9 @@ func TestRemoteRetirementReturnsBothLeasesAndRecoversLostPrimaryConfirmation(t *
 				}
 			}
 			retired, err := retire()
-			if mode == "unlanded" {
+			if mode == "unlanded" || mode == "fsmonitor error" {
 				if err == nil {
-					t.Fatal("cleaned an unlanded primary result")
+					t.Fatal("cleaned a primary result without return confirmation")
 				}
 				for _, name := range []string{"ignored", "untracked"} {
 					if _, err := os.Stat(filepath.Join(result.Lease.Path, name)); err != nil {
