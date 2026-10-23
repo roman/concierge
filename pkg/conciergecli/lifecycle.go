@@ -120,6 +120,16 @@ func (command *backlogCommands) runLifecycle(
 				}
 			}
 		}
+		if len(response.RemovedPaths) > 0 {
+			if _, err := fmt.Fprintf(output, "removed_paths[%d]:\n", len(response.RemovedPaths)); err != nil {
+				return 1
+			}
+			for _, path := range response.RemovedPaths {
+				if _, err := fmt.Fprintf(output, "  - %s\n", quote(path)); err != nil {
+					return 1
+				}
+			}
+		}
 		if response.Outcome != hostservice.Completed {
 			code := 1
 			if response.Outcome == hostservice.Invalid {

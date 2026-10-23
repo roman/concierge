@@ -55,7 +55,13 @@ func (service *Service) returnRetiredLease(
 		if service.remoteLeases == nil {
 			return taskstate.Task{}, ErrRemoteWorktreeTransport
 		}
-		confirmed, err := service.remoteLeases.Return(ctx, task, generation, lease)
+		confirmed, err := service.remoteLeases.Return(
+			ctx,
+			task,
+			generation,
+			lease,
+			service.git.RemovedPath,
+		)
 		if err != nil {
 			return taskstate.Task{}, err
 		}
@@ -87,16 +93,28 @@ func (service *Service) returnRetiredLease(
 			BaseCommit: lease.BaseCommit,
 		}
 		git := service.git
+		target := ""
 		if service.readSettings != nil {
 			settings, err := service.readSettings(task.Definition().Repo)
 			if err != nil {
 				return taskstate.Task{}, err
 			}
 			git.ReturnIgnoredPaths = settings.ReturnIgnoredPaths
+			target = settings.Branch
 		}
 		verify := git.VerifyReturn
 		if _, abandoned := task.LaunchAbandonment(generation); abandoned {
 			verify = git.VerifyUnusedLeaseReturn
+		} else if task.HasReceipt(generation, taskstate.Close) {
+			if task.Definition().Kind != "scout" {
+				if err := git.VerifyCheckoutLanded(ctx, specification, target); err != nil {
+					return taskstate.Task{}, err
+				}
+			}
+			if err := service.pool.VerifyReturn(ctx, lease.Project, current); err != nil {
+				return taskstate.Task{}, err
+			}
+			verify = git.CleanReturn
 		}
 		if err := verify(ctx, specification); err != nil {
 			return taskstate.Task{}, err

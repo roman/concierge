@@ -3,6 +3,7 @@ package taskops
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -10,13 +11,36 @@ import (
 )
 
 func TestRemoteRetirementReturnsBothLeasesAndRecoversLostPrimaryConfirmation(t *testing.T) {
-	for _, mode := range []string{"complete", "lost primary return"} {
+	for _, mode := range []string{"complete", "lost primary return", "unlanded"} {
 		t.Run(mode, func(t *testing.T) {
 			service, _, directory := remoteResultMaterializationFixture(t)
 			ctx := context.Background()
 			ready, err := service.MaterializeRemoteResult(ctx, "task-1", "gen-1")
 			if err != nil {
 				t.Fatal(err)
+			}
+			result := ready.Snapshot().Worker.RemoteResult
+			origin := filepath.Join(t.TempDir(), "origin.git")
+			for _, args := range [][]string{
+				{"clone", "--bare", result.Lease.Project, origin},
+				{"-C", result.Lease.Project, "remote", "add", "origin", origin},
+			} {
+				if output, err := exec.Command(service.git.Executable, args...).CombinedOutput(); err != nil {
+					t.Fatalf("landing fixture: %s %v", output, err)
+				}
+			}
+			if mode != "unlanded" {
+				if output, err := exec.Command(service.git.Executable, "-C", result.Lease.Project, "push", "origin", result.Commit+":refs/heads/main").CombinedOutput(); err != nil {
+					t.Fatalf("land result: %s %v", output, err)
+				}
+			}
+			if err := os.WriteFile(filepath.Join(result.Lease.Project, ".git", "info", "exclude"), []byte("ignored\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range []string{"ignored", "untracked"} {
+				if err := os.WriteFile(filepath.Join(result.Lease.Path, name), []byte("keep until landing"), 0600); err != nil {
+					t.Fatal(err)
+				}
 			}
 			port := &remoteLeasePortFixture{returned: ready.Snapshot().Worker.Lease}
 			port.returned.State = taskstate.LeaseReturned
@@ -54,8 +78,24 @@ func TestRemoteRetirementReturnsBothLeasesAndRecoversLostPrimaryConfirmation(t *
 				}
 			}
 			retired, err := retire()
+			if mode == "unlanded" {
+				if err == nil {
+					t.Fatal("cleaned an unlanded primary result")
+				}
+				for _, name := range []string{"ignored", "untracked"} {
+					if _, err := os.Stat(filepath.Join(result.Lease.Path, name)); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
+			}
+			for _, name := range []string{"ignored", "untracked"} {
+				if _, err := os.Stat(filepath.Join(result.Lease.Path, name)); !os.IsNotExist(err) {
+					t.Fatalf("primary output remains: %v", err)
+				}
 			}
 			native, _ := retired.RetiredLease("gen-1")
 			primary, found := retired.RetiredRemoteResult("gen-1")

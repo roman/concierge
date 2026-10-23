@@ -34,10 +34,32 @@ func (service *Service) returnPrimaryResultLease(
 			Branch:     lease.Branch,
 			BaseCommit: result.Commit,
 		}
-		if err := service.git.PrepareLeased(ctx, specification); err != nil {
+		if err := service.git.VerifyCheckoutCommit(ctx, specification); err != nil {
 			return taskstate.Task{}, err
 		}
-		if err := service.git.VerifyReturn(ctx, specification); err != nil {
+		verify := service.git.VerifyReturn
+		if task.HasReceipt(generation, taskstate.Close) {
+			// A confirmed native return may predate landing. Check this result
+			// independently before discarding the primary checkout's files.
+			if task.Definition().Kind != "scout" {
+				target := ""
+				if service.readSettings != nil {
+					settings, err := service.readSettings(task.Definition().Repo)
+					if err != nil {
+						return taskstate.Task{}, err
+					}
+					target = settings.Branch
+				}
+				if err := service.git.VerifyResultLanded(ctx, lease.Project, result.Commit, lease.Branch, target); err != nil {
+					return taskstate.Task{}, err
+				}
+			}
+			if err := service.pool.VerifyReturn(ctx, lease.Project, current); err != nil {
+				return taskstate.Task{}, err
+			}
+			verify = service.git.CleanReturn
+		}
+		if err := verify(ctx, specification); err != nil {
 			return taskstate.Task{}, err
 		}
 	}

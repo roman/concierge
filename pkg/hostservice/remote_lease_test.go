@@ -23,6 +23,7 @@ type retirementLeaseSSH struct {
 	returns     int
 	paths       []string
 	reject      bool
+	removed     []string
 }
 
 func (runner *retirementLeaseSSH) Run(
@@ -54,7 +55,9 @@ func (runner *retirementLeaseSSH) Run(
 	default:
 		return nil, nil, errors.New("unexpected native retirement operation")
 	}
-	data, err := json.Marshal(lease)
+	data, err := json.Marshal(
+		remoteworker.WorktreeReturnResponse{WorktreeLease: lease, RemovedPaths: runner.removed},
+	)
 	return data, nil, err
 }
 

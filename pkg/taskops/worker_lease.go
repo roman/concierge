@@ -40,6 +40,13 @@ func (service *Service) WithRemovedStoreLinkReporter(report func(string)) *Servi
 	return &operation
 }
 
+// WithRemovedPathReporter scopes destructive return diagnostics to one operation.
+func (service *Service) WithRemovedPathReporter(report func(string)) *Service {
+	operation := *service
+	operation.git.RemovedPath = report
+	return &operation
+}
+
 func NewWithWorkerTools(
 	root string,
 	recipient inbox.Recipient,

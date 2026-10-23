@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -16,11 +17,13 @@ import (
 )
 
 type worktreeReturnSSH struct {
-	t         *testing.T
-	request   WorktreeReturnRequest
-	response  taskstate.WorktreeLease
-	calls     int
-	rejection error
+	t             *testing.T
+	request       WorktreeReturnRequest
+	response      taskstate.WorktreeLease
+	calls         int
+	rejection     error
+	removed       []string
+	responseError string
 }
 
 func (runner *worktreeReturnSSH) Run(
@@ -40,8 +43,45 @@ func (runner *worktreeReturnSSH) Run(
 		data, _ := json.Marshal(runner.rejection.Error())
 		return []byte("error: " + string(data) + "\n"), nil, errors.New("native return refused")
 	}
-	data, err := json.Marshal(runner.response)
+	data, err := json.Marshal(
+		WorktreeReturnResponse{
+			WorktreeLease: runner.response,
+			RemovedPaths:  runner.removed,
+			Error:         runner.responseError,
+		},
+	)
+	if runner.responseError != "" {
+		err = errors.New("remote return failed")
+	}
 	return data, nil, err
+}
+
+func TestNativeReturnReportsRemovedPathsOnPartialFailure(t *testing.T) {
+	_, request := remoteReturnFixture(t)
+	path := filepath.Join(request.Lease.Path, "generated")
+	runner := &worktreeReturnSSH{
+		t:             t,
+		request:       request,
+		removed:       []string{path},
+		responseError: "cleanup failed after removal",
+	}
+	var removed []string
+	transport := WorktreeTransport{
+		Runner:      runner,
+		RemovedPath: func(path string) { removed = append(removed, path) },
+	}
+	profile := herdr.SavedMachine{
+		ID:      request.Worktree.Location.Machine,
+		Target:  request.Worktree.Location.Target,
+		Enabled: true,
+	}
+	if _, err := transport.Return(t.Context(), profile, request); err == nil ||
+		!strings.Contains(err.Error(), runner.responseError) {
+		t.Fatalf("partial failure: %v", err)
+	}
+	if !reflect.DeepEqual(removed, []string{path}) {
+		t.Fatalf("removed paths: %q", removed)
+	}
 }
 
 func TestNativeReturnTransportRequiresExactReturnedLeaseAndDestination(t *testing.T) {

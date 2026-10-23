@@ -192,7 +192,7 @@ func validateMachinePreparationResponse(response Response, request Request) erro
 		response.Checkpoint != nil ||
 		response.Abandoned != nil ||
 		response.Reconciled != nil ||
-		len(response.RemovedStoreLinks) != 0 {
+		len(response.RemovedStoreLinks) != 0 || len(response.RemovedPaths) != 0 {
 		return errors.New("host returned other operation data during machine preparation")
 	}
 	if response.Outcome != Completed {

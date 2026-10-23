@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -20,6 +21,15 @@ func pooledLaunchFixture(
 		t.Skip("set TREEHOUSE_TEST_EXECUTABLE to the pinned treehouse binary")
 	}
 	service, base, config := initialLaunchFixture(t)
+	origin := filepath.Join(t.TempDir(), "origin.git")
+	for _, args := range [][]string{
+		{"clone", "--bare", base.intent.Project, origin},
+		{"-C", base.intent.Project, "remote", "add", "origin", origin},
+	} {
+		if output, err := exec.Command(config.Git.Executable, args...).CombinedOutput(); err != nil {
+			t.Fatalf("origin fixture: %s %v", output, err)
+		}
+	}
 	ctx := context.Background()
 	if _, err := service.store.Update(ctx, "task-1", func(task taskstate.Task) (taskstate.Task, error) { return task.CancelInitialLaunch("gen-1") }); err != nil {
 		t.Fatal(err)

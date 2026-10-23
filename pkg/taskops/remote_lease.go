@@ -13,6 +13,7 @@ type RemoteLeases interface {
 		taskstate.Task,
 		string,
 		taskstate.WorktreeLease,
+		func(string),
 	) (taskstate.WorktreeLease, error)
 	InspectAbandoned(
 		context.Context,

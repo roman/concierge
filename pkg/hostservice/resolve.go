@@ -3,6 +3,7 @@ package hostservice
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/roman/concierge/pkg/herdr"
@@ -111,7 +112,12 @@ func (server *Server) performOperation(ctx context.Context, request Request) (Re
 	}
 	response := Response{}
 	task, err := server.execute(ctx, request, func(path string) {
-		response.RemovedStoreLinks = append(response.RemovedStoreLinks, path)
+		response.RemovedPaths = append(response.RemovedPaths, path)
+		server.diagnosticsMu.Lock()
+		defer server.diagnosticsMu.Unlock()
+		if server.config.Diagnostics != nil {
+			_, _ = fmt.Fprintf(server.config.Diagnostics, "return_removed_path: %q\n", path)
+		}
 	})
 	if task.ID() != "" {
 		if request.Operation == Intake {

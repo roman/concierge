@@ -120,7 +120,7 @@ func writeRemoteIgnoredOutput(t *testing.T, manager Worktrees, request *Worktree
 		"Ignore generated outputs",
 	)
 	request.Proof = WorktreeReturnProof{
-		Outcome: WorktreeLanded,
+		Outcome: WorktreeAbandoned,
 		Commit: remoteProjectGit(
 			t,
 			manager.Git.Executable,

@@ -16,6 +16,7 @@ func (leases hostRemoteLeases) Return(
 	task taskstate.Task,
 	generation string,
 	lease taskstate.WorktreeLease,
+	reportRemovedPath func(string),
 ) (taskstate.WorktreeLease, error) {
 	current, found := task.RetiredLease(generation)
 	if !found || current != lease || lease.Remote.Repository != task.Definition().Repo {
@@ -46,7 +47,9 @@ func (leases hostRemoteLeases) Return(
 		}
 		request.ReturnIgnoredPaths = settings.ReturnIgnoredPaths
 	}
-	return leases.transport().Return(ctx, profile, request)
+	transport := leases.transport()
+	transport.RemovedPath = reportRemovedPath
+	return transport.Return(ctx, profile, request)
 }
 
 func (leases hostRemoteLeases) InspectAbandoned(

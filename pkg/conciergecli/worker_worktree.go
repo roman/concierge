@@ -102,16 +102,14 @@ func (command *workerWorktreeCommands) run(
 		return 0
 	}
 	if selected == "worker-worktree return" {
+		response := remoteworker.WorktreeReturnResponse{}
+		manager.Git.RemovedPath = func(path string) { response.RemovedPaths = append(response.RemovedPaths, path) }
 		lease, err := manager.Return(ctx, returnRequest)
+		response.WorktreeLease = lease
 		if err != nil {
-			return fail(
-				output,
-				1,
-				err,
-				"retain the original lease and return proof; confirm a clean, quiet checkout before retrying from the primary",
-			)
+			response.Error = err.Error()
 		}
-		if json.NewEncoder(output).Encode(lease) != nil {
+		if json.NewEncoder(output).Encode(response) != nil || err != nil {
 			return 1
 		}
 		return 0

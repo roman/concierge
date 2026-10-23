@@ -50,6 +50,30 @@ func (transport WorktreeTransport) Return(
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	output, diagnostics, err := transport.Runner.Run(ctx, arguments, bytes.NewReader(data))
+	var response WorktreeReturnResponse
+	if ctx.Err() == nil && len(diagnostics) == 0 && len(output) <= 64<<10 &&
+		decodeSetupRequest(bytes.NewReader(output), &response) == nil {
+		if validateRemovedPaths(request.Lease.Path, response.RemovedPaths) != nil {
+			return taskstate.WorktreeLease{}, ErrWorktreeOwnership
+		}
+		for _, path := range response.RemovedPaths {
+			if transport.RemovedPath != nil {
+				transport.RemovedPath(path)
+			}
+		}
+		if response.Error != "" {
+			for _, known := range []error{ErrWorktreeBusy, ErrWorktreeQuietUnconfirmed} {
+				if response.Error == known.Error() {
+					return taskstate.WorktreeLease{}, known
+				}
+			}
+			return taskstate.WorktreeLease{}, fmt.Errorf(
+				"%w: %s",
+				ErrWorktreeOwnership,
+				response.Error,
+			)
+		}
+	}
 	if err != nil || ctx.Err() != nil || len(diagnostics) != 0 || len(output) > 64<<10 {
 		if ctx.Err() == nil && len(output) <= 64<<10 {
 			for _, known := range []error{ErrWorktreeBusy, ErrWorktreeQuietUnconfirmed} {
@@ -72,11 +96,11 @@ func (transport WorktreeTransport) Return(
 		}
 		return taskstate.WorktreeLease{}, ErrWorktreeOwnership
 	}
-	var returned taskstate.WorktreeLease
 	expected := request.Lease
 	expected.State = taskstate.LeaseReturned
-	if decodeSetupRequest(bytes.NewReader(output), &returned) != nil || returned != expected {
+	if decodeSetupRequest(bytes.NewReader(output), &response) != nil ||
+		response.WorktreeLease != expected {
 		return taskstate.WorktreeLease{}, ErrWorktreeOwnership
 	}
-	return returned, nil
+	return response.WorktreeLease, nil
 }

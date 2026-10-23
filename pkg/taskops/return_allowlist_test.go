@@ -39,12 +39,18 @@ func TestCleanupRetriesWithCurrentReturnIgnoredPaths(t *testing.T) {
 	if err := os.WriteFile(generated, []byte("regenerable"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Finish(ctx, "task-1", "gen-1", taskstate.Close, "2026-10-22"); err != nil {
+	if _, err := service.PlaceHold(ctx, "task-1", taskstate.Hold{Reason: "Retain for follow-up"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Finish(ctx, "task-1", "gen-1", taskstate.Retain, ""); err != nil {
 		t.Fatal(err)
 	}
 	runner := &retirementRunner{pane: bound.Pane, response: `{"error":{"code":"pane_not_found"}}`}
 	client := herdr.Client{SessionRunner: runner}
-	if _, err := service.Retire(ctx, "task-1", "gen-1", client); err == nil ||
+	if _, err := service.Retire(ctx, "task-1", "gen-1", client); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ReleaseWorktree(ctx, "task-1", "gen-1"); err == nil ||
 		!strings.Contains(err.Error(), "generated.txt") {
 		t.Fatalf("first cleanup: %v", err)
 	}
@@ -52,7 +58,7 @@ func TestCleanupRetriesWithCurrentReturnIgnoredPaths(t *testing.T) {
 		t.Fatalf("blocked cleanup removed file: %v", err)
 	}
 	approvedPaths = []string{"generated.txt"}
-	retired, err := service.Retire(ctx, "task-1", "gen-1", client)
+	retired, err := service.ReleaseWorktree(ctx, "task-1", "gen-1")
 	if err != nil || retired.Snapshot().Receipt.Lease.State != taskstate.LeaseReturned {
 		t.Fatalf("retry: %+v %v", retired.Snapshot().Receipt, err)
 	}

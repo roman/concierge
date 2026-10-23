@@ -62,7 +62,7 @@ func TestReleaseWorktreeReportsVerifiedHostReceipt(t *testing.T) {
 				},
 			},
 		}
-		done <- json.NewEncoder(connection).Encode(hostservice.Response{Outcome: hostservice.Completed, Transition: &snapshot, RemovedStoreLinks: []string{"/worker/.pre-commit-config.yaml"}})
+		done <- json.NewEncoder(connection).Encode(hostservice.Response{Outcome: hostservice.Completed, Transition: &snapshot, RemovedStoreLinks: []string{"/worker/.pre-commit-config.yaml"}, RemovedPaths: []string{"/worker/generated"}})
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -76,6 +76,9 @@ func TestReleaseWorktreeReportsVerifiedHostReceipt(t *testing.T) {
 	)
 	if code != 0 {
 		t.Fatalf("release code=%d: %s", code, &output)
+	}
+	if !strings.Contains(output.String(), "removed_paths[1]:\n  - \"/worker/generated\"") {
+		t.Fatalf("missing cleanup diagnostics: %s", &output)
 	}
 	for _, part := range []string{"generation: \"gen-1\"", "lease: returned", "worktree: \"/worker\"", "branch: \"task/work\"", "removed_store_links[1]:\n  - \"/worker/.pre-commit-config.yaml\""} {
 		if !strings.Contains(output.String(), part) {

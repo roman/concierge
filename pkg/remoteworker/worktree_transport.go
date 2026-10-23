@@ -17,6 +17,7 @@ type WorktreeTransport struct {
 	Runner         sshcommand.Runner
 	Diagnostics    io.Writer
 	MaxResultBytes int64
+	RemovedPath    func(string)
 }
 
 // DecodeWorktreeRequest accepts only the bounded native setup protocol.

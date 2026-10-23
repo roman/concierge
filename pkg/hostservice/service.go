@@ -82,6 +82,7 @@ type Response struct {
 	PreparedMachine   *PreparedMachineResult `json:"prepared_machine,omitempty"`
 	Reconciled        *workerservice.Reply   `json:"reconciled,omitempty"`
 	RemovedStoreLinks []string               `json:"removed_store_links,omitempty"`
+	RemovedPaths      []string               `json:"removed_paths,omitempty"`
 	Checkpoint        *NativeCheckpoint      `json:"checkpoint,omitempty"`
 	Abandoned         *AbandonedLaunch       `json:"abandoned,omitempty"`
 	Status            *StatusResult          `json:"status,omitempty"`

@@ -20,6 +20,7 @@ func (port *remoteLeasePortFixture) Return(
 	task taskstate.Task,
 	generation string,
 	lease taskstate.WorktreeLease,
+	_ func(string),
 ) (taskstate.WorktreeLease, error) {
 	port.returnCalls++
 	current, found := task.RetiredLease(generation)

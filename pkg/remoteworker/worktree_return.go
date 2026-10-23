@@ -3,9 +3,11 @@ package remoteworker
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/roman/concierge/pkg/taskstate"
@@ -17,6 +19,7 @@ type WorktreeReturnOutcome string
 const (
 	WorktreeUnchanged WorktreeReturnOutcome = "unchanged"
 	WorktreeLanded    WorktreeReturnOutcome = "landed"
+	WorktreeScout     WorktreeReturnOutcome = "accepted_scout"
 	WorktreeAbandoned WorktreeReturnOutcome = "abandoned"
 )
 
@@ -38,7 +41,7 @@ func (proof WorktreeReturnProof) validate(request WorktreeRequest) error {
 		if proof.Commit != request.BaseCommit {
 			return ErrWorktreeOwnership
 		}
-	case WorktreeLanded, WorktreeAbandoned:
+	case WorktreeLanded, WorktreeScout, WorktreeAbandoned:
 	default:
 		return ErrWorktreeOwnership
 	}
@@ -51,6 +54,26 @@ type WorktreeReturnRequest struct {
 	Proof    WorktreeReturnProof     `json:"proof"`
 	// Only the trusted primary supplies operator-owned project settings.
 	ReturnIgnoredPaths []string `json:"return_ignored_paths,omitempty"`
+}
+
+// WorktreeReturnResponse preserves removal diagnostics on partial failures.
+type WorktreeReturnResponse struct {
+	taskstate.WorktreeLease
+	RemovedPaths []string `json:"removed_paths,omitempty"`
+	Error        string   `json:"error,omitempty"`
+}
+
+func validateRemovedPaths(directory string, paths []string) error {
+	encoded, err := json.Marshal(paths)
+	if err != nil || len(encoded) > 24<<10 {
+		return ErrWorktreeOwnership
+	}
+	for _, path := range paths {
+		if filepath.Clean(path) != path || !strings.HasPrefix(path, directory+"/") {
+			return ErrWorktreeOwnership
+		}
+	}
+	return nil
 }
 
 func (request WorktreeReturnRequest) Validate() error {
@@ -72,63 +95,87 @@ func (manager Worktrees) Return(
 	}
 	manager.Git.ReturnIgnoredPaths = request.ReturnIgnoredPaths
 	var returned taskstate.WorktreeLease
-	err := withWorktreeJournal(ctx, request.Worktree, func(journal *worktreeJournal) error {
-		record, err := journal.read()
-		if err != nil || record == nil {
-			return ErrWorktreeOwnership
-		}
-		captured := record.Lease
-		captured.State = taskstate.LeaseHeld
-		if captured != request.Lease ||
-			(record.ReturnProof != (WorktreeReturnProof{}) && record.ReturnProof != request.Proof) {
-			return ErrWorktreeOwnership
-		}
-		if record.Phase == worktreeReturned {
-			returned = record.Lease
-			return nil
-		}
-		if record.Phase != worktreeReady && record.Phase != worktreeReturning {
-			return ErrWorktreeOwnership
-		}
-		if _, err := manager.PrepareProject(ctx, request.Worktree.Location); err != nil {
-			return err
-		}
-		if record.Phase == worktreeReady {
-			if err := manager.verifyReturnable(ctx, *record, request.Proof); err != nil {
+	err := withWorktreeJournal(
+		ctx,
+		request.Worktree,
+		func(journal *worktreeJournal) (returnErr error) {
+			record, err := journal.read()
+			if err != nil || record == nil {
+				return ErrWorktreeOwnership
+			}
+			captured := record.Lease
+			captured.State = taskstate.LeaseHeld
+			if captured != request.Lease ||
+				(record.ReturnProof != (WorktreeReturnProof{}) && record.ReturnProof != request.Proof) {
+				return ErrWorktreeOwnership
+			}
+			report := manager.Git.RemovedPath
+			for _, path := range record.RemovedPaths {
+				if report != nil {
+					report(path)
+				}
+			}
+			if record.Phase == worktreeReturned {
+				returned = record.Lease
+				return nil
+			}
+			if record.Phase != worktreeReady && record.Phase != worktreeReturning {
+				return ErrWorktreeOwnership
+			}
+			previousPaths := len(record.RemovedPaths)
+			manager.Git.RemovedPath = func(path string) {
+				if !slices.Contains(record.RemovedPaths, path) {
+					record.RemovedPaths = append(record.RemovedPaths, path)
+					if report != nil {
+						report(path)
+					}
+				}
+			}
+			defer func() {
+				if len(record.RemovedPaths) != previousPaths {
+					returnErr = errors.Join(returnErr, journal.save(*record))
+				}
+			}()
+			if _, err := manager.PrepareProject(ctx, request.Worktree.Location); err != nil {
 				return err
 			}
-			record.Phase, record.ReturnProof = worktreeReturning, request.Proof
-			if err := journal.save(*record); err != nil {
-				return err
-			}
-		}
-		if record.Backend == taskstate.RemoteTreehouse {
-			pool := worktree.PoolClient{
-				Executable: manager.Treehouse,
-				Root:       record.Lease.Remote.PoolRoot(),
-			}
-			if _, found, err := pool.Find(ctx, record.Lease.Project, record.Lease.Holder); err != nil {
-				return err
-			} else if found {
+			if record.Phase == worktreeReady {
 				if err := manager.verifyReturnable(ctx, *record, request.Proof); err != nil {
 					return err
 				}
+				record.Phase, record.ReturnProof = worktreeReturning, request.Proof
+				if err := journal.save(*record); err != nil {
+					return err
+				}
 			}
-			if err := pool.Return(ctx, record.Lease.Project, worktree.Lease{
-				ID: record.Lease.ID, Holder: record.Lease.Holder, Path: record.Lease.Path,
-			}); err != nil {
+			if record.Backend == taskstate.RemoteTreehouse {
+				pool := worktree.PoolClient{
+					Executable: manager.Treehouse,
+					Root:       record.Lease.Remote.PoolRoot(),
+				}
+				if _, found, err := pool.Find(ctx, record.Lease.Project, record.Lease.Holder); err != nil {
+					return err
+				} else if found {
+					if err := manager.verifyReturnable(ctx, *record, request.Proof); err != nil {
+						return err
+					}
+				}
+				if err := pool.Return(ctx, record.Lease.Project, worktree.Lease{
+					ID: record.Lease.ID, Holder: record.Lease.Holder, Path: record.Lease.Path,
+				}); err != nil {
+					return err
+				}
+			} else if err := manager.removeReturnedGitWorktree(ctx, *record); err != nil {
 				return err
 			}
-		} else if err := manager.removeReturnedGitWorktree(ctx, *record); err != nil {
-			return err
-		}
-		record.Phase, record.Lease.State = worktreeReturned, taskstate.LeaseReturned
-		if err := journal.save(*record); err != nil {
-			return err
-		}
-		returned = record.Lease
-		return nil
-	})
+			record.Phase, record.Lease.State = worktreeReturned, taskstate.LeaseReturned
+			if err := journal.save(*record); err != nil {
+				return err
+			}
+			returned = record.Lease
+			return nil
+		},
+	)
 	return returned, err
 }
 
@@ -150,6 +197,20 @@ func (manager Worktrees) verifyReturnable(
 	}
 	if err := quiet(ctx, record.Lease.Path); err != nil {
 		return err
+	}
+	if record.Backend == taskstate.RemoteTreehouse {
+		pool := worktree.PoolClient{
+			Executable: manager.Treehouse,
+			Root:       record.Lease.Remote.PoolRoot(),
+		}
+		if err := pool.VerifyReturn(ctx, record.Lease.Project, worktree.Lease{
+			ID: record.Lease.ID, Holder: record.Lease.Holder, Path: record.Lease.Path,
+		}); err != nil {
+			return err
+		}
+	}
+	if proof.Outcome == WorktreeLanded || proof.Outcome == WorktreeScout {
+		return manager.Git.CleanReturn(ctx, remoteWorktreeSpecification(record.Lease))
 	}
 	return manager.Git.VerifyReturn(ctx, remoteWorktreeSpecification(record.Lease))
 }

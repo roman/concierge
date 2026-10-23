@@ -40,7 +40,7 @@ func validateReconciliationResponse(response Response, request Request) error {
 	if response.Task != nil || response.Transition != nil || response.Resolution != nil ||
 		response.Assignment != nil || response.Stopped != nil || response.Control != nil ||
 		response.Status != nil || response.Supervision != nil || response.Checkpoint != nil ||
-		response.Abandoned != nil || len(response.RemovedStoreLinks) != 0 {
+		response.Abandoned != nil || len(response.RemovedStoreLinks) != 0 || len(response.RemovedPaths) != 0 {
 		return errors.New("host returned other operation data during reconciliation")
 	}
 	payload := request.Reconciliation

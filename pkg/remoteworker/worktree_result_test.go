@@ -59,7 +59,7 @@ func TestRemoteResultExportsIgnoredOutputsWithoutDeletingThem(t *testing.T) {
 	if err := bundle.Close(); err != nil {
 		t.Fatal(err)
 	}
-	held.Proof = WorktreeReturnProof{Outcome: WorktreeLanded, Commit: commit}
+	held.Proof = WorktreeReturnProof{Outcome: WorktreeAbandoned, Commit: commit}
 	if _, err := manager.Return(t.Context(), held); err == nil {
 		t.Fatal("returned a checkout with ignored outputs")
 	}

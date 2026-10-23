@@ -221,7 +221,8 @@ func (server *Server) executeTransition(
 		return server.create(ctx, *request.Intake)
 	}
 	input := request.Transition
-	service := server.service.WithRemovedStoreLinkReporter(reportRemovedLink)
+	service := server.service.WithRemovedStoreLinkReporter(reportRemovedLink).
+		WithRemovedPathReporter(reportRemovedLink)
 	switch request.Operation {
 	case RecoverOrphaned:
 		return service.RecoverOrphaned(

@@ -44,7 +44,7 @@ func TestRetireReleasesOnlyClosedResultLease(t *testing.T) {
 			var removed []string
 			service = service.WithRemovedStoreLinkReporter(
 				func(path string) { removed = append(removed, path) },
-			)
+			).WithRemovedPathReporter(func(path string) { removed = append(removed, path) })
 			if mode == taskstate.Retain {
 				closedOn = ""
 				if _, err := service.PlaceHold(ctx, "task-1", taskstate.Hold{Reason: "Review result"}); err != nil {
@@ -148,7 +148,7 @@ func TestRetireRejectsDetachedAcceptedResult(t *testing.T) {
 	}
 }
 
-func TestRetirePreservesHiddenAndIgnoredWork(t *testing.T) {
+func TestRetirePreservesUnlandedAndHiddenWork(t *testing.T) {
 	for _, condition := range []string{"assume unchanged", "skip worktree", "ignored file"} {
 		t.Run(condition, func(t *testing.T) {
 			service, _, config, _ := pooledLaunchFixture(t)
@@ -184,6 +184,9 @@ func TestRetirePreservesHiddenAndIgnoredWork(t *testing.T) {
 				"Result",
 			)
 			protected := tracked
+			if condition != "ignored file" {
+				run("push", "origin", "HEAD:main")
+			}
 			switch condition {
 			case "assume unchanged":
 				run("update-index", "--assume-unchanged", "result.txt")
@@ -321,7 +324,7 @@ func TestReleaseWorktreeRejectsUnacceptedWorker(t *testing.T) {
 }
 
 func TestReleaseRecoversAbandonedAcquisition(t *testing.T) {
-	for _, schema := range []string{"uncaptured", "previous captured schema"} {
+	for _, schema := range []string{"uncaptured", "previous captured schema", "dirty abandoned"} {
 		t.Run(schema, func(t *testing.T) {
 			service, base, config, _ := pooledLaunchFixture(t)
 			ctx := context.Background()
@@ -378,6 +381,23 @@ func TestReleaseRecoversAbandonedAcquisition(t *testing.T) {
 			)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if schema == "dirty abandoned" {
+				path := filepath.Join(published.Path, "unfinished")
+				if err := os.WriteFile(path, []byte("keep this work"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := service.ReleaseWorktree(ctx, "task-1", "gen-1"); err == nil {
+					t.Fatal("released a dirty abandoned lease")
+				}
+				if data, err := os.ReadFile(path); err != nil || string(data) != "keep this work" {
+					t.Fatalf("abandoned work: %q %v", data, err)
+				}
+				_, found, err := config.Pool.Find(ctx, base.intent.Project, "lost-holder")
+				if err != nil || !found {
+					t.Fatalf("abandoned lease held=%t: %v", found, err)
+				}
+				return
 			}
 			released, err := service.ReleaseWorktree(ctx, "task-1", "gen-1")
 			if err != nil {
