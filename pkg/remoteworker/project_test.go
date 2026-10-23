@@ -53,6 +53,7 @@ func remoteProjectAt(t *testing.T, base string) (Worktrees, taskstate.RemoteLeas
 	}
 	bare := filepath.Join(base, "repositories", "repo.git")
 	remoteProjectGit(t, git, base, "clone", "--bare", seed, bare)
+	remoteProjectGit(t, git, bare, "config", "core.fsmonitor", "false")
 	remoteProjectGit(t, git, bare, "fetch", "origin", "+refs/heads/*:refs/remotes/origin/*")
 	remoteProjectGit(t, git, bare, "remote", "set-head", "origin", "--auto")
 	location := taskstate.RemoteLease{

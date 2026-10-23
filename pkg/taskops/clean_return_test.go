@@ -12,7 +12,7 @@ import (
 )
 
 func TestReturnCleanupRequiresAcceptanceLandingAndQuietLease(t *testing.T) {
-	for _, condition := range []string{"landed", "unlanded", "unaccepted", "busy", "scout"} {
+	for _, condition := range []string{"landed", "unlanded", "unaccepted", "busy", "scout", "fsmonitor", "fsmonitor error"} {
 		t.Run(condition, func(t *testing.T) {
 			service, _, config, _ := pooledLaunchFixture(t)
 			launched, err := service.ContinueInitialLaunch(t.Context(), "task-1", "gen-1", config)
@@ -47,6 +47,20 @@ func TestReturnCleanupRequiresAcceptanceLandingAndQuietLease(t *testing.T) {
 				}); err != nil {
 					t.Fatal(err)
 				}
+			}
+			monitorStopped := filepath.Join(t.TempDir(), "monitor-stopped")
+			if strings.HasPrefix(condition, "fsmonitor") {
+				run("config", "core.fsmonitor", "true")
+				wrapper := filepath.Join(t.TempDir(), "git")
+				stop := "touch '" + monitorStopped + "'; exit 0"
+				if condition == "fsmonitor error" {
+					stop = "echo 'fatal: permission denied' >&2; exit 128"
+				}
+				script := "#!/bin/sh\ncase \"$*\" in *'fsmonitor--daemon stop'*) " + stop + ";; esac\nexec '" + config.Git.Executable + "' \"$@\"\n"
+				if err := os.WriteFile(wrapper, []byte(script), 0700); err != nil {
+					t.Fatal(err)
+				}
+				config.Git.Executable = wrapper
 			}
 			if err := os.WriteFile(filepath.Join(worker.Project, ".git", "info", "exclude"), []byte("ignored\n"), 0600); err != nil {
 				t.Fatal(err)
@@ -88,12 +102,17 @@ func TestReturnCleanupRequiresAcceptanceLandingAndQuietLease(t *testing.T) {
 				"gen-1",
 				herdr.Client{SessionRunner: runner},
 			)
-			wantClean := condition == "landed" || condition == "scout"
+			wantClean := condition == "landed" || condition == "scout" || condition == "fsmonitor"
 			if (err == nil) != wantClean {
 				t.Fatalf("return: %v", err)
 			}
 			if condition == "busy" && !strings.Contains(err.Error(), "pid=") {
 				t.Fatalf("lost process diagnostics: %v", err)
+			}
+			if condition == "fsmonitor" {
+				if _, err := os.Stat(monitorStopped); err != nil {
+					t.Fatalf("checkout returned before fsmonitor stopped: %v", err)
+				}
 			}
 			for _, name := range []string{"ignored", "untracked"} {
 				_, err := os.Stat(filepath.Join(worker.Worktree, name))

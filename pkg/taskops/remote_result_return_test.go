@@ -22,6 +22,7 @@ func TestRemoteRetirementReturnsBothLeasesAndRecoversLostPrimaryConfirmation(t *
 			result := ready.Snapshot().Worker.RemoteResult
 			origin := filepath.Join(t.TempDir(), "origin.git")
 			for _, args := range [][]string{
+				{"-C", result.Lease.Project, "config", "core.fsmonitor", "false"},
 				{"clone", "--bare", result.Lease.Project, origin},
 				{"-C", result.Lease.Project, "remote", "add", "origin", origin},
 			} {

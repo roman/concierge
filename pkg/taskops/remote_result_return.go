@@ -37,6 +37,9 @@ func (service *Service) returnPrimaryResultLease(
 		if err := service.git.VerifyCheckoutCommit(ctx, specification); err != nil {
 			return taskstate.Task{}, err
 		}
+		if err := service.git.StopFsmonitor(ctx, lease.Path); err != nil {
+			return taskstate.Task{}, err
+		}
 		verify := service.git.VerifyReturn
 		if task.HasReceipt(generation, taskstate.Close) {
 			// A confirmed native return may predate landing. Check this result

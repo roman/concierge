@@ -23,6 +23,7 @@ func pooledLaunchFixture(
 	service, base, config := initialLaunchFixture(t)
 	origin := filepath.Join(t.TempDir(), "origin.git")
 	for _, args := range [][]string{
+		{"-C", base.intent.Project, "config", "core.fsmonitor", "false"},
 		{"clone", "--bare", base.intent.Project, origin},
 		{"-C", base.intent.Project, "remote", "add", "origin", origin},
 	} {

@@ -191,6 +191,9 @@ func (manager Worktrees) verifyReturnable(
 	if err != nil || commit != proof.Commit {
 		return ErrWorktreeOwnership
 	}
+	if err := manager.Git.StopFsmonitor(ctx, record.Lease.Path); err != nil {
+		return err
+	}
 	quiet := manager.CheckQuiet
 	if quiet == nil {
 		quiet = func(ctx context.Context, directory string) error { return checkWorktreeQuiet(ctx, "lsof", directory) }

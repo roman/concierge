@@ -105,7 +105,17 @@ func (service *Service) returnRetiredLease(
 		verify := git.VerifyReturn
 		if _, abandoned := task.LaunchAbandonment(generation); abandoned {
 			verify = git.VerifyUnusedLeaseReturn
-		} else if task.HasReceipt(generation, taskstate.Close) {
+			if err := verify(ctx, specification); err != nil {
+				return taskstate.Task{}, err
+			}
+		} else if err := git.VerifyIdentity(ctx, specification); err != nil {
+			return taskstate.Task{}, err
+		}
+		if err := git.StopFsmonitor(ctx, lease.Path); err != nil {
+			return taskstate.Task{}, err
+		}
+		if _, abandoned := task.LaunchAbandonment(generation); !abandoned &&
+			task.HasReceipt(generation, taskstate.Close) {
 			if task.Definition().Kind != "scout" {
 				if err := git.VerifyCheckoutLanded(ctx, specification, target); err != nil {
 					return taskstate.Task{}, err
