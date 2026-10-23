@@ -26,7 +26,7 @@ func checkpointLaunchFixture(t *testing.T, mode string) (*Server, LaunchRequest)
 	t.Setenv("CHECKPOINT_MODE", mode)
 	t.Setenv("CHECKPOINT_COUNTER", filepath.Join(t.TempDir(), "reads"))
 	git := filepath.Join(t.TempDir(), "git")
-	if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$3\" in\ncheck-ref-format) exit 0 ;;\ncat-file) printf 'commit\\n'; exit 0 ;;\nesac\nexit 72\n"), 0700); err != nil {
+	if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$5\" in\ncheck-ref-format) exit 0 ;;\ncat-file) printf 'commit\\n'; exit 0 ;;\nesac\nexit 72\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	server.config.GitExecutable = git

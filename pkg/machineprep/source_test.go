@@ -13,11 +13,20 @@ func TestSourceBundleRetainsCommittedSourceWithoutPush(t *testing.T) {
 	gitCommand(t, source, "remote", "add", "origin", "ssh://git.test/concierge.git")
 	commitFixture(t, source, "committed client")
 	commit := gitCommand(t, source, "rev-parse", "HEAD")
+	marker := filepath.Join(t.TempDir(), "fsmonitor-started")
+	hook := filepath.Join(t.TempDir(), "fsmonitor")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\ntouch '"+marker+"'\nprintf '\\0'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	gitCommand(t, source, "config", "core.fsmonitor", hook)
 	bundle, err := BundleSource(context.Background(), source, "ssh://git.test/concierge.git")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = bundle.Close() })
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("source inspection ran fsmonitor: %v", err)
+	}
 	if bundle.Commit != commit {
 		t.Fatal("source bundle has another commit")
 	}

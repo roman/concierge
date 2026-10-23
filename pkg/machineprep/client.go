@@ -78,6 +78,7 @@ func (preparer Preparer) BuildClient(
 
 const buildClientScript = `set -eu
 umask 077
+git() { command git -c core.fsmonitor=false "$@"; }
 base=$1
 identity=$2
 commit=$3

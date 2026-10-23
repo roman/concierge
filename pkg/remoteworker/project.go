@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/roman/concierge/pkg/gitcommand"
 	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/workeraccess"
@@ -163,7 +164,7 @@ func (manager Worktrees) projectGit(
 	command := exec.CommandContext(
 		ctx,
 		manager.Git.Executable,
-		append([]string{"-C", directory}, arguments...)...)
+		gitcommand.Arguments(directory, arguments...)...)
 	command.Env = sshcommand.ConnectionEnvironment(os.Environ())
 	output, err := command.Output()
 	if err != nil {

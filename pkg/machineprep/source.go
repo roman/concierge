@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/roman/concierge/pkg/gitcommand"
 	"github.com/roman/concierge/pkg/sshcommand"
 )
 
@@ -41,7 +42,7 @@ func BundleSource(ctx context.Context, source, origin string) (*SourceBundle, er
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	run := func(arguments ...string) (string, error) {
-		command := exec.CommandContext(ctx, "git", append([]string{"-C", source}, arguments...)...)
+		command := exec.CommandContext(ctx, "git", gitcommand.Arguments(source, arguments...)...)
 		command.Env = sshcommand.ConnectionEnvironment(os.Environ())
 		command.Stderr = io.Discard
 		command.WaitDelay = time.Second

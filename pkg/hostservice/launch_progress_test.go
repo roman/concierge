@@ -21,7 +21,7 @@ func TestTrackedLaunchOutcomeSurvivesHostTransport(t *testing.T) {
 		server.config.Session = "work"
 		server.config.TreehouseExecutable = "/tools/missing-treehouse"
 		git := filepath.Join(t.TempDir(), "git")
-		if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$3\" in\ncheck-ref-format) exit 0 ;;\ncat-file) printf 'commit\\n'; exit 0 ;;\nesac\nexit 72\n"), 0700); err != nil {
+		if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$5\" in\ncheck-ref-format) exit 0 ;;\ncat-file) printf 'commit\\n'; exit 0 ;;\nesac\nexit 72\n"), 0700); err != nil {
 			t.Fatal(err)
 		}
 		server.config.GitExecutable = git
@@ -151,7 +151,7 @@ func TestTrackedLaunchIdentityMismatchReportsBlocked(t *testing.T) {
 				t.Fatal(err)
 			}
 			git := filepath.Join(t.TempDir(), "git")
-			if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$3\" in\ncheck-ref-format) exit 0 ;;\ncat-file) printf 'commit\\n'; exit 0 ;;\nesac\nexit 72\n"), 0700); err != nil {
+			if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$5\" in\ncheck-ref-format) exit 0 ;;\ncat-file) printf 'commit\\n'; exit 0 ;;\nesac\nexit 72\n"), 0700); err != nil {
 				t.Fatal(err)
 			}
 			server.config.GitExecutable = git
@@ -361,7 +361,7 @@ func TestTrackedLaunchHeldOrMissingWorkspaceReportsBlocked(t *testing.T) {
 			}
 			generation := task.Snapshot().LaunchIntent.Generation
 			git := filepath.Join(t.TempDir(), "git")
-			if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$3\" in\ncheck-ref-format) exit 0 ;;\ncat-file) printf 'commit\\n'; exit 0 ;;\nesac\nexit 72\n"), 0700); err != nil {
+			if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$5\" in\ncheck-ref-format) exit 0 ;;\ncat-file) printf 'commit\\n'; exit 0 ;;\nesac\nexit 72\n"), 0700); err != nil {
 				t.Fatal(err)
 			}
 			server.config.GitExecutable = git

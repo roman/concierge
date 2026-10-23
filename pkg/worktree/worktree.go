@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/roman/concierge/pkg/gitcommand"
 )
 
 var ErrIdentity = errors.New("worktree identity conflict")
@@ -33,7 +35,7 @@ func (client Client) git(
 	command := exec.CommandContext(
 		ctx,
 		client.Executable,
-		append([]string{"-C", directory}, arguments...)...)
+		gitcommand.Arguments(directory, arguments...)...)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf(

@@ -46,7 +46,7 @@ func TestRemotePullRequestDeliveryCreatesAndPushesFromPrimary(t *testing.T) {
 			}
 			transport := `#!/bin/sh
 case "$*" in
- 'remote get-url --all origin'|'remote get-url --push --all origin') printf '%s\n' 'https://github.com/owner/repo.git' ;;
+ *' remote get-url --all origin'|*' remote get-url --push --all origin') printf '%s\n' 'https://github.com/owner/repo.git' ;;
  *) exec "$REMOTE_LAND_REAL_GIT" "$@" ;;
 esac
 `

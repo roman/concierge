@@ -67,7 +67,16 @@ if [ ! -L "$output" ]; then ln -s "$FAKE_CLIENT" "$output"; fi
 		"FAKE_NIX_LOG=" + nixLog,
 	}
 	preparer.Runner = runner
-	for range 2 {
+	marker := filepath.Join(t.TempDir(), "fsmonitor-started")
+	hook := filepath.Join(t.TempDir(), "fsmonitor")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\ntouch '"+marker+"'\nprintf '\\0'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for attempt := range 2 {
+		if attempt == 1 {
+			checkout := filepath.Join(configuration.Base, "client-sources", commit)
+			gitCommand(t, checkout, "config", "core.fsmonitor", hook)
+		}
 		client, err := preparer.BuildClient(
 			context.Background(),
 			testMachine(),
@@ -77,6 +86,9 @@ if [ ! -L "$output" ]; then ln -s "$FAKE_CLIENT" "$output"; fi
 		)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if _, err := os.Stat(marker); !os.IsNotExist(err) {
+			t.Fatalf("remote client inspection ran fsmonitor: %v", err)
 		}
 		if client.Commit != commit ||
 			client.Executable != filepath.Join(

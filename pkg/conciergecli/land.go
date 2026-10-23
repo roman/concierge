@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/roman/concierge/pkg/gitcommand"
 	"github.com/roman/concierge/pkg/hostactivity"
 	"github.com/roman/concierge/pkg/taskstate"
 	"github.com/roman/concierge/pkg/worktree"
@@ -145,7 +146,7 @@ func runLandingCommand(
 }
 
 func landingGitCommand(ctx context.Context, directory string, args ...string) (string, error) {
-	return runLandingCommand(ctx, directory, "git", args...)
+	return runLandingCommand(ctx, directory, "git", gitcommand.Arguments(directory, args...)...)
 }
 
 func prepareLanding(

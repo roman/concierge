@@ -472,7 +472,7 @@ func TestLandDeletionRejectsConcurrentBranchChange(t *testing.T) {
 	t.Setenv("LAND_LATER", later)
 	script := `#!/bin/sh
 case "$*" in
- 'push origin --delete task/result'*) "$LAND_REAL_GIT" --git-dir="$LAND_REMOTE" update-ref refs/heads/task/result "$LAND_LATER" ;;
+ *' push origin --delete task/result'*) "$LAND_REAL_GIT" --git-dir="$LAND_REMOTE" update-ref refs/heads/task/result "$LAND_LATER" ;;
 esac
 exec "$LAND_REAL_GIT" "$@"
 `
@@ -502,7 +502,7 @@ func TestLandPullRequest(t *testing.T) {
 			t.Setenv("LAND_REAL_GIT", git)
 			transport := `#!/bin/sh
 case "$*" in
- 'remote get-url --all origin'|'remote get-url --push --all origin') printf '%s\n' 'https://github.com/owner/repo.git' ;;
+ *' remote get-url --all origin'|*' remote get-url --push --all origin') printf '%s\n' 'https://github.com/owner/repo.git' ;;
  *) exec "$LAND_REAL_GIT" "$@" ;;
 esac
 `

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/roman/concierge/pkg/gitcommand"
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/machineprep"
 	"github.com/roman/concierge/pkg/remoteworker"
@@ -110,7 +111,7 @@ func (server *Server) checkRemoteLaunchOrigin(ctx context.Context, project, orig
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, server.config.GitExecutable,
-		"-C", project, "config", "--get", "remote.origin.url")
+		gitcommand.Arguments(project, "config", "--get", "remote.origin.url")...)
 	command.Env = sshcommand.ConnectionEnvironment(os.Environ())
 	command.Stderr = io.Discard
 	command.WaitDelay = time.Second

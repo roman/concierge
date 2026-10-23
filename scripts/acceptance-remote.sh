@@ -34,7 +34,7 @@ if [[ -e "$acceptance_report" || -L "$acceptance_report" ]]; then
 fi
 
 source_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-if [[ -n "$(git -C "$source_directory" status --porcelain --untracked-files=all --ignored)" ]]; then
+if [[ -n "$(git -c core.fsmonitor=false -C "$source_directory" status --porcelain --untracked-files=all --ignored)" ]]; then
   printf 'Commit changes and remove ignored files before acceptance.\n' >&2
   exit 1
 fi
