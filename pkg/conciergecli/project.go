@@ -9,16 +9,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/roman/concierge/pkg/worktree"
 )
 
 type projectCommands struct {
 	Set struct {
-		Repo                string   `arg:"" help:"Repository name used by backlog intake."`
-		Merge               *string  `enum:"on,off" help:"Operator-approved merge authority."`
-		Delivery            *string  `enum:"pr,fast-forward" help:"Operator-approved delivery mode."`
-		Branch              *string  `help:"Operator-approved target branch; an empty value restores the remote default."`
-		NixDevelopArgs      []string `name:"nix-develop-arg" sep:"none" help:"Operator-approved extra nix develop argument; repeat in order with --nix-develop-arg=VALUE."`
-		ClearNixDevelopArgs bool     `help:"Restore nix develop without extra project arguments."`
+		Repo                    string   `arg:"" help:"Repository name used by backlog intake."`
+		Merge                   *string  `enum:"on,off" help:"Operator-approved merge authority."`
+		Delivery                *string  `enum:"pr,fast-forward" help:"Operator-approved delivery mode."`
+		Branch                  *string  `help:"Operator-approved target branch; an empty value restores the remote default."`
+		NixDevelopArgs          []string `name:"nix-develop-arg" sep:"none" help:"Operator-approved extra nix develop argument; repeat in order with --nix-develop-arg=VALUE."`
+		ClearNixDevelopArgs     bool     `help:"Restore nix develop without extra project arguments."`
+		ReturnIgnoredPaths      []string `name:"return-ignored-path" sep:"none" help:"Operator-approved ignored file or directory/ to remove during local lease return; repeat to replace the list. No wildcards."`
+		ClearReturnIgnoredPaths bool     `help:"Restore local return without approved ignored paths."`
 	} `cmd:"" help:"Set approved repository settings atomically."`
 	Show struct {
 		Repo string `arg:"" help:"Repository name used by backlog intake."`
@@ -26,10 +30,11 @@ type projectCommands struct {
 }
 
 type projectSettings struct {
-	Merge          string   `json:"merge"`
-	Delivery       string   `json:"delivery"`
-	Branch         string   `json:"branch,omitempty"`
-	NixDevelopArgs []string `json:"nix_develop_args,omitempty"`
+	Merge              string   `json:"merge"`
+	Delivery           string   `json:"delivery"`
+	Branch             string   `json:"branch,omitempty"`
+	NixDevelopArgs     []string `json:"nix_develop_args,omitempty"`
+	ReturnIgnoredPaths []string `json:"return_ignored_paths,omitempty"`
 }
 
 func (command *projectCommands) show(root string, output io.Writer) int {
@@ -53,6 +58,15 @@ func (command *projectCommands) show(root string, output io.Writer) int {
 	}
 	if err := writeNixDevelopArguments(output, settings.NixDevelopArgs); err != nil {
 		return 1
+	}
+	if len(settings.ReturnIgnoredPaths) != 0 {
+		values := make([]string, len(settings.ReturnIgnoredPaths))
+		for index, path := range settings.ReturnIgnoredPaths {
+			values[index] = quote(path)
+		}
+		if _, err := fmt.Fprintf(output, "return_ignored_paths[%d]: %s\n", len(values), strings.Join(values, ",")); err != nil {
+			return 1
+		}
 	}
 	return 0
 }
@@ -111,6 +125,9 @@ func readProjects(path string) (map[string]projectSettings, error) {
 		return nil, errors.New("project settings must contain one JSON object")
 	}
 	for name, settings := range projects {
+		if err := worktree.ValidateReturnIgnoredPaths(settings.ReturnIgnoredPaths); err != nil {
+			return nil, fmt.Errorf("invalid return ignored paths for %q: %w", name, err)
+		}
 		for _, argument := range settings.NixDevelopArgs {
 			if argument == "" || strings.ContainsAny(argument, "\x00\r\n") {
 				return nil, fmt.Errorf("invalid nix develop argument for %q", name)

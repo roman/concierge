@@ -28,11 +28,12 @@ type BootstrapInfo struct {
 }
 
 type WorkerSettings struct {
-	Repo           string   `json:"repo"`
-	Merge          string   `json:"merge"`
-	Delivery       string   `json:"delivery"`
-	Branch         string   `json:"branch,omitempty"`
-	NixDevelopArgs []string `json:"nix_develop_args,omitempty"`
+	Repo               string   `json:"repo"`
+	Merge              string   `json:"merge"`
+	Delivery           string   `json:"delivery"`
+	Branch             string   `json:"branch,omitempty"`
+	NixDevelopArgs     []string `json:"nix_develop_args,omitempty"`
+	ReturnIgnoredPaths []string `json:"return_ignored_paths,omitempty"`
 }
 
 func (session *WorkerSession) withTask(

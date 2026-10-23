@@ -82,11 +82,12 @@ func (command *cli) runHost(ctx context.Context, root string, output io.Writer) 
 					repo,
 				)
 				return taskops.WorkerSettings{
-					Repo:           repo,
-					Merge:          settings.Merge,
-					Delivery:       settings.Delivery,
-					Branch:         settings.Branch,
-					NixDevelopArgs: settings.NixDevelopArgs,
+					Repo:               repo,
+					Merge:              settings.Merge,
+					Delivery:           settings.Delivery,
+					Branch:             settings.Branch,
+					NixDevelopArgs:     settings.NixDevelopArgs,
+					ReturnIgnoredPaths: settings.ReturnIgnoredPaths,
 				}, err
 			},
 			Revision:    revision,

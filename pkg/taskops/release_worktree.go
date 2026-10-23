@@ -86,9 +86,17 @@ func (service *Service) returnRetiredLease(
 			Branch:     lease.Branch,
 			BaseCommit: lease.BaseCommit,
 		}
-		verify := service.git.VerifyReturn
+		git := service.git
+		if service.readSettings != nil {
+			settings, err := service.readSettings(task.Definition().Repo)
+			if err != nil {
+				return taskstate.Task{}, err
+			}
+			git.ReturnIgnoredPaths = settings.ReturnIgnoredPaths
+		}
+		verify := git.VerifyReturn
 		if _, abandoned := task.LaunchAbandonment(generation); abandoned {
-			verify = service.git.VerifyUnusedLeaseReturn
+			verify = git.VerifyUnusedLeaseReturn
 		}
 		if err := verify(ctx, specification); err != nil {
 			return taskstate.Task{}, err

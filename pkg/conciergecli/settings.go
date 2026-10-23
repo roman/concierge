@@ -22,7 +22,8 @@ type briefIncludeCommands struct {
 func (command *projectCommands) set(root string, output io.Writer) int {
 	if command.Set.Merge == nil && command.Set.Delivery == nil && command.Set.Branch == nil &&
 		len(command.Set.NixDevelopArgs) == 0 &&
-		!command.Set.ClearNixDevelopArgs {
+		!command.Set.ClearNixDevelopArgs && len(command.Set.ReturnIgnoredPaths) == 0 &&
+		!command.Set.ClearReturnIgnoredPaths {
 		return fail(
 			output,
 			2,
@@ -39,6 +40,10 @@ func (command *projectCommands) set(root string, output io.Writer) int {
 		)
 	}
 	path := filepath.Join(root, "config", "projects.json")
+	if command.Set.ClearReturnIgnoredPaths && len(command.Set.ReturnIgnoredPaths) != 0 {
+		return fail(output, 2, errors.New("cannot set and clear return ignored paths together"),
+			"choose --return-ignored-path or --clear-return-ignored-paths")
+	}
 	unlock, err := lockProjectSettings(filepath.Dir(path))
 	if err != nil {
 		return fail(output, 1, err, "provide a writable config directory and retry")
@@ -61,6 +66,12 @@ func (command *projectCommands) set(root string, output io.Writer) int {
 		}
 		if command.Set.ClearNixDevelopArgs {
 			settings.NixDevelopArgs = nil
+		}
+		if len(command.Set.ReturnIgnoredPaths) != 0 {
+			settings.ReturnIgnoredPaths = command.Set.ReturnIgnoredPaths
+		}
+		if command.Set.ClearReturnIgnoredPaths {
+			settings.ReturnIgnoredPaths = nil
 		}
 		projects[command.Set.Repo] = settings
 		var data []byte

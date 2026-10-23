@@ -23,14 +23,34 @@ func (client Client) verifyReturnContents(ctx context.Context, specification Spe
 	if err := client.checkCheckoutIndex(ctx, specification); err != nil {
 		return err
 	}
+	if err := ValidateReturnIgnoredPaths(client.ReturnIgnoredPaths); err != nil {
+		return err
+	}
+	status, err := client.git(
+		ctx,
+		specification.Path,
+		"status",
+		"--porcelain=v1",
+		"-z",
+		"--untracked-files=all",
+	)
+	if err != nil {
+		return err
+	}
+	if status != "" {
+		return fmt.Errorf("%w: return requires a clean checkout without ignored files", ErrIdentity)
+	}
 	if err := client.removeIgnoredStoreLinks(ctx, specification.Path); err != nil {
+		return err
+	}
+	if err := client.removeAllowlistedIgnoredFiles(ctx, specification.Path); err != nil {
 		return err
 	}
 	if err := client.removeEmptyIgnoredDirectories(ctx, specification.Path); err != nil {
 		return err
 	}
 	// A reset can remove .gitignore before cleaning files that were ignored.
-	status, err := client.git(
+	status, err = client.git(
 		ctx,
 		specification.Path,
 		"status",

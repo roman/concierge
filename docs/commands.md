@@ -120,6 +120,36 @@ launch base. An omitted branch uses origin's advertised default branch.
 Use `concierge project set REPO --branch=''` to restore that behavior.
 The same target controls remote result landing evidence during lease return.
 
+The optional `return_ignored_paths` setting permits local lease return to remove
+specific ignored files that the operator considers regenerable. Set the entire
+list with repeated flags:
+
+```sh
+concierge project set exmachina \
+  --return-ignored-path=.claude/rules/ \
+  --return-ignored-path=.locker/ \
+  --return-ignored-path=.codex/config.toml
+```
+
+An entry without a trailing slash matches one literal file path. A trailing
+slash matches ignored contents beneath that directory. Paths are relative to
+the repository root. Absolute paths, wildcards, `..`, the root itself, and
+`.git` components are rejected. Only ignored entries are removed; tracked and
+non-ignored untracked files still block return. Unmatched ignored paths are
+named in the error. Existing identity and live-process checks still apply.
+
+`project show REPO` displays a configured list. Use
+`project set REPO --clear-return-ignored-paths` to clear it. An empty or absent
+list preserves the existing return policy, including removal of ignored Nix
+store symlinks and empty ignored directories. Settings belong to the operator
+in `config/projects.json`; a worker assignment cannot grant this permission.
+Cleanup reads the current settings on each attempt. After updating the list,
+retry `backlog cleanup TASK_ID --generation GENERATION` for an already accepted,
+stopped task. A relaunch or another acceptance is unnecessary.
+
+This setting applies to local lease return. Remote export and remote return
+retain their existing checks.
+
 Merge authority and delivery mode are independent. `merge: on` authorizes the
 primary to land green, in-scope work. `merge: off` requires approval for each
 landing. `delivery: fast-forward` leaves the worker's clean ready branch for a
