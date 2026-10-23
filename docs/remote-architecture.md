@@ -137,10 +137,16 @@ sequenceDiagram
 ```
 
 The result-import steps apply to ship workers. Scouts return reports without a
-code-result import. A ship worker reports a committed branch that is clean,
-including ignored files. The primary selects an exact commit and imports it
+code-result import. A ship worker commits its result and removes its generated
+ignored files before reporting. Export permits ignored outputs that remain in
+the checkout. Export leaves those outputs untouched and retains the lease.
+The ownership and reserved-branch checks still apply. Tracked changes and
+non-ignored untracked files block export. A retry requires the selected HEAD.
+The primary selects an exact commit and imports it
 into a worktree sharing the primary project's Git common directory. Interrupted
 imports retain the same selected commit and lease holder.
+Only committed content and history enter the bundle. Lease return still
+requires its cleanup and process checks, including inspection of ignored files.
 
 The primary retains the remote result and imported primary lease until cleanup
 succeeds. Landing follows repository settings: fast-forward delivery pushes the

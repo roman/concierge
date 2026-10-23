@@ -122,6 +122,17 @@ A scout retains the existing read-only contract. A ship worker commits its
 changes and removes ignored files before reporting a clean result. Acceptance
 imports that exact commit into a primary worktree sharing the project Git common
 directory. The primary holds both result resources until cleanup succeeds.
+Export permits ignored devshell outputs in the remote checkout. It leaves those
+outputs untouched. Export still requires a valid owned lease, the reserved
+branch, clean tracked content, and no non-ignored untracked files. A retry must
+match the selected HEAD exactly. The bundle contains only that commit and its
+history. Ignored outputs never enter the bundle. Checkout failures name the
+unfinished paths separately from ownership failures. Export failures retain the
+lease and selected commit for inspection and retry.
+
+Lease return has separate cleanup requirements. Ignored files can still block
+return after a successful export. Inspect their ownership before removing them.
+Preserve pre-existing or unknown contents and report the cleanup problem.
 `worker show TASK_ID` includes the selected commit and primary lease recovery
 state. An interrupted import retries the same selection and holder.
 

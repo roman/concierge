@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/roman/concierge/pkg/herdr"
@@ -16,12 +17,13 @@ import (
 )
 
 type resultSSHFixture struct {
-	t       *testing.T
-	profile herdr.SavedMachine
-	request WorktreeResultRequest
-	header  WorktreeResult
-	payload []byte
-	failure error
+	t         *testing.T
+	profile   herdr.SavedMachine
+	request   WorktreeResultRequest
+	header    WorktreeResult
+	payload   []byte
+	failure   error
+	rejection error
 }
 
 func TestRemoteResultRejectsOversizedBundleAndRemovesSpool(t *testing.T) {
@@ -101,11 +103,63 @@ func (fixture *resultSSHFixture) RunTo(
 	if err != nil || request != fixture.request {
 		fixture.t.Fatal("result export changed the original lease or selected commit")
 	}
+	if fixture.rejection != nil {
+		encoded, _ := json.Marshal(fixture.rejection.Error())
+		_, err := fmt.Fprintf(output, "error: %s\nhelp: \"retain the lease\"\n", encoded)
+		return nil, errors.Join(err, errors.New("remote export rejected"))
+	}
 	if err := json.NewEncoder(output).Encode(fixture.header); err != nil {
 		return nil, err
 	}
 	_, err = output.Write(fixture.payload)
 	return nil, errors.Join(err, fixture.failure, ctx.Err())
+}
+
+func TestRemoteResultTransferRetainsExportFailureDetails(t *testing.T) {
+	_, held := remoteReturnFixture(t)
+	request := WorktreeResultRequest{Worktree: held.Worktree, Lease: held.Lease}
+	profile := herdr.SavedMachine{
+		ID:      held.Worktree.Location.Machine,
+		Target:  held.Worktree.Location.Target,
+		Enabled: true,
+	}
+	for _, rejection := range []error{
+		fmt.Errorf("%w: ?? unfinished file.txt", ErrResultDirty),
+		fmt.Errorf("%w: checkout HEAD differs from selected commit", ErrWorktreeOwnership),
+		fmt.Errorf("%w: cannot create bundle", ErrResultExport),
+	} {
+		t.Run(rejection.Error(), func(t *testing.T) {
+			directory := t.TempDir()
+			t.Setenv("TMPDIR", directory)
+			fixture := &resultSSHFixture{
+				t:         t,
+				profile:   profile,
+				request:   request,
+				rejection: rejection,
+			}
+			result, err := (WorktreeTransport{Runner: fixture}).ExportResult(
+				t.Context(),
+				profile,
+				request,
+			)
+			if result != nil || !errors.Is(err, errors.Unwrap(rejection)) ||
+				!strings.Contains(err.Error(), rejection.Error()) {
+				t.Fatalf("lost export diagnosis: result=%v err=%v", result, err)
+			}
+			entries, err := os.ReadDir(directory)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("failed export retained spool: %v %v", entries, err)
+			}
+		})
+	}
+	fixture := &resultSSHFixture{
+		t: t, profile: profile, request: request,
+		rejection: errors.New("unknown remote failure with untrusted details"),
+	}
+	result, err := (WorktreeTransport{Runner: fixture}).ExportResult(t.Context(), profile, request)
+	if result != nil || err != ErrWorktreeOwnership {
+		t.Fatalf("forwarded an unknown remote diagnosis: result=%v err=%v", result, err)
+	}
 }
 
 func TestRemoteResultTransferStreamsOnlyConfirmedMatchingResponse(t *testing.T) {

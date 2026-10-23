@@ -33,6 +33,11 @@ its result and removes ignored files. Acceptance imports the selected commit
 into a primary worktree. The primary runs `concierge land TASK_ID` with the
 same operator-owned merge authority and delivery gates. The primary publishes
 a remote task's PR. The remote worker needs no repository write credentials.
+Export can proceed with ignored devshell outputs present. It preserves those
+outputs and checks the owned lease, reserved branch, tracked content, untracked
+content, and selected HEAD. Only the committed result enters the bundle.
+Lease return still requires cleanup and process checks. Preserve pre-existing
+or unknown ignored files and report them for inspection before lease return.
 
 An unavailable SSH connection does not authorize a replacement worker or free
 its lease. Inspect `concierge worker show TASK_ID` and preserve the generation.

@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/roman/concierge/pkg/herdr"
@@ -70,6 +72,11 @@ func (transport WorktreeTransport) ExportResult(
 		return nil, err
 	}
 	if err != nil || ctx.Err() != nil || len(diagnostics) != 0 || download.result.Commit == "" {
+		if ctx.Err() == nil {
+			if rejection := resultExportRejection(download.header); rejection != nil {
+				return nil, rejection
+			}
+		}
 		return nil, ErrWorktreeOwnership
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
@@ -80,6 +87,28 @@ func (transport WorktreeTransport) ExportResult(
 		Result: download.result,
 		Bundle: worktree.AdoptCommitBundle(file, download.result.Commit),
 	}, nil
+}
+
+// The remote CLI emits a quoted error line before any result header or bytes.
+// Only known failure categories carry a remote diagnosis to the primary.
+func resultExportRejection(header []byte) error {
+	encoded, ok := strings.CutPrefix(strings.TrimSuffix(string(header), "\n"), "error: ")
+	if !ok {
+		return nil
+	}
+	var message string
+	if json.Unmarshal([]byte(encoded), &message) != nil {
+		return nil
+	}
+	for _, known := range []error{ErrResultDirty, ErrResultExport, ErrWorktreeOwnership} {
+		if message == known.Error() {
+			return known
+		}
+		if detail, ok := strings.CutPrefix(message, known.Error()+": "); ok {
+			return fmt.Errorf("%w: %s", known, detail)
+		}
+	}
+	return nil
 }
 
 type resultDownload struct {
