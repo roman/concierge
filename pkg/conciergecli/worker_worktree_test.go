@@ -59,3 +59,13 @@ func TestRemoteWorkerCannotAcquireItsOwnWorktree(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkerWorktreeReturnRejectsUnknownProtocol(t *testing.T) {
+	var output bytes.Buffer
+	code := Run(t.Context(), []string{"worker-worktree", "return", "--protocol", "2"},
+		strings.NewReader(`{}`), &output, &output)
+	if code != 2 || !strings.Contains(output.String(), "protocol") ||
+		strings.Contains(output.String(), "original bounded worktree request") {
+		t.Fatalf("unsupported return protocol reached request processing: %d %s", code, &output)
+	}
+}

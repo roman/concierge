@@ -15,15 +15,16 @@ import (
 )
 
 type retirementLeaseSSH struct {
-	t           *testing.T
-	request     remoteworker.WorktreeRequest
-	lease       taskstate.WorktreeLease
-	outcome     remoteworker.WorktreeReturnOutcome
-	inspections int
-	returns     int
-	paths       []string
-	reject      bool
-	removed     []string
+	t            *testing.T
+	request      remoteworker.WorktreeRequest
+	lease        taskstate.WorktreeLease
+	outcome      remoteworker.WorktreeReturnOutcome
+	inspections  int
+	returns      int
+	paths        []string
+	reject       bool
+	removed      []string
+	clientCommit string
 }
 
 func (runner *retirementLeaseSSH) Run(
@@ -34,6 +35,12 @@ func (runner *retirementLeaseSSH) Run(
 	command := arguments[len(arguments)-1]
 	lease := runner.lease
 	switch {
+	case strings.Contains(command, "'concierge-client-status'"):
+		commit := runner.clientCommit
+		if commit == "" {
+			commit = runner.request.Location.ClientCommit
+		}
+		return []byte(commit + "\n"), nil, nil
 	case strings.Contains(command, "'worker-worktree' 'inspect'"):
 		runner.inspections++
 		request, err := remoteworker.DecodeWorktreeRequest(input)
@@ -42,6 +49,14 @@ func (runner *retirementLeaseSSH) Run(
 		}
 	case strings.Contains(command, "'worker-worktree' 'return'"):
 		runner.returns++
+		commit := runner.clientCommit
+		if commit == "" {
+			commit = runner.request.Location.ClientCommit
+		}
+		if !strings.Contains(command, "/clients/"+commit+"/bin/concierge'") ||
+			!strings.Contains(command, "'--protocol' '1'") {
+			runner.t.Fatal("return did not select the prepared, compatible helper")
+		}
 		request, err := remoteworker.DecodeWorktreeReturnRequest(input)
 		if err != nil || request.Worktree != runner.request || request.Lease != lease ||
 			request.Proof.Outcome != runner.outcome ||
@@ -62,7 +77,7 @@ func (runner *retirementLeaseSSH) Run(
 }
 
 func TestHostReturnsOnlyItsRecordedNativeLease(t *testing.T) {
-	for _, mode := range []string{"confirmed", "updated settings", "settings error", "changed target", "foreign primary", "different repository"} {
+	for _, mode := range []string{"confirmed", "upgraded client", "updated settings", "settings error", "changed target", "foreign primary", "different repository"} {
 		t.Run(mode, func(t *testing.T) {
 			fixture := newRemoteActivationFixture(t)
 			server := fixture.server
@@ -78,6 +93,9 @@ func TestHostReturnsOnlyItsRecordedNativeLease(t *testing.T) {
 				outcome: remoteworker.WorktreeUnchanged,
 			}
 			server.preparationSSH = runner
+			if mode == "upgraded client" {
+				runner.clientCommit = strings.Repeat("c", 40)
+			}
 			var approvedPaths []string
 			if mode == "updated settings" || mode == "settings error" {
 				server.config.WorkerSettings = func(repo string) (taskops.WorkerSettings, error) {
@@ -122,7 +140,7 @@ func TestHostReturnsOnlyItsRecordedNativeLease(t *testing.T) {
 				runner.paths, runner.reject, runner.returns = approvedPaths, false, 0
 			}
 			result, err := server.service.ReleaseWorktree(ctx, "task-1", "gen-1")
-			if mode != "confirmed" && mode != "updated settings" {
+			if mode != "confirmed" && mode != "upgraded client" && mode != "updated settings" {
 				if err == nil || runner.returns != 0 || runner.inspections != 0 {
 					t.Fatalf("changed scope reached native cleanup: %v", err)
 				}

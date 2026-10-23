@@ -20,7 +20,9 @@ type workerWorktreeCommands struct {
 	ExportResult  struct{} `cmd:"" help:"Export an owned clean result as one JSON header line and an immutable Git bundle."`
 	Import        struct{} `cmd:"" help:"Import a selected base from one bounded JSON header line and a Git bundle on stdin."`
 	PrepareLaunch struct{} `cmd:"" help:"Prepare a private generation directory and inspect the owned worktree environment from bounded JSON stdin."`
-	Return        struct{} `cmd:"" help:"Return a clean, quiet remote lease with the primary's immutable commit proof from bounded JSON stdin."`
+	Return        struct {
+		Protocol string `default:"1" enum:"1" help:"Require return protocol 1, including accepted scouts and original-client journals."`
+	} `cmd:"" help:"Return a clean, quiet remote lease with the primary's immutable commit proof from bounded JSON stdin."`
 }
 
 func (command *workerWorktreeCommands) run(

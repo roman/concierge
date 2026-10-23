@@ -18,6 +18,8 @@ type WorktreeTransport struct {
 	Diagnostics    io.Writer
 	MaxResultBytes int64
 	RemovedPath    func(string)
+	// ReturnClientCommit selects an execution helper without changing lease identity.
+	ReturnClientCommit string
 }
 
 // DecodeWorktreeRequest accepts only the bounded native setup protocol.

@@ -33,12 +33,20 @@ func (transport WorktreeTransport) Return(
 		profile.ID != location.Machine || profile.Target != location.Target {
 		return taskstate.WorktreeLease{}, ErrWorktreeOwnership
 	}
+	helper := location
+	if transport.ReturnClientCommit != "" {
+		helper.ClientCommit = transport.ReturnClientCommit
+		if helper.Validate() != nil {
+			return taskstate.WorktreeLease{}, ErrWorktreeOwnership
+		}
+	}
 	arguments, err := sshcommand.TrustedAuthenticationArguments(
 		profile.Target,
 		location.Authentication,
-		location.ClientPath(),
+		helper.ClientPath(),
 		"worker-worktree",
 		"return",
+		"--protocol", "1",
 	)
 	if err != nil {
 		return taskstate.WorktreeLease{}, err

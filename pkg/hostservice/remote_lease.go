@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/roman/concierge/pkg/herdr"
+	"github.com/roman/concierge/pkg/machineprep"
 	"github.com/roman/concierge/pkg/remoteworker"
 	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/taskstate"
@@ -49,6 +50,13 @@ func (leases hostRemoteLeases) Return(
 	}
 	transport := leases.transport()
 	transport.RemovedPath = reportRemovedPath
+	client, err := (machineprep.Preparer{Runner: transport.Runner}).ReadClientAt(
+		ctx, profile, location.Base, location.Authentication,
+	)
+	if err != nil {
+		return taskstate.WorktreeLease{}, err
+	}
+	transport.ReturnClientCommit = client.Commit
 	return transport.Return(ctx, profile, request)
 }
 

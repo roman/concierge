@@ -28,13 +28,28 @@ func (preparer Preparer) ReadClient(
 	if err := configuration.validateResolved(); err != nil {
 		return Client{}, err
 	}
-	arguments, err := sshcommand.TrustedBatchArguments(
+	return preparer.ReadClientAt(ctx, machine, configuration.Base, configuration.Authentication)
+}
+
+// ReadClientAt uses the captured machine base when an existing lease outlives
+// a change to preparation settings.
+func (preparer Preparer) ReadClientAt(
+	ctx context.Context,
+	machine herdr.SavedMachine,
+	base string,
+	authentication sshcommand.Authentication,
+) (Client, error) {
+	if preparer.Runner == nil || !machine.Enabled || machine.ID == "" || !validBase(base) {
+		return Client{}, ErrClientUnavailable
+	}
+	arguments, err := sshcommand.TrustedAuthenticationArguments(
 		machine.Target,
+		authentication,
 		"sh",
 		"-c",
 		readClientScript,
 		"concierge-client-status",
-		configuration.Base,
+		base,
 		machine.ID,
 	)
 	if err != nil {
@@ -53,7 +68,7 @@ func (preparer Preparer) ReadClient(
 	}
 	return Client{
 		Commit:     commit,
-		Executable: path.Join(configuration.Base, "clients", commit, "bin", "concierge"),
+		Executable: path.Join(base, "clients", commit, "bin", "concierge"),
 	}, nil
 }
 

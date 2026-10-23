@@ -24,6 +24,8 @@ type worktreeReturnSSH struct {
 	rejection     error
 	removed       []string
 	responseError string
+	helperCommit  string
+	manager       *Worktrees
 }
 
 func (runner *worktreeReturnSSH) Run(
@@ -35,6 +37,12 @@ func (runner *worktreeReturnSSH) Run(
 	if !strings.Contains(arguments[len(arguments)-1], "'worker-worktree' 'return'") {
 		runner.t.Fatal("used an unfixed return command")
 	}
+	if runner.helperCommit != "" && !strings.Contains(
+		arguments[len(arguments)-1],
+		"/clients/"+runner.helperCommit+"/bin/concierge' 'worker-worktree' 'return' '--protocol' '1'",
+	) {
+		runner.t.Fatal("did not require the selected compatible return helper")
+	}
 	request, err := DecodeWorktreeReturnRequest(input)
 	if err != nil || !reflect.DeepEqual(request, runner.request) {
 		runner.t.Fatal("changed the original lease or return proof")
@@ -42,6 +50,13 @@ func (runner *worktreeReturnSSH) Run(
 	if runner.rejection != nil {
 		data, _ := json.Marshal(runner.rejection.Error())
 		return []byte("error: " + string(data) + "\n"), nil, errors.New("native return refused")
+	}
+	if runner.manager != nil {
+		lease, err := runner.manager.Return(context.Background(), request)
+		if err != nil {
+			runner.t.Fatalf("new helper could not return old-client journal: %v", err)
+		}
+		runner.response = lease
 	}
 	data, err := json.Marshal(
 		WorktreeReturnResponse{
@@ -54,6 +69,36 @@ func (runner *worktreeReturnSSH) Run(
 		err = errors.New("remote return failed")
 	}
 	return data, nil, err
+}
+
+func TestPreparedHelperReturnsOriginalClientJournal(t *testing.T) {
+	manager, request := remoteReturnFixture(t)
+	request.Proof.Outcome = WorktreeScout
+	newCommit := strings.Repeat("c", 40)
+	if request.Lease.Remote.ClientCommit == newCommit {
+		t.Fatal("fixture must retain an older client identity")
+	}
+	runner := &worktreeReturnSSH{t: t, request: request, helperCommit: newCommit, manager: &manager}
+	transport := WorktreeTransport{Runner: runner, ReturnClientCommit: newCommit}
+	profile := herdr.SavedMachine{ID: request.Worktree.Location.Machine,
+		Target: request.Worktree.Location.Target, Enabled: true}
+	expected := request.Lease
+	expected.State = taskstate.LeaseReturned
+	for range 2 {
+		got, err := transport.Return(t.Context(), profile, request)
+		if err != nil || got != expected {
+			t.Fatalf("old-client lease return: %+v %v", got, err)
+		}
+	}
+	if err := withWorktreeJournal(t.Context(), request.Worktree, func(journal *worktreeJournal) error {
+		record, err := journal.read()
+		if err == nil && (record == nil || record.Request != request.Worktree || record.Lease != expected) {
+			t.Fatal("return replaced the journal identity")
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestNativeReturnReportsRemovedPathsOnPartialFailure(t *testing.T) {
