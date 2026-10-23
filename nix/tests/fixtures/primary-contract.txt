@@ -1,0 +1,4 @@
+Reviewed fixture contract.
+$(touch "$DEVENV_ROOT/contract-executed")
+`touch "$DEVENV_ROOT/contract-executed"`
+; & | < > ' " $HOME ${CONCIERGE_WORKER:-primary}

@@ -42,7 +42,8 @@ let
       --message-root)
         if [ "$5" = brief ]; then
           if [ -n "''${TEST_RECOVERY_READY:-}" ]; then test -f "$TEST_RECOVERY_READY" || exit 91; fi
-          printf 'workers: 2 registered\n'
+          printf '%s\n' "''${TEST_BRIEF:-workers: 2 registered}"
+          if [ -f "$2/config/brief-include.md" ]; then cat "$2/config/brief-include.md"; fi
           exit 0
         fi
         test "$5" = host
@@ -88,11 +89,12 @@ let
     fi
     printf 'status: %s\ncount: 1\n' "$result"
   '';
-  result = evaluate {
+  evaluateContract = primaryContract: evaluate {
     modules = [
       conciergeModule
       {
         concierge.enable = true;
+        concierge.primaryContract = primaryContract;
         concierge.codex.enable = true;
         concierge.codex.package = pkgs.writeShellScriptBin "codex" "exit 0";
         concierge.package = fakeConcierge;
@@ -100,7 +102,38 @@ let
       }
     ];
   };
+  result = evaluateContract null;
+  contractResult = evaluateContract {
+    id = "fixture-contract";
+    source = ./fixtures/primary-contract.txt;
+  };
+  storeStringContractResult = evaluateContract {
+    id = "fixture-contract";
+    source = builtins.unsafeDiscardStringContext (toString ./fixtures/primary-contract.txt);
+  };
+  storeFileContractResult = evaluateContract {
+    id = "fixture-contract";
+    source = builtins.toFile "fixture-contract" (builtins.readFile ./fixtures/primary-contract.txt);
+  };
+  invalidContracts = [
+    { id = "Invalid"; source = ./fixtures/primary-contract.txt; }
+    { id = ""; source = ./fixtures/primary-contract.txt; }
+    { id = "has_underscore"; source = ./fixtures/primary-contract.txt; }
+    { id = "unknown-option"; source = ./fixtures/primary-contract.txt; extra = true; }
+    { id = "missing-source"; }
+    { id = "missing-file"; source = /nix/store/00000000000000000000000000000000-missing-contract; }
+    { id = "directory"; source = ./fixtures; }
+    { id = "mutable"; source = "/tmp/contract.txt"; }
+    { id = "traversal"; source = "/nix/store/../../etc/passwd"; }
+    [ { id = "list"; source = ./fixtures/primary-contract.txt; } ]
+  ];
+  rejectsInvalidContracts = builtins.all (
+    contract:
+    let evaluated = evaluateContract contract;
+    in !(builtins.tryEval (builtins.deepSeq [ evaluated.config.concierge.primaryContract evaluated.shellHook ] true)).success
+  ) invalidContracts;
 in
+assert rejectsInvalidContracts;
 pkgs.runCommand "concierge-devshell"
   {
     nativeBuildInputs = result.config.packages ++ [
@@ -113,6 +146,11 @@ pkgs.runCommand "concierge-devshell"
       pkgs.diffutils
     ];
     shellEntry = result.shellHook;
+    contractHook = contractResult.config.files.".agents/hooks/concierge-session-start".source;
+    storeStringContractHook = storeStringContractResult.config.files.".agents/hooks/concierge-session-start".source;
+    storeFileContractHook = storeFileContractResult.config.files.".agents/hooks/concierge-session-start".source;
+    contractFixture = ./fixtures/primary-contract.txt;
+    defaultStartFixture = ./fixtures/session-start.txt;
   }
   ''
     python3 -c 'import json, socket, tempfile; socket.socket(socket.AF_UNIX).close()'

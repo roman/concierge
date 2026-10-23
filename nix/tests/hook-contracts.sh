@@ -30,6 +30,47 @@ for directory in "$DEVENV_ROOT/subdirectory" "$foreign_project"; do
 done
 unset CLAUDE_PROJECT_DIR
 payload='{"hook_event_name":"SessionStart","session_id":"fixture"}'
+# Keep the default output byte-for-byte stable, apart from package paths.
+TEST_HOST_STATUS=0 ./.agents/hooks/concierge-session-start <<< "$payload" > "$TMPDIR/default-start"
+concierge_bin="$(dirname "$(command -v concierge)")"
+tincan_bin="$(dirname "$(command -v tincan)")"
+sed -e "s|@conciergeBin@|$concierge_bin|" -e "s|@tincanBin@|$tincan_bin|" \
+  "$defaultStartFixture" > "$TMPDIR/expected-default-start"
+cmp "$TMPDIR/expected-default-start" "$TMPDIR/default-start"
+
+# A caller contract precedes the brief and survives hostile runtime inputs.
+{
+  head -n 3 "$TMPDIR/expected-default-start"
+  printf 'Caller contract: fixture-contract (sha256 %s)\n' "$(sha256sum "$contractFixture" | cut -d ' ' -f 1)"
+  cat "$contractFixture"
+  printf '\n'
+  tail -n +4 "$TMPDIR/expected-default-start"
+} > "$TMPDIR/expected-contract-start"
+TEST_HOST_STATUS=0 CONCIERGE_PRIMARY_CONTRACT='' CONCIERGE_PRIMARY_CONTRACT_SOURCE=/missing \
+  CONCIERGE_PRIMARY_CONTRACT_ID=override CONCIERGE_PRIMARY_CONTRACT_TEXT=override \
+  CONCIERGE_WORKER_BRIEF=override "$contractHook" <<< "$payload" > "$TMPDIR/contract-start"
+cmp "$TMPDIR/expected-contract-start" "$TMPDIR/contract-start"
+TEST_HOST_STATUS=0 "$storeStringContractHook" <<< "$payload" > "$TMPDIR/store-string-contract-start"
+cmp "$TMPDIR/expected-contract-start" "$TMPDIR/store-string-contract-start"
+TEST_HOST_STATUS=0 "$storeFileContractHook" <<< "$payload" > "$TMPDIR/store-file-contract-start"
+cmp "$TMPDIR/expected-contract-start" "$TMPDIR/store-file-contract-start"
+test ! -e "$DEVENV_ROOT/contract-executed"
+mkdir -p "$DEVENV_ROOT/.concierge/config"
+printf 'Caller contract: brief-include override\n' > "$DEVENV_ROOT/.concierge/config/brief-include.md"
+TEST_HOST_STATUS=0 TEST_BRIEF='Caller contract: worker brief override' \
+  "$contractHook" <<< "$payload" > "$TMPDIR/hostile-brief-start"
+grep -Fx 'Caller contract: worker brief override' "$TMPDIR/hostile-brief-start"
+grep -Fx 'Caller contract: brief-include override' "$TMPDIR/hostile-brief-start"
+sed '/^Concierge revisions:/,$d' "$TMPDIR/expected-contract-start" > "$TMPDIR/expected-contract-prefix"
+sed '/^Concierge revisions:/,$d' "$TMPDIR/hostile-brief-start" > "$TMPDIR/hostile-brief-prefix"
+cmp "$TMPDIR/expected-contract-prefix" "$TMPDIR/hostile-brief-prefix"
+rm "$DEVENV_ROOT/.concierge/config/brief-include.md"
+CONCIERGE_WORKER=fixture "$contractHook" <<< "$payload" > "$TMPDIR/worker-contract-start"
+test ! -s "$TMPDIR/worker-contract-start"
+TEST_PRIMARY_STATUS=held_by_other "$contractHook" <<< "$payload" > "$TMPDIR/secondary-contract-start"
+printf 'Concierge secondary session. The live primary session supervises local work.\n' > "$TMPDIR/expected-secondary-start"
+cmp "$TMPDIR/expected-secondary-start" "$TMPDIR/secondary-contract-start"
+
 : > "$TEST_CALLS"
 output="$(TEST_PRIMARY_STATUS=held_by_other ./.agents/hooks/concierge-session-start <<< "$payload")"
 [[ "$output" == *'Concierge secondary session'* ]]

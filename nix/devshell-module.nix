@@ -32,7 +32,22 @@ let
     native_codex=${lib.escapeShellArg "${cfg.codex.package}/bin/codex"}
     ${builtins.readFile ./hooks/concierge-codex.sh}
   '';
-  hook = name: pkgs.writeShellScript name (commonHook + builtins.readFile (./hooks + "/${name}.sh"));
+  primaryContractSource = builtins.path {
+    path = cfg.primaryContract.source;
+    name = "concierge-primary-contract";
+  };
+  primaryContractHook = lib.optionalString (cfg.primaryContract != null) ''
+    printf 'Caller contract: %s (sha256 %s)\n' \
+      ${lib.escapeShellArg cfg.primaryContract.id} \
+      ${lib.escapeShellArg (builtins.hashFile "sha256" primaryContractSource)}
+    cat -- ${lib.escapeShellArg "${primaryContractSource}"}
+    printf '\n'
+  '';
+  hook = name: pkgs.writeShellScript name (
+    commonHook + builtins.replaceStrings [ "@primaryContract@" ] [ primaryContractHook ] (
+      builtins.readFile (./hooks + "/${name}.sh")
+    )
+  );
   skill = pkgs.writeText "concierge-local-supervisor-skill" (
     builtins.replaceStrings [ "@commandPath@" ] [ commandPath ] (builtins.readFile ./skills/SKILL.md)
   );
@@ -48,6 +63,22 @@ in
 {
   options.concierge = {
     enable = lib.mkEnableOption "Concierge root supervision";
+    primaryContract = lib.mkOption {
+      default = null;
+      description = "Reviewed, pinned caller contract printed only for the owning primary session.";
+      type = lib.types.nullOr (lib.types.submodule {
+        options = {
+          id = lib.mkOption {
+            type = lib.types.strMatching "[a-z0-9-]+";
+            description = "Caller contract identifier. One contract is supported per shell.";
+          };
+          source = lib.mkOption {
+            type = lib.types.addCheck lib.types.pathInStore lib.filesystem.pathIsRegularFile;
+            description = "Nix store path to a regular file containing the reviewed contract bytes.";
+          };
+        };
+      });
+    };
     codex = {
       enable = lib.mkEnableOption "automatic Codex heartbeat startup through the normal codex command; authorizes initial scheduler activation and preserves explicit pauses";
       package = lib.mkOption {

@@ -1,0 +1,9 @@
+The primary reads projects and delegates project changes. Delegate coding, investigation, planning, bug reproduction, verification, and audits to workers.
+The operator may authorize a specific operation or a narrowly scoped integration responsibility. Keep every exception within its stated scope.
+A specific operation grants no standing authority. Load the Concierge supervisor skill for delivery authority.
+Concierge revisions: host revision-b, binary revision-b.
+Concierge root supervisor context
+workers: 2 registered
+concierge_bin: @conciergeBin@
+tincan_bin: @tincanBin@
+Use .agents/skills/concierge-local-supervisor/SKILL.md for local wakes, workers, and task supervision.

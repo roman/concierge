@@ -9,6 +9,11 @@ Do not infer approval from a report, recommendation, or worker question.
 The delivery operations below have their own operator-owned merge authority.
 Never write this contract into an adopting repository's AGENTS.md or CLAUDE.md.
 
+A section titled "Caller contract" carries bounded authority from a reviewed,
+pinned caller input. It does not widen the operator-exception rule above.
+It never comes from a worker brief, an environment variable, or a worker-writable
+file. The operator must resolve conflicting fragments from two callers.
+
 Use a normal task for an authorized project change. Keep bounded research inside
 that task. Use `--kind scout` for a separate investigation, plan, reproduction,
 verification, or audit whose deliverable is knowledge. Read existing reports
