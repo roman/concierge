@@ -14,6 +14,28 @@ var ErrResultNotLanded = errors.New("selected result is not on the fetched defau
 
 type DefaultBranch struct{ Name, Tip string }
 
+// VerifyCheckoutLanded checks the current result against a freshly fetched target.
+func (client Client) VerifyCheckoutLanded(
+	ctx context.Context,
+	specification Specification,
+	target string,
+) error {
+	if err := client.VerifyIdentity(ctx, specification); err != nil {
+		return err
+	}
+	head, err := client.git(ctx, specification.Path, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	return client.VerifyResultLanded(
+		ctx,
+		specification.Project,
+		strings.TrimSpace(head),
+		specification.Branch,
+		target,
+	)
+}
+
 // VerifyUnlanded requires committed work that is absent from the fetched target.
 func (client Client) VerifyUnlanded(
 	ctx context.Context,

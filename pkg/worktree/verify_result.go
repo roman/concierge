@@ -7,6 +7,21 @@ import (
 	"strings"
 )
 
+// VerifyCheckoutCommit requires the recorded branch and exact selected commit.
+func (client Client) VerifyCheckoutCommit(ctx context.Context, specification Specification) error {
+	if err := client.VerifyIdentity(ctx, specification); err != nil {
+		return err
+	}
+	head, err := client.git(ctx, specification.Path, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(head) != specification.BaseCommit {
+		return ErrIdentity
+	}
+	return nil
+}
+
 // VerifyResult confirms a completed import without contacting the remote worker.
 func (client Client) VerifyResult(ctx context.Context, project, commit, reference string) error {
 	decoded, err := hex.DecodeString(commit)
