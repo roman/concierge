@@ -112,9 +112,19 @@ func TestFixedAcceptanceBaseRejectsUnmarkedOrLinkedDirectory(t *testing.T) {
 }
 
 func TestFixedAcceptanceBaseReleaseHandlesStoppedGitMonitor(t *testing.T) {
+	parent := t.TempDir()
+	alias := filepath.Join(t.TempDir(), "tmp")
+	if err := os.Symlink(parent, alias); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", alias)
+
 	for _, mode := range []string{"running", "stopped", "uncertain"} {
 		t.Run(mode, func(t *testing.T) {
-			directory := t.TempDir()
+			directory, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
 			if err := os.MkdirAll(filepath.Join(directory, ".acceptance-active"), 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -151,6 +161,9 @@ esac
 			if mode == "uncertain" {
 				if err == nil {
 					t.Fatalf("released uncertain monitor: %s", output)
+				}
+				if !strings.Contains(string(output), "fatal: cannot access fsmonitor state") {
+					t.Fatalf("release failed before checking the monitor: %s %v", output, err)
 				}
 				if _, err := os.Stat(filepath.Join(directory, ".acceptance-active", "owner")); err != nil {
 					t.Fatal("lost claim after uncertain cleanup")
