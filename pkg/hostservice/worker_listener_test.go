@@ -66,7 +66,21 @@ func TestHostOwnsSeparateWorkerListenerForVersionThree(t *testing.T) {
 		t.Fatalf("worker and host listeners are not separate: %v", err)
 	}
 	done := make(chan error, 1)
-	go func() { done <- server.Serve(ctx, listener.UnixListener) }()
+	ready := make(chan struct{})
+	go func() {
+		done <- server.ServeReady(ctx, listener.UnixListener, func() error {
+			close(ready)
+			return nil
+		})
+	}()
+	// A worker response can arrive before host controller restoration finishes.
+	select {
+	case <-ready:
+	case err := <-done:
+		t.Fatalf("host startup: %v", err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("host startup timed out")
+	}
 	request := workerservice.Request{
 		Task:       "task-1",
 		Generation: "gen-1",
