@@ -18,7 +18,7 @@ import (
 func DecodeWorktreeReturnRequest(input io.Reader) (WorktreeReturnRequest, error) {
 	var request WorktreeReturnRequest
 	if decodeSetupRequest(input, &request) != nil || request.Validate() != nil {
-		return WorktreeReturnRequest{}, ErrWorktreeOwnership
+		return WorktreeReturnRequest{}, ErrReturnRequest
 	}
 	return request, nil
 }
@@ -29,86 +29,117 @@ func (transport WorktreeTransport) Return(
 	request WorktreeReturnRequest,
 ) (taskstate.WorktreeLease, error) {
 	location := request.Worktree.Location
-	if transport.Runner == nil || request.Validate() != nil || !profile.Enabled ||
-		profile.ID != location.Machine || profile.Target != location.Target {
-		return taskstate.WorktreeLease{}, ErrWorktreeOwnership
+	if request.Validate() != nil {
+		return taskstate.WorktreeLease{}, ErrReturnRequest
+	}
+	if !profile.Enabled || profile.ID != location.Machine || profile.Target != location.Target {
+		return taskstate.WorktreeLease{}, returnError(ErrReturnJournal, ErrWorktreeOwnership)
+	}
+	if transport.Runner == nil {
+		return taskstate.WorktreeLease{}, ErrReturnTransport
 	}
 	helper := location
 	if transport.ReturnClientCommit != "" {
 		helper.ClientCommit = transport.ReturnClientCommit
 		if helper.Validate() != nil {
-			return taskstate.WorktreeLease{}, ErrWorktreeOwnership
+			return taskstate.WorktreeLease{}, ErrReturnRequest
 		}
 	}
 	arguments, err := sshcommand.TrustedAuthenticationArguments(
-		profile.Target,
-		location.Authentication,
-		helper.ClientPath(),
-		"worker-worktree",
-		"return",
-		"--protocol", "1",
+		profile.Target, location.Authentication, helper.ClientPath(),
+		"worker-worktree", "return", "--protocol", "1",
 	)
 	if err != nil {
-		return taskstate.WorktreeLease{}, err
+		return taskstate.WorktreeLease{}, returnError(ErrReturnTransport, err)
 	}
 	data, err := json.Marshal(request)
 	if err != nil {
-		return taskstate.WorktreeLease{}, err
+		return taskstate.WorktreeLease{}, returnError(ErrReturnRequest, err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	output, diagnostics, err := transport.Runner.Run(ctx, arguments, bytes.NewReader(data))
+	output, diagnostics, runErr := transport.Runner.Run(ctx, arguments, bytes.NewReader(data))
+	if ctx.Err() != nil {
+		return taskstate.WorktreeLease{}, transport.returnFailure(
+			returnError(ErrReturnTransport, ctx.Err()), diagnostics)
+	}
 	var response WorktreeReturnResponse
-	if ctx.Err() == nil && len(diagnostics) == 0 && len(output) <= 64<<10 &&
-		decodeSetupRequest(bytes.NewReader(output), &response) == nil {
-		if validateRemovedPaths(request.Lease.Path, response.RemovedPaths) != nil {
-			return taskstate.WorktreeLease{}, ErrWorktreeOwnership
+	if decodeSetupRequest(bytes.NewReader(output), &response) != nil {
+		// Older helpers report command and decoding errors through the public CLI.
+		// An arbitrary command failure does not establish lease ownership loss.
+		if legacy := legacyReturnError(output); legacy != nil {
+			return taskstate.WorktreeLease{}, transport.returnFailure(legacy, diagnostics)
 		}
-		for _, path := range response.RemovedPaths {
-			if transport.RemovedPath != nil {
-				transport.RemovedPath(path)
-			}
-		}
-		if response.Error != "" {
-			for _, known := range []error{ErrWorktreeBusy, ErrWorktreeQuietUnconfirmed} {
-				if response.Error == known.Error() {
-					return taskstate.WorktreeLease{}, known
-				}
-			}
-			return taskstate.WorktreeLease{}, fmt.Errorf(
-				"%w: %s",
-				ErrWorktreeOwnership,
-				response.Error,
+		if runErr != nil {
+			return taskstate.WorktreeLease{}, transport.returnFailure(
+				ErrReturnTransport,
+				diagnostics,
 			)
 		}
+		return taskstate.WorktreeLease{}, transport.returnFailure(ErrReturnValidation, diagnostics)
 	}
-	if err != nil || ctx.Err() != nil || len(diagnostics) != 0 || len(output) > 64<<10 {
-		if ctx.Err() == nil && len(output) <= 64<<10 {
-			for _, known := range []error{ErrWorktreeBusy, ErrWorktreeQuietUnconfirmed} {
-				encoded, _ := json.Marshal(known.Error())
-				if strings.Contains(string(output), "error: "+string(encoded)+"\n") {
-					return taskstate.WorktreeLease{}, known
-				}
-			}
-			line, _, _ := strings.Cut(string(output), "\n")
-			var message string
-			if strings.HasPrefix(line, "error: ") &&
-				json.Unmarshal([]byte(strings.TrimPrefix(line, "error: ")), &message) == nil &&
-				strings.HasPrefix(message, worktree.ErrIdentity.Error()+": ") {
-				return taskstate.WorktreeLease{}, fmt.Errorf(
-					"%w: %s",
-					ErrWorktreeOwnership,
-					message,
-				)
-			}
+	if validateRemovedPaths(request.Lease.Path, response.RemovedPaths) != nil {
+		return taskstate.WorktreeLease{}, transport.returnFailure(ErrReturnValidation, diagnostics)
+	}
+	if response.Failure != "" {
+		cause := response.failureCause()
+		if cause != ErrReturnValidation {
+			transport.reportReturnRemovals(response.RemovedPaths)
 		}
-		return taskstate.WorktreeLease{}, ErrWorktreeOwnership
+		return taskstate.WorktreeLease{}, transport.returnFailure(cause,
+			append(append([]byte(response.Diagnostics), '\n'), diagnostics...))
+	}
+	if response.Error != "" {
+		transport.reportReturnRemovals(response.RemovedPaths)
+		return taskstate.WorktreeLease{}, transport.returnFailure(
+			legacyReturnCause(response.Error),
+			diagnostics,
+		)
+	}
+	if runErr != nil || len(diagnostics) != 0 {
+		return taskstate.WorktreeLease{}, transport.returnFailure(ErrReturnTransport, diagnostics)
 	}
 	expected := request.Lease
 	expected.State = taskstate.LeaseReturned
-	if decodeSetupRequest(bytes.NewReader(output), &response) != nil ||
-		response.WorktreeLease != expected {
-		return taskstate.WorktreeLease{}, ErrWorktreeOwnership
+	if response.WorktreeLease != expected || response.Diagnostics != "" {
+		return taskstate.WorktreeLease{}, transport.returnFailure(ErrReturnValidation, nil)
 	}
+	transport.reportReturnRemovals(response.RemovedPaths)
 	return response.WorktreeLease, nil
+}
+
+func (transport WorktreeTransport) reportReturnRemovals(paths []string) {
+	for _, path := range paths {
+		if transport.RemovedPath != nil {
+			transport.RemovedPath(path)
+		}
+	}
+}
+
+func legacyReturnError(output []byte) error {
+	if len(output) > 64<<10 {
+		return nil
+	}
+	line, _, _ := strings.Cut(string(output), "\n")
+	var message string
+	if !strings.HasPrefix(line, "error: ") ||
+		json.Unmarshal([]byte(strings.TrimPrefix(line, "error: ")), &message) != nil {
+		return nil
+	}
+	return legacyReturnCause(message)
+}
+
+func legacyReturnCause(message string) error {
+	for _, known := range []error{ErrWorktreeBusy, ErrWorktreeQuietUnconfirmed} {
+		if message == known.Error() {
+			return returnError(ErrReturnProcesses, known)
+		}
+	}
+	if message == ErrWorktreeOwnership.Error() {
+		return returnError(ErrReturnJournal, ErrWorktreeOwnership)
+	}
+	if strings.HasPrefix(message, worktree.ErrIdentity.Error()+": ") {
+		return fmt.Errorf("%w: %s", ErrReturnContents, launchDiagnostics([]byte(message)))
+	}
+	return fmt.Errorf("%w: %s", ErrReturnRequest, launchDiagnostics([]byte(message)))
 }

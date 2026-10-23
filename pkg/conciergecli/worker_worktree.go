@@ -50,6 +50,12 @@ func (command *workerWorktreeCommands) run(
 		request, err = remoteworker.DecodeWorktreeRequest(input)
 	}
 	if err != nil {
+		if selected == "worker-worktree return" {
+			response := remoteworker.WorktreeReturnResponse{}
+			response.SetFailure(err)
+			_ = json.NewEncoder(output).Encode(response)
+			return 2
+		}
 		return fail(
 			output,
 			2,
@@ -109,7 +115,7 @@ func (command *workerWorktreeCommands) run(
 		lease, err := manager.Return(ctx, returnRequest)
 		response.WorktreeLease = lease
 		if err != nil {
-			response.Error = err.Error()
+			response.SetFailure(err)
 		}
 		if json.NewEncoder(output).Encode(response) != nil || err != nil {
 			return 1

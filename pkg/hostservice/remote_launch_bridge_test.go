@@ -270,7 +270,9 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	}
 	bare := filepath.Join(base, "repositories", "exmachina.git")
 	for _, arguments := range [][]string{
+		{"-C", input.Project, "config", "core.fsmonitor", "false"},
 		{"clone", "--bare", input.Project, bare},
+		{"-C", bare, "config", "core.fsmonitor", "false"},
 		{"-C", bare, "update-ref", "refs/remotes/origin/main", input.BaseCommit},
 		{"-C", bare, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"},
 	} {
@@ -452,7 +454,8 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 		}
 		abandoned, err := server.abandonLaunch(t.Context(), request)
 		if strings.HasSuffix(mode, "return confirmation lost") {
-			if !errors.Is(err, remoteworker.ErrWorktreeOwnership) {
+			if !errors.Is(err, remoteworker.ErrReturnTransport) ||
+				errors.Is(err, remoteworker.ErrWorktreeOwnership) {
 				t.Fatalf("lost return: %v", err)
 			}
 			abandoned, err = server.abandonLaunch(t.Context(), request)

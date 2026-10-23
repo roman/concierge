@@ -2,6 +2,7 @@ package hostservice
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/machineprep"
@@ -54,7 +55,7 @@ func (leases hostRemoteLeases) Return(
 		ctx, profile, location.Base, location.Authentication,
 	)
 	if err != nil {
-		return taskstate.WorktreeLease{}, err
+		return taskstate.WorktreeLease{}, fmt.Errorf("%w: %w", remoteworker.ErrReturnRequest, err)
 	}
 	transport.ReturnClientCommit = client.Commit
 	return transport.Return(ctx, profile, request)

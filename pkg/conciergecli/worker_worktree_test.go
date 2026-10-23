@@ -28,8 +28,11 @@ func TestWorkerWorktreeHelperRejectsInvalidInputBeforeOpeningPrimaryPaths(t *tes
 				&output,
 				&output,
 			)
-			if code != 2 ||
-				!strings.Contains(output.String(), "original bounded worktree request") {
+			want := "original bounded worktree request"
+			if operation == "return" {
+				want = `"return_failure":"request/protocol"`
+			}
+			if code != 2 || !strings.Contains(output.String(), want) {
 				t.Fatalf("invalid helper input: %d %s", code, &output)
 			}
 			for _, path := range []string{root, messages} {

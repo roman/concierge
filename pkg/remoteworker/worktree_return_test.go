@@ -112,10 +112,11 @@ func TestRemoteReturnRejectsChangedLeaseAndInvalidProofBeforeProcessChecks(t *te
 			case "unchanged commit":
 				changed.Proof.Commit = request.Worktree.Location.ClientCommit
 			}
-			if _, err := manager.Return(context.Background(), changed); !errors.Is(
-				err,
-				ErrWorktreeOwnership,
-			) {
+			var want error = ErrReturnRequest
+			if mismatch == "lease path" || mismatch == "lease ID" {
+				want = ErrWorktreeOwnership
+			}
+			if _, err := manager.Return(context.Background(), changed); !errors.Is(err, want) {
 				t.Fatalf("changed %s: %v", mismatch, err)
 			}
 		})

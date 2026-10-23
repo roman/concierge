@@ -61,6 +61,8 @@ type WorktreeReturnResponse struct {
 	taskstate.WorktreeLease
 	RemovedPaths []string `json:"removed_paths,omitempty"`
 	Error        string   `json:"error,omitempty"`
+	Failure      string   `json:"return_failure,omitempty"`
+	Diagnostics  string   `json:"diagnostics,omitempty"`
 }
 
 func validateRemovedPaths(directory string, paths []string) error {
@@ -91,7 +93,7 @@ func (manager Worktrees) Return(
 	request WorktreeReturnRequest,
 ) (taskstate.WorktreeLease, error) {
 	if request.Validate() != nil || !filepath.IsAbs(manager.Git.Executable) {
-		return taskstate.WorktreeLease{}, ErrWorktreeOwnership
+		return taskstate.WorktreeLease{}, ErrReturnRequest
 	}
 	manager.Git.ReturnIgnoredPaths = request.ReturnIgnoredPaths
 	var returned taskstate.WorktreeLease
@@ -154,7 +156,7 @@ func (manager Worktrees) Return(
 					Root:       record.Lease.Remote.PoolRoot(),
 				}
 				if _, found, err := pool.Find(ctx, record.Lease.Project, record.Lease.Holder); err != nil {
-					return err
+					return returnError(ErrReturnPool, err)
 				} else if found {
 					if err := manager.verifyReturnable(ctx, *record, request.Proof); err != nil {
 						return err
@@ -163,10 +165,14 @@ func (manager Worktrees) Return(
 				if err := pool.Return(ctx, record.Lease.Project, worktree.Lease{
 					ID: record.Lease.ID, Holder: record.Lease.Holder, Path: record.Lease.Path,
 				}); err != nil {
-					return err
+					return returnError(ErrReturnPool, err)
 				}
 			} else if err := manager.removeReturnedGitWorktree(ctx, *record); err != nil {
-				return err
+				var stage returnStage
+				if errors.As(err, &stage) {
+					return err
+				}
+				return returnError(ErrReturnPool, err)
 			}
 			record.Phase, record.Lease.State = worktreeReturned, taskstate.LeaseReturned
 			if err := journal.save(*record); err != nil {
@@ -176,6 +182,12 @@ func (manager Worktrees) Return(
 			return nil
 		},
 	)
+	if err != nil {
+		var stage returnStage
+		if !errors.As(err, &stage) {
+			err = returnError(ErrReturnJournal, err)
+		}
+	}
 	return returned, err
 }
 
@@ -185,21 +197,21 @@ func (manager Worktrees) verifyReturnable(
 	proof WorktreeReturnProof,
 ) error {
 	if err := manager.verifyLease(ctx, record); err != nil {
-		return err
+		return returnError(ErrReturnJournal, err)
 	}
 	commit, err := manager.projectGit(ctx, record.Lease.Path, "rev-parse", "HEAD")
 	if err != nil || commit != proof.Commit {
-		return ErrWorktreeOwnership
+		return returnError(ErrReturnJournal, ErrWorktreeOwnership)
 	}
 	if err := manager.Git.StopFsmonitor(ctx, record.Lease.Path); err != nil {
-		return err
+		return returnError(ErrReturnFsmonitor, err)
 	}
 	quiet := manager.CheckQuiet
 	if quiet == nil {
 		quiet = func(ctx context.Context, directory string) error { return checkWorktreeQuiet(ctx, "lsof", directory) }
 	}
 	if err := quiet(ctx, record.Lease.Path); err != nil {
-		return err
+		return returnError(ErrReturnProcesses, err)
 	}
 	if record.Backend == taskstate.RemoteTreehouse {
 		pool := worktree.PoolClient{
@@ -209,13 +221,19 @@ func (manager Worktrees) verifyReturnable(
 		if err := pool.VerifyReturn(ctx, record.Lease.Project, worktree.Lease{
 			ID: record.Lease.ID, Holder: record.Lease.Holder, Path: record.Lease.Path,
 		}); err != nil {
-			return err
+			return returnError(ErrReturnProcesses, err)
 		}
 	}
 	if proof.Outcome == WorktreeLanded || proof.Outcome == WorktreeScout {
-		return manager.Git.CleanReturn(ctx, remoteWorktreeSpecification(record.Lease))
+		if err := manager.Git.CleanReturn(ctx, remoteWorktreeSpecification(record.Lease)); err != nil {
+			return returnError(ErrReturnContents, err)
+		}
+		return nil
 	}
-	return manager.Git.VerifyReturn(ctx, remoteWorktreeSpecification(record.Lease))
+	if err := manager.Git.VerifyReturn(ctx, remoteWorktreeSpecification(record.Lease)); err != nil {
+		return returnError(ErrReturnContents, err)
+	}
+	return nil
 }
 
 func (manager Worktrees) removeReturnedGitWorktree(

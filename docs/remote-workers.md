@@ -198,6 +198,24 @@ commit, and processes before deletion. It reports removed paths to the primary
 host log and cleanup output. Directory entries cover their removed contents.
 Reports are bounded to 24 KiB per checkout. An oversized report stops deletion.
 
+Return selects the prepared client under the lease's recorded machine base.
+The helper must accept `worker-worktree return --protocol 1`. An older helper
+refuses that flag before processing the request. After a client upgrade, run
+`concierge machine prepare MACHINE --client-source /path/to/clean/concierge`
+from the primary before retrying cleanup. The request, lease, acquisition
+client commit, and journal retain their original identities. Preparation and
+return do not require a worker relaunch or deletion of the lease journal.
+
+For a checkout configured with Git's built-in fsmonitor, return stops the
+daemon after ownership and commit checks and before process checks. The exact
+exit-128 `fatal: fsmonitor--daemon is not running` response is harmless. Every
+other shutdown failure prevents return. Hook-based monitors remain unchanged.
+
+Remote failures identify the request/protocol, journal/identity, fsmonitor
+shutdown, process checks, content cleanup, pool return, transport, or response
+validation stage. The private host log records bounded, redacted dependency
+diagnostics under `remote_return`. An SSH failure does not imply lost ownership.
+
 An unchanged or abandoned result keeps conservative return checks. These checks
 use the current `return_ignored_paths` list from the primary's operator-owned
 `config/projects.json`. Tracked changes, non-ignored untracked files, and
