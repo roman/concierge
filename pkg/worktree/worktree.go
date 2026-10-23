@@ -17,6 +17,7 @@ var ErrIdentity = errors.New("worktree identity conflict")
 type Client struct {
 	Executable         string
 	RemovedStoreLink   func(string)
+	RemovedPath        func(string)
 	ReturnIgnoredPaths []string
 }
 

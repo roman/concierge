@@ -302,36 +302,17 @@ func (client PoolClient) Acquire(ctx context.Context, project, holder string) (L
 // Return releases only the recorded, quiet lease and verifies the postcondition.
 // Dirty worktrees receive EOF rather than approval to discard their changes.
 func (client PoolClient) Return(ctx context.Context, project string, lease Lease) error {
-	if !validLeaseForProject(project, lease) {
-		return ErrIdentity
-	}
-	entries, err := client.entries(ctx, project)
+	selected, err := client.returnableEntry(ctx, project, lease)
 	if err != nil {
 		return err
-	}
-	var selected *poolEntry
-	for index := range entries {
-		if entries[index].Path == lease.Path {
-			selected = &entries[index]
-		}
-	}
-	if selected == nil {
-		return fmt.Errorf("%w: recorded treehouse worktree is absent", ErrIdentity)
 	}
 	if selected.ID == "" && selected.Holder == "" {
 		return nil
 	}
-	if selected.Lease != lease || selected.Flavor != "git" || selected.RecoveryReason != "" ||
-		selected.BranchError != "" {
-		return fmt.Errorf("%w: lease changed or checkout is damaged", ErrIdentity)
-	}
-	if len(*selected.Processes) != 0 {
-		return describeProcessBlockers(ctx, *selected.Processes)
-	}
 	if _, err := client.run(ctx, project, "return", lease.Path, "--if-lease-id", lease.ID, "--if-lease-holder", lease.Holder); err != nil {
 		return err
 	}
-	entries, err = client.entries(ctx, project)
+	entries, err := client.entries(ctx, project)
 	if err != nil {
 		return err
 	}
@@ -341,4 +322,50 @@ func (client PoolClient) Return(ctx context.Context, project string, lease Lease
 		}
 	}
 	return nil
+}
+
+// VerifyReturn checks the held lease and processes before destructive cleanup.
+func (client PoolClient) VerifyReturn(ctx context.Context, project string, lease Lease) error {
+	selected, err := client.returnableEntry(ctx, project, lease)
+	if err != nil {
+		return err
+	}
+	if selected.Lease != lease {
+		return ErrIdentity
+	}
+	return nil
+}
+
+func (client PoolClient) returnableEntry(
+	ctx context.Context,
+	project string,
+	lease Lease,
+) (*poolEntry, error) {
+	if !validLeaseForProject(project, lease) {
+		return nil, ErrIdentity
+	}
+	entries, err := client.entries(ctx, project)
+	if err != nil {
+		return nil, err
+	}
+	var selected *poolEntry
+	for index := range entries {
+		if entries[index].Path == lease.Path {
+			selected = &entries[index]
+		}
+	}
+	if selected == nil {
+		return nil, fmt.Errorf("%w: recorded treehouse worktree is absent", ErrIdentity)
+	}
+	if selected.ID == "" && selected.Holder == "" {
+		return selected, nil
+	}
+	if selected.Lease != lease || selected.Flavor != "git" || selected.RecoveryReason != "" ||
+		selected.BranchError != "" {
+		return nil, fmt.Errorf("%w: lease changed or checkout is damaged", ErrIdentity)
+	}
+	if len(*selected.Processes) != 0 {
+		return nil, describeProcessBlockers(ctx, *selected.Processes)
+	}
+	return selected, nil
 }
