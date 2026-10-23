@@ -55,17 +55,20 @@ type controllerEntry struct {
 }
 
 type controllerRegistry struct {
-	operationNames        map[controllerKey]Operation
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	mu                    sync.Mutex
-	entries               map[controllerKey]*controllerEntry
-	endpoints             map[controllerEndpoint]struct{}
-	closed                bool
-	operationKeys         map[controllerKey]struct{}
-	operationEndpoints    map[controllerEndpoint]struct{}
-	awaitingInitialWakeup map[controllerKey]struct{}
-	report                func(error)
+	operationNames         map[controllerKey]Operation
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	mu                     sync.Mutex
+	entries                map[controllerKey]*controllerEntry
+	endpoints              map[controllerEndpoint]struct{}
+	closed                 bool
+	operationKeys          map[controllerKey]struct{}
+	operationEndpoints     map[controllerEndpoint]struct{}
+	awaitingInitialWakeup  map[controllerKey]struct{}
+	initialRecoveries      map[controllerKey]*initialRecovery
+	recoverySuspensions    map[controllerKey]int
+	allRecoverySuspensions int
+	report                 func(error)
 }
 
 func newControllerRegistry(ctx context.Context) *controllerRegistry {
@@ -79,6 +82,8 @@ func newControllerRegistry(ctx context.Context) *controllerRegistry {
 		operationKeys:         make(map[controllerKey]struct{}),
 		operationEndpoints:    make(map[controllerEndpoint]struct{}),
 		awaitingInitialWakeup: make(map[controllerKey]struct{}),
+		initialRecoveries:     make(map[controllerKey]*initialRecovery),
+		recoverySuspensions:   make(map[controllerKey]int),
 	}
 }
 

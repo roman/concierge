@@ -310,24 +310,43 @@ func (worker manualWorker) Restart(ctx context.Context) error {
 }
 
 func (server *Server) restoreTaskControllers(ctx context.Context) error {
+	if _, err := server.queueInitialTasks(ctx); err != nil {
+		return err
+	}
+	server.reconcileInitialTasks(ctx)
+	return ctx.Err()
+}
+
+type initialTaskQueue struct {
+	boundTasks  []controllerKey
+	launchTasks []controllerKey
+}
+
+func (server *Server) queueInitialTasks(ctx context.Context) (initialTaskQueue, error) {
 	if server.config.Recovery == RecoveryMaintenance {
-		return ctx.Err()
+		return initialTaskQueue{}, ctx.Err()
 	}
 	tasks, err := server.store.List(ctx)
 	if err != nil {
-		return err
+		return initialTaskQueue{}, err
 	}
+	var queue initialTaskQueue
 	for _, task := range tasks {
 		snapshot := task.Snapshot()
 		if snapshot.LaunchIntent == nil && !initialWakeupEligible(snapshot) {
 			continue
 		}
-		if err := server.controllers.awaitInitialWakeup(controllerKey{kind: taskController, id: task.ID()}); err != nil {
-			return err
+		key := controllerKey{kind: taskController, id: task.ID()}
+		if err := server.controllers.awaitInitialWakeup(key); err != nil {
+			return initialTaskQueue{}, err
+		}
+		if snapshot.LaunchIntent == nil {
+			queue.boundTasks = append(queue.boundTasks, key)
+		} else {
+			queue.launchTasks = append(queue.launchTasks, key)
 		}
 	}
-	server.reconcileInitialTasks(ctx)
-	return ctx.Err()
+	return queue, ctx.Err()
 }
 
 func validateSupervisionResponse(response Response, request Request) error {

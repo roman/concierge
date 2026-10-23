@@ -49,10 +49,14 @@ func initialWakeupEligible(snapshot taskstate.Snapshot) bool {
 }
 
 func (server *Server) reconcileInitialTasks(ctx context.Context) {
+	server.reconcileSelectedInitialTasks(ctx, server.controllers.initialWakeupTasks())
+}
+
+func (server *Server) reconcileSelectedInitialTasks(ctx context.Context, keys []controllerKey) {
 	if server.config.Recovery == RecoveryMaintenance {
 		return
 	}
-	for _, key := range server.controllers.initialWakeupTasks() {
+	for _, key := range keys {
 		if ctx.Err() != nil {
 			return
 		}
@@ -68,6 +72,11 @@ func (server *Server) reconcileInitialTasks(ctx context.Context) {
 }
 
 func (server *Server) reconcileInitialTask(ctx context.Context, key controllerKey) error {
+	ctx, finish, err := server.controllers.beginInitialRecovery(ctx, key)
+	if err != nil {
+		return err
+	}
+	defer finish()
 	activity, err := hostactivity.Begin(server.config.Root)
 	if err != nil {
 		return err

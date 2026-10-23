@@ -21,6 +21,11 @@ func (server *Server) abandonLaunch(
 		return Response{}, err
 	}
 	key := controllerKey{kind: taskController, id: input.TaskID}
+	resume, err := server.controllers.suspendInitialRecovery(ctx, key)
+	if err != nil {
+		return Response{}, err
+	}
+	defer resume()
 	release, err := server.controllers.reserveInitialLaunch(key)
 	if err != nil {
 		return Response{}, err

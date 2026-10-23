@@ -218,9 +218,11 @@ func (server *Server) ServeReady(
 	if err := server.service.RetireStalePrimaryWakes(ctx, server.config.MessageRoot); err != nil {
 		server.report(fmt.Errorf("retire stale primary wakes: %w", err))
 	}
-	if err := server.restoreTaskControllers(ctx); err != nil {
+	initialTasks, err := server.queueInitialTasks(ctx)
+	if err != nil {
 		return err
 	}
+	server.reconcileSelectedInitialTasks(ctx, initialTasks.boundTasks)
 	if ready != nil {
 		if err := ready(); err != nil {
 			return err
@@ -234,6 +236,7 @@ func (server *Server) ServeReady(
 	running.Add(1)
 	go func() {
 		defer running.Done()
+		server.reconcileSelectedInitialTasks(ctx, initialTasks.launchTasks)
 		server.runInitialReconciliation(ctx)
 	}()
 	slots := make(chan struct{}, maxConnections)
