@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/roman/concierge/pkg/herdr"
@@ -384,7 +385,17 @@ func Call(ctx context.Context, socket string, request Request) (Response, error)
 	if _, err := connection.Write(data); err != nil {
 		return Response{}, fmt.Errorf("%w: %v", ErrOutcomeUnknown, err)
 	}
-	if err := connection.(*net.UnixConn).CloseWrite(); err != nil {
+	return receiveCallResponse(connection.(*net.UnixConn), request)
+}
+
+func receiveCallResponse(connection interface {
+	io.Reader
+	CloseWrite() error
+}, request Request) (Response, error) {
+	// Darwin can report ENOTCONN on shutdown after a peer queues its response
+	// and closes. A validated response still establishes the outcome.
+	if err := connection.CloseWrite(); err != nil &&
+		!errors.Is(err, syscall.ENOTCONN) && !errors.Is(err, syscall.EPIPE) {
 		return Response{}, fmt.Errorf("%w: %v", ErrOutcomeUnknown, err)
 	}
 	var response Response
