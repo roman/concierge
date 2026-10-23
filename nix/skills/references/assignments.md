@@ -13,6 +13,13 @@ assignment. Wait for the existing worker or a `task-stalled` notice. On
 `notification: failed`, preserve the durable message ID,
 correct the cause, and retry the same request. Keep the pending message.
 
+A fresh follow-up with a new key starts its own notification budget. Older
+unanswered work remains pending. After correcting a reported stall with the
+operator, send the follow-up through `task send`; restore stopped delivery
+with `concierge supervise task TASK_ID`. Retrying the same key or an identical
+supervision start preserves the existing budget. Keep native approval dialogs
+under the operator's control.
+
 The worker lists message IDs, then validates its assignment:
 
 ```sh

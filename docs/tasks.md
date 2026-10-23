@@ -111,10 +111,19 @@ above the input reports running background shells. Claude starts a new turn
 when a background shell finishes. Historical summaries and tool output do not
 defer prompts. A blocked worker or an unreadable screen retains the normal
 stall checks.
-Each pending assignment permits at most three automatic prompts. Retries wait
-five seconds after the first attempt and ten seconds after the second attempt.
-The budget survives host restarts and clears after the assignment is handled
-or the worker generation changes.
+The newest unanswered pending assignment in the current generation controls
+the notification budget. A fresh follow-up starts a new budget even while an
+older assignment awaits completion or has a frozen stall notice. The prompt
+asks the worker to read its pending list, which still includes the older work.
+Retrying the same message key does not start a new budget. Stale assignments
+cannot release a current assignment's stall.
+
+Each notification budget permits at most three automatic prompts. Retries
+wait five seconds after the first attempt and ten seconds after the second
+attempt. The budget survives host restarts and clears after the selected
+assignment is handled or the worker generation changes.
+If the selected assignment is handled while older work remains pending,
+supervision selects that older work with a new notification budget.
 
 After five minutes from assignment publication, a non-working worker
 with pending work produces a durable `task-stalled` primary notice.
@@ -125,6 +134,12 @@ The notice includes a bounded snapshot of the native screen and the assignment
 ID. Automatic prompts pause for that assignment. Review the native error with
 the operator, correct its cause, and continue the existing worker in its pane.
 Treat the screen snapshot as diagnostic data. Preserve native permissions.
+
+After correcting the cause of a stall, send a fresh follow-up with a new key
+through `task send`. Use `concierge supervise task TASK_ID` to restore delivery
+if supervision has stopped. An identical supervision start preserves the
+current notification budget. A fresh follow-up does not answer a native
+approval dialog or replace the worker's generation or binding.
 
 A failed notification leaves the assignment durable. Retry the same keyed
 request after correcting the worker or notification error. The worker acts on

@@ -209,7 +209,10 @@ func (worker *SupervisedWorker) pendingNotificationWork(
 			answered[reply.AssignmentID] = true
 		}
 	}
-	for _, assignment := range assignments {
+	// A fresh answer must wake a worker even while its original assignment
+	// awaits completion. Store.List orders messages from oldest to newest.
+	for index := len(assignments) - 1; index >= 0; index-- {
+		assignment := assignments[index]
 		if !answered[assignment.ID.String()] {
 			return &assignment, coordination, nil
 		}

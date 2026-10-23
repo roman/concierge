@@ -707,7 +707,7 @@ func TestConfirmedReplyRetryClearsProgressAfterCompletion(t *testing.T) {
 	}
 }
 
-func TestPendingAssignmentsKeepIndependentPromptBudgets(t *testing.T) {
+func TestFreshAssignmentGetsOwnBudgetWhileOlderAssignmentRemainsPending(t *testing.T) {
 	service, runner, root := runningWorkerService(t)
 	worker, err := service.SupervisedWorker("task-1", root, herdr.Client{SessionRunner: runner})
 	if err != nil {
@@ -730,9 +730,9 @@ func TestPendingAssignmentsKeepIndependentPromptBudgets(t *testing.T) {
 		"Second work",
 		worker.messages.Send,
 	)
-	if err != nil || second.Notification != NotificationDeferred || runner.prompts != 1 {
+	if err != nil || second.Notification != NotificationSent || runner.prompts != 2 {
 		t.Fatalf(
-			"new assignment reset oldest budget: %+v, %v; prompts=%d",
+			"new assignment did not get its own budget: %+v, %v; prompts=%d",
 			second,
 			err,
 			runner.prompts,
@@ -740,8 +740,8 @@ func TestPendingAssignmentsKeepIndependentPromptBudgets(t *testing.T) {
 	}
 	current, err := service.store.Read(context.Background(), "task-1")
 	if err != nil ||
-		current.Snapshot().Worker.PromptProgress.AssignmentID != first.Message.ID.String() {
-		t.Fatalf("oldest selection: %+v, %v", current.Snapshot(), err)
+		current.Snapshot().Worker.PromptProgress.AssignmentID != second.Message.ID.String() {
+		t.Fatalf("freshest selection: %+v, %v", current.Snapshot(), err)
 	}
 	if _, err := service.AcknowledgeAssignment(context.Background(), root, "task-1", first.Message.ID.String(), "gen-1"); err != nil {
 		t.Fatal(err)
