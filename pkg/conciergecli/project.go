@@ -21,8 +21,8 @@ type projectCommands struct {
 		Branch                  *string  `help:"Operator-approved target branch; an empty value restores the remote default."`
 		NixDevelopArgs          []string `name:"nix-develop-arg" sep:"none" help:"Operator-approved extra nix develop argument; repeat in order with --nix-develop-arg=VALUE."`
 		ClearNixDevelopArgs     bool     `help:"Restore nix develop without extra project arguments."`
-		ReturnIgnoredPaths      []string `name:"return-ignored-path" sep:"none" help:"Operator-approved ignored file or directory/ to remove during local lease return; repeat to replace the list. No wildcards."`
-		ClearReturnIgnoredPaths bool     `help:"Restore local return without approved ignored paths."`
+		ReturnIgnoredPaths      []string `name:"return-ignored-path" sep:"none" help:"Operator-approved ignored file or directory/ to remove during lease return; repeat to replace the list. No wildcards."`
+		ClearReturnIgnoredPaths bool     `help:"Restore lease return without approved ignored paths."`
 	} `cmd:"" help:"Set approved repository settings atomically."`
 	Show struct {
 		Repo string `arg:"" help:"Repository name used by backlog intake."`

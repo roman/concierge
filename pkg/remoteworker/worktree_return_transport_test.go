@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/worktree"
 )
 
 type worktreeReturnSSH struct {
@@ -30,7 +33,7 @@ func (runner *worktreeReturnSSH) Run(
 		runner.t.Fatal("used an unfixed return command")
 	}
 	request, err := DecodeWorktreeReturnRequest(input)
-	if err != nil || request != runner.request {
+	if err != nil || !reflect.DeepEqual(request, runner.request) {
 		runner.t.Fatal("changed the original lease or return proof")
 	}
 	if runner.rejection != nil {
@@ -43,6 +46,7 @@ func (runner *worktreeReturnSSH) Run(
 
 func TestNativeReturnTransportRequiresExactReturnedLeaseAndDestination(t *testing.T) {
 	_, request := remoteReturnFixture(t)
+	request.ReturnIgnoredPaths = []string{"generated/"}
 	expected := request.Lease
 	expected.State = taskstate.LeaseReturned
 	runner := &worktreeReturnSSH{t: t, request: request, response: expected}
@@ -80,6 +84,15 @@ func TestNativeReturnTransportRequiresExactReturnedLeaseAndDestination(t *testin
 		) {
 			t.Fatalf("lost the operator's cleanup step: %v", err)
 		}
+	}
+	runner.rejection = fmt.Errorf(
+		"%w: return requires a clean checkout without ignored files; unmatched ignored paths: %q",
+		worktree.ErrIdentity,
+		[]string{"unknown"},
+	)
+	if _, err := transport.Return(t.Context(), profile, request); err == nil ||
+		!strings.Contains(err.Error(), "unknown") {
+		t.Fatalf("lost unmatched ignored path: %v", err)
 	}
 	runner.rejection = nil
 	before := runner.calls

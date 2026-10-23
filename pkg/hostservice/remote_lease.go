@@ -39,6 +39,13 @@ func (leases hostRemoteLeases) Return(
 		Lease: lease,
 		Proof: proof,
 	}
+	if leases.server.config.WorkerSettings != nil {
+		settings, err := leases.server.config.WorkerSettings(task.Definition().Repo)
+		if err != nil {
+			return taskstate.WorktreeLease{}, err
+		}
+		request.ReturnIgnoredPaths = settings.ReturnIgnoredPaths
+	}
 	return leases.transport().Return(ctx, profile, request)
 }
 

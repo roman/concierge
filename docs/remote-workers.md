@@ -130,8 +130,9 @@ history. Ignored outputs never enter the bundle. Checkout failures name the
 unfinished paths separately from ownership failures. Export failures retain the
 lease and selected commit for inspection and retry.
 
-Lease return has separate cleanup requirements. Ignored files can still block
-return after a successful export. Inspect their ownership before removing them.
+Lease return has separate cleanup requirements. Ignored files outside the
+operator's `return_ignored_paths` list block return after a successful export.
+Return names unmatched paths and preserves them. Inspect their ownership before removing them.
 Preserve pre-existing or unknown contents and report the cleanup problem.
 `worker show TASK_ID` includes the selected commit and primary lease recovery
 state. An interrupted import retries the same selection and holder.
@@ -189,8 +190,18 @@ copy a generation from a message into a worker's environment to bypass a mismatc
 ## Cleanup
 
 Cleanup revokes the secret, closes the owned tunnel, and waits for confirmed
-agent and worktree quiescence. A remote worktree must be clean, including ignored
-files. Changed work requires evidence that its selected commit landed, or an
+agent and worktree quiescence. Remote return reads the current per-project
+`return_ignored_paths` list from the primary's operator-owned
+`config/projects.json`. The trusted primary sends the list with the return proof.
+Only matching ignored entries are removed after lease, commit, and process
+checks pass. Tracked files within approved directories remain protected.
+Tracked or staged changes, non-ignored untracked files, and unmatched ignored
+files still block return. An empty or missing list keeps the existing policy.
+A worker request or remote-side file cannot authorize deletion. After the
+operator updates the list with `project set REPO --return-ignored-path=PATH`,
+retry `backlog cleanup TASK_ID --generation GENERATION` for an already-stopped
+task. A relaunch is unnecessary.
+Changed work requires evidence that its selected commit landed, or an
 explicit abandonment through the existing retained-result release procedure.
 Squash delivery checks the matching merged PR and its landed merge commit.
 Cleanup also returns the held primary result lease.

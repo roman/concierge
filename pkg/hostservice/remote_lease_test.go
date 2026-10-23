@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/roman/concierge/pkg/remoteworker"
+	"github.com/roman/concierge/pkg/taskops"
 	"github.com/roman/concierge/pkg/taskstate"
 )
 
@@ -19,6 +21,8 @@ type retirementLeaseSSH struct {
 	outcome     remoteworker.WorktreeReturnOutcome
 	inspections int
 	returns     int
+	paths       []string
+	reject      bool
 }
 
 func (runner *retirementLeaseSSH) Run(
@@ -40,8 +44,11 @@ func (runner *retirementLeaseSSH) Run(
 		request, err := remoteworker.DecodeWorktreeReturnRequest(input)
 		if err != nil || request.Worktree != runner.request || request.Lease != lease ||
 			request.Proof.Outcome != runner.outcome ||
-			request.Proof.Commit != runner.request.BaseCommit {
+			request.Proof.Commit != runner.request.BaseCommit || !slices.Equal(request.ReturnIgnoredPaths, runner.paths) {
 			runner.t.Fatal("changed the original native return scope or proof")
+		}
+		if runner.reject {
+			return nil, nil, errors.New("ignored file blocks return")
 		}
 		lease.State = taskstate.LeaseReturned
 	default:
@@ -52,7 +59,7 @@ func (runner *retirementLeaseSSH) Run(
 }
 
 func TestHostReturnsOnlyItsRecordedNativeLease(t *testing.T) {
-	for _, mode := range []string{"confirmed", "changed target", "foreign primary", "different repository"} {
+	for _, mode := range []string{"confirmed", "updated settings", "settings error", "changed target", "foreign primary", "different repository"} {
 		t.Run(mode, func(t *testing.T) {
 			fixture := newRemoteActivationFixture(t)
 			server := fixture.server
@@ -68,6 +75,18 @@ func TestHostReturnsOnlyItsRecordedNativeLease(t *testing.T) {
 				outcome: remoteworker.WorktreeUnchanged,
 			}
 			server.preparationSSH = runner
+			var approvedPaths []string
+			if mode == "updated settings" || mode == "settings error" {
+				server.config.WorkerSettings = func(repo string) (taskops.WorkerSettings, error) {
+					if repo != fixture.request.Worktree.Location.Repository {
+						t.Fatalf("settings read for %q", repo)
+					}
+					if mode == "settings error" {
+						return taskops.WorkerSettings{}, errors.New("project settings unavailable")
+					}
+					return taskops.WorkerSettings{ReturnIgnoredPaths: approvedPaths}, nil
+				}
+			}
 			ctx := context.Background()
 			if _, err := server.store.Update(ctx, "task-1", func(task taskstate.Task) (taskstate.Task, error) {
 				task, err := task.CompleteInitialLaunch("gen-1")
@@ -91,8 +110,16 @@ func TestHostReturnsOnlyItsRecordedNativeLease(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
+			if mode == "updated settings" {
+				runner.reject = true
+				if _, err := server.service.ReleaseWorktree(ctx, "task-1", "gen-1"); err == nil {
+					t.Fatal("ignored output did not block first return")
+				}
+				approvedPaths = []string{"generated/"}
+				runner.paths, runner.reject, runner.returns = approvedPaths, false, 0
+			}
 			result, err := server.service.ReleaseWorktree(ctx, "task-1", "gen-1")
-			if mode != "confirmed" {
+			if mode != "confirmed" && mode != "updated settings" {
 				if err == nil || runner.returns != 0 || runner.inspections != 0 {
 					t.Fatalf("changed scope reached native cleanup: %v", err)
 				}

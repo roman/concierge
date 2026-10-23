@@ -120,7 +120,7 @@ launch base. An omitted branch uses origin's advertised default branch.
 Use `concierge project set REPO --branch=''` to restore that behavior.
 The same target controls remote result landing evidence during lease return.
 
-The optional `return_ignored_paths` setting permits local lease return to remove
+The optional `return_ignored_paths` setting permits local and remote lease return to remove
 specific ignored files that the operator considers regenerable. Set the entire
 list with repeated flags:
 
@@ -147,8 +147,13 @@ Cleanup reads the current settings on each attempt. After updating the list,
 retry `backlog cleanup TASK_ID --generation GENERATION` for an already accepted,
 stopped task. A relaunch or another acceptance is unnecessary.
 
-This setting applies to local lease return. Remote export and remote return
-retain their existing checks.
+For remote return, the primary reads this list from its operator-owned
+`config/projects.json` on each attempt. It sends the list through the trusted
+return transport with the immutable commit proof. The remote applies the same
+validation and ignored-file matching as local return after confirming the
+lease, selected commit, and process quiescence. A worker request, task brief,
+or remote-side file cannot grant deletion authority. Remote export remains
+unchanged and preserves ignored outputs.
 
 Merge authority and delivery mode are independent. `merge: on` authorizes the
 primary to land green, in-scope work. `merge: off` requires approval for each

@@ -36,7 +36,14 @@ a remote task's PR. The remote worker needs no repository write credentials.
 Export can proceed with ignored devshell outputs present. It preserves those
 outputs and checks the owned lease, reserved branch, tracked content, untracked
 content, and selected HEAD. Only the committed result enters the bundle.
-Lease return still requires cleanup and process checks. Preserve pre-existing
+Lease return still requires cleanup and process checks. The primary reads the
+current operator-owned `return_ignored_paths` list from `config/projects.json`
+on each attempt and sends it through the trusted return transport. The remote
+removes only matching ignored entries after lease, immutable commit, and process
+checks pass. It preserves and names unmatched ignored files. A worker request,
+task brief, or remote-side file cannot authorize deletion. An empty or missing
+list keeps the existing return policy. After the operator changes the list,
+retry cleanup for the stopped task without a relaunch. Preserve pre-existing
 or unknown ignored files and report them for inspection before lease return.
 
 An unavailable SSH connection does not authorize a replacement worker or free

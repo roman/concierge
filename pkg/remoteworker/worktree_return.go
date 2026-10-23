@@ -49,12 +49,15 @@ type WorktreeReturnRequest struct {
 	Worktree WorktreeRequest         `json:"worktree"`
 	Lease    taskstate.WorktreeLease `json:"lease"`
 	Proof    WorktreeReturnProof     `json:"proof"`
+	// Only the trusted primary supplies operator-owned project settings.
+	ReturnIgnoredPaths []string `json:"return_ignored_paths,omitempty"`
 }
 
 func (request WorktreeReturnRequest) Validate() error {
 	record := worktreeRecord{Format: 1, Request: request.Worktree,
 		Backend: request.Lease.Remote.Backend, Phase: worktreeReady, Lease: request.Lease}
-	if record.validate() != nil || request.Proof.validate(request.Worktree) != nil {
+	if record.validate() != nil || request.Proof.validate(request.Worktree) != nil ||
+		worktree.ValidateReturnIgnoredPaths(request.ReturnIgnoredPaths) != nil {
 		return ErrWorktreeOwnership
 	}
 	return nil
@@ -67,6 +70,7 @@ func (manager Worktrees) Return(
 	if request.Validate() != nil || !filepath.IsAbs(manager.Git.Executable) {
 		return taskstate.WorktreeLease{}, ErrWorktreeOwnership
 	}
+	manager.Git.ReturnIgnoredPaths = request.ReturnIgnoredPaths
 	var returned taskstate.WorktreeLease
 	err := withWorktreeJournal(ctx, request.Worktree, func(journal *worktreeJournal) error {
 		record, err := journal.read()

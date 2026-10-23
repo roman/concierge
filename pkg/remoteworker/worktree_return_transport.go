@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/roman/concierge/pkg/herdr"
 	"github.com/roman/concierge/pkg/sshcommand"
 	"github.com/roman/concierge/pkg/taskstate"
+	"github.com/roman/concierge/pkg/worktree"
 )
 
 func DecodeWorktreeReturnRequest(input io.Reader) (WorktreeReturnRequest, error) {
@@ -55,6 +57,17 @@ func (transport WorktreeTransport) Return(
 				if strings.Contains(string(output), "error: "+string(encoded)+"\n") {
 					return taskstate.WorktreeLease{}, known
 				}
+			}
+			line, _, _ := strings.Cut(string(output), "\n")
+			var message string
+			if strings.HasPrefix(line, "error: ") &&
+				json.Unmarshal([]byte(strings.TrimPrefix(line, "error: ")), &message) == nil &&
+				strings.HasPrefix(message, worktree.ErrIdentity.Error()+": ") {
+				return taskstate.WorktreeLease{}, fmt.Errorf(
+					"%w: %s",
+					ErrWorktreeOwnership,
+					message,
+				)
 			}
 		}
 		return taskstate.WorktreeLease{}, ErrWorktreeOwnership

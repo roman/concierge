@@ -146,7 +146,14 @@ The primary selects an exact commit and imports it
 into a worktree sharing the primary project's Git common directory. Interrupted
 imports retain the same selected commit and lease holder.
 Only committed content and history enter the bundle. Lease return still
-requires its cleanup and process checks, including inspection of ignored files.
+requires its cleanup and process checks. On each return attempt, the primary
+reads `return_ignored_paths` from its operator-owned `config/projects.json`.
+It sends the list over the trusted return transport beside the immutable proof.
+The remote reuses local return validation and matching after checking lease
+identity, the selected commit, and process quiescence. Only matching ignored
+entries are removed. Unmatched ignored files remain and are named in the error.
+Workers and remote-side files cannot supply this authority. A failed return
+can retry with updated primary settings without relaunching the task.
 
 The primary retains the remote result and imported primary lease until cleanup
 succeeds. Landing follows repository settings: fast-forward delivery pushes the
