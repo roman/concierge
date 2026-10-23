@@ -36,15 +36,20 @@ a remote task's PR. The remote worker needs no repository write credentials.
 Export can proceed with ignored devshell outputs present. It preserves those
 outputs and checks the owned lease, reserved branch, tracked content, untracked
 content, and selected HEAD. Only the committed result enters the bundle.
-Lease return still requires cleanup and process checks. The primary reads the
-current operator-owned `return_ignored_paths` list from `config/projects.json`
-on each attempt and sends it through the trusted return transport. The remote
-removes only matching ignored entries after lease, immutable commit, and process
-checks pass. It preserves and names unmatched ignored files. A worker request,
-task brief, or remote-side file cannot authorize deletion. An empty or missing
-list keeps the existing return policy. After the operator changes the list,
-retry cleanup for the stopped task without a relaunch. Preserve pre-existing
-or unknown ignored files and report them for inspection before lease return.
+Lease return still requires cleanup and process checks. After recorded
+acceptance and confirmed landing, the primary authorizes `git reset --hard HEAD`
+and `git clean -fdx`. An accepted scout needs no landing. The remote checks
+lease identity, the immutable commit, and processes before deletion. Both local
+and remote return report removed paths in cleanup output and the host log.
+Directory paths cover their removed contents. A report above 24 KiB stops
+cleanup before deletion. A partial failure reports completed removals.
+
+Unaccepted, abandoned, or unlanded work never receives that destructive clean.
+Explicit abandoned or retained release keeps conservative return checks and the
+operator-owned `return_ignored_paths` list. Unmatched ignored files and dirty
+work block conservative return. A worker request, task brief, or remote-side
+file cannot authorize deletion. Preserve pre-existing or unknown ignored files
+while working and report them before acceptance.
 
 An unavailable SSH connection does not authorize a replacement worker or free
 its lease. Inspect `concierge worker show TASK_ID` and preserve the generation.
@@ -53,7 +58,7 @@ A revoked secret requires the trusted primary's retained-outbox reconciliation
 procedure. Never copy a generation into the worker environment to bypass it.
 
 Cleanup must confirm agent and worktree quiescence. Unknown ownership, active
-listeners, dirty files, or unconfirmed lease returns require inspection.
+listeners, unconfirmed landings, or unconfirmed lease returns require inspection.
 Do not remove arbitrary sockets or reset worktrees to make cleanup pass.
 
 ## Worker development shells

@@ -78,6 +78,11 @@ concierge land TASK_ID
 
 Stop and clean up the accepted worker:
 
+After acceptance and confirmed landing, lease return runs `git reset --hard HEAD`
+and `git clean -fdx`. An accepted scout needs no landing. Lease identity and
+process checks precede deletion. Cleanup reports removed paths and verifies a
+clean checkout. Unaccepted or abandoned work never receives this clean.
+
 ```sh
 concierge task stop TASK_ID --generation GEN
 concierge backlog cleanup TASK_ID --generation GEN

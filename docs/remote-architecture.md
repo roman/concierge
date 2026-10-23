@@ -146,14 +146,18 @@ The primary selects an exact commit and imports it
 into a worktree sharing the primary project's Git common directory. Interrupted
 imports retain the same selected commit and lease holder.
 Only committed content and history enter the bundle. Lease return still
-requires its cleanup and process checks. On each return attempt, the primary
-reads `return_ignored_paths` from its operator-owned `config/projects.json`.
-It sends the list over the trusted return transport beside the immutable proof.
-The remote reuses local return validation and matching after checking lease
-identity, the selected commit, and process quiescence. Only matching ignored
-entries are removed. Unmatched ignored files remain and are named in the error.
-Workers and remote-side files cannot supply this authority. A failed return
-can retry with updated primary settings without relaunching the task.
+requires its cleanup and process checks. The primary derives return authority
+from recorded acceptance and fresh landing evidence. A trusted landed-result
+proof or accepted-scout proof authorizes `git reset --hard HEAD` and
+`git clean -fdx` after lease, commit, and process checks. The remote uses the
+shared local cleanup implementation. Both return paths report removed paths
+and verify cleanliness. Remote diagnostics reach the primary host log and
+cleanup output, including completed removals after a partial failure.
+
+Unchanged and abandoned proofs keep conservative validation. Only those return
+paths use the primary's operator-owned `return_ignored_paths` list. Unmatched
+ignored files remain and are named in the error. Workers and remote-side files
+cannot supply deletion authority. Journal retries preserve the original proof.
 
 The primary retains the remote result and imported primary lease until cleanup
 succeeds. Landing follows repository settings: fast-forward delivery pushes the

@@ -122,9 +122,15 @@ launch base. An omitted branch uses origin's advertised default branch.
 Use `concierge project set REPO --branch=''` to restore that behavior.
 The same target controls remote result landing evidence during lease return.
 
-The optional `return_ignored_paths` setting permits local and remote lease return to remove
-specific ignored files that the operator considers regenerable. Set the entire
-list with repeated flags:
+Accepted, landed results return through `git reset --hard HEAD` and
+`git clean -fdx` after lease identity and process checks. Accepted scouts need
+no landing. This policy covers local and remote checkouts. Cleanup reports
+removed paths in its output and the host log, then verifies cleanliness.
+
+The optional `return_ignored_paths` setting applies only to conservative return
+of abandoned, retained, or unconfirmed results. It permits removal of specific
+ignored files the operator considers regenerable. Set the entire list with
+repeated flags:
 
 ```sh
 concierge project set exmachina \
@@ -142,12 +148,12 @@ named in the error. Existing identity and live-process checks still apply.
 
 `project show REPO` displays a configured list. Use
 `project set REPO --clear-return-ignored-paths` to clear it. An empty or absent
-list preserves the existing return policy, including removal of ignored Nix
+list preserves the conservative return policy, including removal of ignored Nix
 store symlinks and empty ignored directories. Settings belong to the operator
 in `config/projects.json`; a worker assignment cannot grant this permission.
-Cleanup reads the current settings on each attempt. After updating the list,
-retry `backlog cleanup TASK_ID --generation GENERATION` for an already accepted,
-stopped task. A relaunch or another acceptance is unnecessary.
+Conservative return reads the current settings on each attempt. After updating
+the list, retry the same cleanup or explicit release command. A relaunch is
+unnecessary. A list entry cannot replace landing evidence for a closed result.
 
 For remote return, the primary reads this list from its operator-owned
 `config/projects.json` on each attempt. It sends the list through the trusted

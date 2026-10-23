@@ -130,10 +130,11 @@ history. Ignored outputs never enter the bundle. Checkout failures name the
 unfinished paths separately from ownership failures. Export failures retain the
 lease and selected commit for inspection and retry.
 
-Lease return has separate cleanup requirements. Ignored files outside the
-operator's `return_ignored_paths` list block return after a successful export.
-Return names unmatched paths and preserves them. Inspect their ownership before removing them.
-Preserve pre-existing or unknown contents and report the cleanup problem.
+Lease return has separate cleanup requirements. Recorded acceptance and
+confirmed landing authorize a complete checkout clean after lease identity,
+commit, and process checks. An accepted scout needs no landing. Unaccepted or
+abandoned work keeps conservative file checks. Preserve pre-existing or unknown
+contents while working and report cleanup problems before acceptance.
 `worker show TASK_ID` includes the selected commit and primary lease recovery
 state. An interrupted import retries the same selection and holder.
 
@@ -190,23 +191,23 @@ copy a generation from a message into a worker's environment to bypass a mismatc
 ## Cleanup
 
 Cleanup revokes the secret, closes the owned tunnel, and waits for confirmed
-agent and worktree quiescence. Remote return reads the current per-project
-`return_ignored_paths` list from the primary's operator-owned
-`config/projects.json`. The trusted primary sends the list with the return proof.
-Only matching ignored entries are removed after lease, commit, and process
-checks pass. Tracked files within approved directories remain protected.
-Tracked or staged changes, non-ignored untracked files, and unmatched ignored
-files still block return. An empty or missing list keeps the existing policy.
-A worker request or remote-side file cannot authorize deletion. After the
-operator updates the list with `project set REPO --return-ignored-path=PATH`,
-retry `backlog cleanup TASK_ID --generation GENERATION` for an already-stopped
-task. A relaunch is unnecessary.
-Changed work requires evidence that its selected commit landed, or an
-explicit abandonment through the existing retained-result release procedure.
+agent and worktree quiescence. After recorded acceptance and confirmed landing,
+the trusted primary authorizes `git reset --hard HEAD` and `git clean -fdx`.
+An accepted scout needs no landing. The remote checks the lease, selected
+commit, and processes before deletion. It reports removed paths to the primary
+host log and cleanup output. Directory entries cover their removed contents.
+Reports are bounded to 24 KiB per checkout. An oversized report stops deletion.
+
+An unchanged or abandoned result keeps conservative return checks. These checks
+use the current `return_ignored_paths` list from the primary's operator-owned
+`config/projects.json`. Tracked changes, non-ignored untracked files, and
+unmatched ignored files block conservative return. A worker request or remote
+file cannot authorize deletion. Retry a stopped task's cleanup or explicit
+release after correcting a blocker. A relaunch is unnecessary.
 Squash delivery checks the matching merged PR and its landed merge commit.
 Cleanup also returns the held primary result lease.
 
-Unknown ownership, an active listener, dirty files, or an unconfirmed lease
+Unknown ownership, an active listener, an unconfirmed landing, or an unconfirmed lease
 return keeps the recorded resources for inspection. Do not remove an arbitrary
 socket or reset a worktree to make cleanup pass. Unsent outbox records survive
 worktree cleanup. See [task lifecycle](tasks.md) for retained-result release.

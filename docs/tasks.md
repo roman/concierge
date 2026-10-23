@@ -420,12 +420,22 @@ before taking action. Close an operator-owned terminal only after confirming
 its purpose, then retry cleanup. Concierge preserves the lease regardless of
 the process's owner or pane hint. It never kills a blocking process.
 
-Before checking cleanliness, return removes ignored symlinks whose targets are
-inside `/nix/store`. Cleanup and explicit worktree release report each removed
-link in `removed_store_links`. Return also removes empty ignored directories,
-including directories left after store-link removal on an earlier attempt.
-Other ignored entries and untracked files still block return. Return never
-removes regular files or follows directory symlinks while pruning directories.
+After recorded acceptance in close mode and confirmed landing, return runs
+`git reset --hard HEAD` and `git clean -fdx` in the checkout. An accepted scout
+needs no landing. Lease identity and process checks precede deletion. The same
+policy applies to local leases, native remote leases, and imported primary
+result leases. Return verifies the checkout is clean before releasing it.
+
+Cleanup and explicit release report removals in `removed_paths` and the host
+log. A directory path covers all removed contents beneath it. The path report
+is bounded to 24 KiB per checkout. An oversized report stops cleanup before
+deletion and requires manual cleanup. Partial failures report completed removals.
+
+Unaccepted, abandoned, and unlanded work never receives this destructive clean.
+Explicit release of an abandoned or retained lease keeps the conservative
+policy: ignored Nix store symlinks, empty ignored directories, and files in the
+operator's `return_ignored_paths` list may be removed. Other ignored files,
+untracked files, and tracked changes block return and retain the lease.
 
 All workers, including scouts, must remove generated ignored outputs created by
 their tools before reporting. Preserve pre-existing ignored files and report
@@ -437,11 +447,11 @@ after a lifecycle operation. It does not prevent another cleanup attempt.
 Resolve the reported checkout or process condition and repeat the same cleanup
 command with the same generation. A host restart is unnecessary for a retry.
 
-Return requires a clean checkout after this removal. Hidden index flags,
-detached result commits, changed branches, and dirty work prevent return and
-keep the lease. Commit or move useful files before retrying. Treehouse can
-remove a task branch's ignore rules while parking its checkout, then delete
-previously ignored files. Concierge checks those files before invoking return.
+Hidden index flags, detached result commits, changed branches, and active
+processes prevent return and keep the lease. A project result must appear on
+the freshly fetched target branch, or match a merged PR whose merge commit is
+on that branch. An unavailable landing check retains the checkout for retry.
+Commit or move useful files before acceptance and landing.
 
 An abandoned acquisition whose response was lost retains its holder and original
 base commit. Explicit release finds that holder's existing lease and captures its
