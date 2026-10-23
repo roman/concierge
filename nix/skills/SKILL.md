@@ -56,10 +56,10 @@ coordination with `tincan inbox ack concierge MESSAGE_ID`. Do not repeat handled
 Record an operator request first: `concierge operator ask ACTION_ID "DESCRIPTION"`.
 Resolve it only after an answer or withdrawal: `concierge operator resolve ACTION_ID`.
 
-Post one short row per task: **Task | Outcome or progress | Blocker | Next owner |
-Operator input**. Keep unchanged rows brief. Honor explicit pauses.
-End the update with **Waiting on you**, listing every open request.
+Start the update with **Waiting on you**, listing every open request.
 State that no operator action is needed when the list is empty.
+Put brief context last, using optional **Task | Outcome or progress | Blocker | Next owner |
+Operator input** rows. Skip unchanged rows. Honor explicit pauses.
 For requested alerts, follow [Operator notifications](references/heartbeat.md#operator-notifications).
 Post the update before its receipt:
 `concierge heartbeat ack EVENT --generation GENERATION --runtime host --token CLAIM_TOKEN --output OUTPUT_REFERENCE`.

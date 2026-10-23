@@ -128,6 +128,13 @@ func TestHeartbeatSchedule(t *testing.T) {
 				(!strings.Contains(got, "finished, idle") || !strings.Contains(got, "PushNotification")) {
 				t.Fatal(got)
 			}
+			if strings.Contains(got, "status: due") {
+				for _, want := range []string{"Start with Waiting on you.", "Keep context brief and put it last."} {
+					if !strings.Contains(got, want) {
+						t.Fatalf("missing %q: %s", want, got)
+					}
+				}
+			}
 			if got := check(now.Add(trial.elapsed), "checkpoint"); !strings.Contains(
 				got,
 				"status: quiet",

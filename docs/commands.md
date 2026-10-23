@@ -63,9 +63,11 @@ worker retirement and completion finish. Acceptance does not establish that
 the worker is currently idle; inspect its pane and agent status before stopping it.
 
 The shared host scheduler includes open requests and unfinished worker
-retirement in supervisor events. The primary repeats unresolved requests in
-its **Waiting on you** list and uses the harness notification tool when a
-claim requests a notification. Notifications do not resolve requests.
+retirement in supervisor events. The primary starts each update with a
+**Waiting on you** list of every open request. Keep context brief and put it last.
+State that no operator action is needed when the list is empty.
+Use the harness notification tool when a claim requests a notification.
+Notifications do not resolve requests.
 
 After scheduler activation or an explicit operator pause, `operator remind`
 returns `status: quiet` and `scheduler: host_owned`. It does not maintain a

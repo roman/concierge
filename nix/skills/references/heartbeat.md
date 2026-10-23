@@ -39,9 +39,10 @@ Post the operator update before recording its output receipt:
 concierge heartbeat ack EVENT --generation GENERATION --runtime host --token CLAIM_TOKEN --output OUTPUT_REFERENCE
 ```
 
-The output reference identifies the update already posted. End that update
+The output reference identifies the update already posted. Start that update
 with the current **Waiting on you** list. State that no operator action is
 needed when the list is empty. Keep unresolved actions open.
+Keep context brief and put it last.
 
 An `inbox` event authorizes processing the new pending messages and reporting
 that work. Do not use it to send a periodic reminder during an operator pause.

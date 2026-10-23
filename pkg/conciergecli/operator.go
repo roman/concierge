@@ -293,7 +293,7 @@ func runOperatorReminder(
 				&view,
 				"help: %s\n",
 				quote(
-					"Repeat these open items to the operator. End the reply with a short Waiting on you list. If the operator has not replied, send a desktop notification through the harness notification tool when available (Claude: PushNotification).",
+					"Repeat these open items to the operator. Start the reply with a short Waiting on you list. Keep context brief and put it last. If the operator has not replied, send a desktop notification through the harness notification tool when available (Claude: PushNotification).",
 				),
 			)
 		}

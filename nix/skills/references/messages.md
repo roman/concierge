@@ -38,8 +38,9 @@ concierge operator list
 concierge operator resolve stop-worker
 ```
 
-End every reply with a short **Waiting on you** list while operator actions
-remain open. Repeat the unresolved requests in that list. A permission failure
+Start every reply with a short **Waiting on you** list, listing every open request.
+State that no operator action is needed when the list is empty.
+Keep context brief and put it last. A permission failure
 that needs an operator command or approval also requires an action.
 `concierge brief` and `concierge task pending` include all open actions.
 Pending completions include accepted workers awaiting stop and cleanup.

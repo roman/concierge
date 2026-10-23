@@ -123,8 +123,10 @@ remove the guard. A generation from another root still fails event verification.
 Act only on `status: current`. A claim lasts two minutes and returns fresh
 worker states, pending reply metadata, completion work, and open actions.
 Handle worker assignments and results through their existing bound protocols.
-End the operator update with the current **Waiting on you** list. Use the
-harness notification tool when the claim requests an operator notification.
+Start the operator update with the current **Waiting on you** list.
+Keep context brief and put it last. State that no operator action is needed
+when the list is empty. Use the harness notification tool when the claim
+requests an operator notification.
 
 Post the operator update before `ack`. The output reference identifies that
 already posted update. Concierge records a primary-reported receipt; it does

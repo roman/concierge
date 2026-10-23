@@ -218,7 +218,7 @@ func claimHeartbeat(
 		if settings.QuietLimit > 0 && ledger.QuietBeats >= settings.QuietLimit {
 			view.WriteString("pause: Heartbeats are pausing until something changes.\n")
 		}
-		view.WriteString("help: Post this status to the operator. End with Waiting on you.\n")
+		view.WriteString("help: Post this status to the operator. Start with Waiting on you. Keep context brief and put it last.\n")
 		if status.Notify {
 			view.WriteString("notification: Send a desktop notification for the waiting decision or idle finished worker (Claude: PushNotification).\n")
 		}

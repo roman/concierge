@@ -184,10 +184,20 @@ pkgs.runCommand "concierge-devshell"
     references = re.findall(r"\]\((references/[^)]+\.md)\)", core)
     assert references, "the supervisor core must link its on-demand references"
     assert len(core.splitlines()) < 120, "keep the always-loaded supervisor core short"
+    assert "Start the update with **Waiting on you**, listing every open request." in core
+    assert "Skip unchanged rows." in core
+    assert "Put brief context last" in core
     for reference in references:
         contents = [(skill / reference).read_text() for skill in skills]
         assert contents[0] == contents[1], reference
         assert "@commandPath@" not in contents[0], reference
+        instruction = " ".join(contents[0].split())
+        if reference == "references/heartbeat.md":
+            assert "Start that update with the current **Waiting on you** list." in instruction, reference
+        if reference == "references/messages.md":
+            assert "Start every reply with a short **Waiting on you** list" in contents[0], reference
+        if reference in ("references/heartbeat.md", "references/messages.md"):
+            assert "Keep context brief and put it last." in contents[0], reference
     assert "@commandPath@" not in core
     PY
     if grep -F 'Exmachina' "$DEVENV_ROOT/.agents/skills/concierge-local-supervisor/SKILL.md"; then exit 1; fi

@@ -132,6 +132,13 @@ func TestOperatorReminderRateLimitAndResolution(t *testing.T) {
 		if !strings.Contains(output.String(), trial.want) {
 			t.Fatalf("after %s: %s", trial.elapsed, &output)
 		}
+		if trial.want == "status: due" {
+			for _, want := range []string{"Start the reply with a short Waiting on you list.", "Keep context brief and put it last.", "PushNotification"} {
+				if !strings.Contains(output.String(), want) {
+					t.Fatalf("missing %q: %s", want, &output)
+				}
+			}
+		}
 	}
 	invoke(t, root, "", "operator", "resolve", "approval")
 	got := invoke(t, root, "", "operator", "remind")
