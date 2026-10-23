@@ -119,12 +119,8 @@ func (command *workerWorktreeCommands) run(
 	if selected == "worker-worktree prepare-launch" {
 		site, err := manager.PrepareLaunchSite(ctx, launchRequest)
 		if err != nil {
-			return fail(
-				output,
-				1,
-				err,
-				"retain the captured lease and generation; inspect remote directory ownership before retrying",
-			)
+			_ = remoteworker.EncodeLaunchSiteFailure(output, err)
+			return 1
 		}
 		if json.NewEncoder(output).Encode(site) != nil {
 			return 1

@@ -86,7 +86,7 @@ func (runner SystemRunner) Run(
 	var stdout limitedBuffer
 	diagnostics, err := runner.RunTo(ctx, arguments, input, &stdout)
 	if stdout.overflow || errors.Is(err, ErrOutputLimit) {
-		return nil, nil, ErrOutputLimit
+		return nil, diagnostics, ErrOutputLimit
 	}
 	return stdout.Bytes(), diagnostics, err
 }
@@ -133,7 +133,7 @@ func (runner SystemRunner) RunTo(
 		return stderr.Bytes(), stdout.failure
 	}
 	if stderr.overflow {
-		return nil, ErrOutputLimit
+		return stderr.Bytes(), ErrOutputLimit
 	}
 	return stderr.Bytes(), err
 }

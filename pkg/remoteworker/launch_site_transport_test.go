@@ -1,8 +1,10 @@
 package remoteworker
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -15,6 +17,51 @@ type launchSiteSSHFixture struct {
 	request  LaunchSiteRequest
 	response LaunchSite
 	calls    int
+}
+
+type failedLaunchSSH struct {
+	output []byte
+	stderr []byte
+	err    error
+}
+
+func (runner failedLaunchSSH) Run(context.Context, []string, io.Reader) ([]byte, []byte, error) {
+	return runner.output, runner.stderr, runner.err
+}
+
+func TestRemoteLaunchSiteTransportReportsFailureStage(t *testing.T) {
+	_, request := launchSiteFixture(t)
+	profile := herdr.SavedMachine{ID: request.Worktree.Location.Machine,
+		Target: request.Worktree.Location.Target, Enabled: true}
+	for _, test := range []struct {
+		name   string
+		runner failedLaunchSSH
+		want   string
+	}{
+		{"transport", failedLaunchSSH{err: errors.New("exit status 255")}, "transport"},
+		{"timeout", failedLaunchSSH{err: context.DeadlineExceeded}, "timeout"},
+		{"stderr", failedLaunchSSH{stderr: []byte("remote warning")}, "stderr"},
+		{"decode", failedLaunchSSH{output: []byte("invalid JSON")}, "response decoding"},
+		{"validation", failedLaunchSSH{output: []byte(`{}`)}, "response validation"},
+		{"environment", failedLaunchSSH{output: []byte(`{"launch_failure":"environment inspection","diagnostics":"archive HTTP 404"}`), err: errors.New("exit status 1")}, "environment inspection"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var diagnostics bytes.Buffer
+			_, err := (WorktreeTransport{Runner: test.runner, Diagnostics: &diagnostics}).PrepareLaunchSite(
+				t.Context(),
+				profile,
+				request,
+			)
+			if err == nil || !strings.Contains(err.Error(), test.want) ||
+				errors.Is(err, ErrLaunchDirectoryOwnership) {
+				t.Fatalf("stage %s: %v", test.want, err)
+			}
+			if test.name == "environment" &&
+				!strings.Contains(diagnostics.String(), "archive HTTP 404") {
+				t.Fatalf("lost remote diagnostics: %s", &diagnostics)
+			}
+		})
+	}
 }
 
 func (fixture *launchSiteSSHFixture) Run(

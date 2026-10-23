@@ -93,5 +93,7 @@ func (leases hostRemoteLeases) transport() remoteworker.WorktreeTransport {
 	if runner == nil {
 		runner = sshcommand.SystemRunner{}
 	}
-	return remoteworker.WorktreeTransport{Runner: runner}
+	return remoteworker.WorktreeTransport{
+		Runner: runner, Diagnostics: preparationDiagnostics{leases.server},
+	}
 }

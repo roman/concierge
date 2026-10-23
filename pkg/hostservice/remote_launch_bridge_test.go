@@ -1,6 +1,7 @@
 package hostservice
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,6 +24,7 @@ import (
 )
 
 type launchBridgeSSH struct {
+	launchFailure           string
 	base                    string
 	server                  *Server
 	manager                 remoteworker.Worktrees
@@ -97,6 +99,30 @@ func (runner *launchBridgeSSH) Run(
 			return nil, nil, err
 		}
 		runner.site = request
+		switch runner.launchFailure {
+		case "transport":
+			return nil, []byte("SSH connection closed"), errors.New("exit status 255")
+		case "timeout":
+			return nil, nil, context.DeadlineExceeded
+		case "stderr":
+			return nil, []byte("remote warning"), nil
+		case "response decoding":
+			return []byte("invalid JSON private stdout"), nil, nil
+		case "response validation":
+			return []byte(`{}`), nil, nil
+		case "environment inspection":
+			return []byte(
+					`{"launch_failure":"environment inspection","diagnostics":"archive HTTP 404"}`,
+				), nil, errors.New(
+					"exit status 1",
+				)
+		case "directory ownership":
+			return []byte(
+					`{"launch_failure":"directory ownership"}`,
+				), nil, errors.New(
+					"exit status 1",
+				)
+		}
 		site, err := runner.manager.PrepareLaunchSite(ctx, request)
 		if err != nil {
 			return nil, nil, err
@@ -172,6 +198,13 @@ func TestHostRemoteLaunchConnectsNativeWorktreeActivationAndDispatch(t *testing.
 
 func TestFailedRemoteNativeStartupReleasesLaunchAndAllowsAbandonment(t *testing.T) {
 	testHostRemoteLaunchBridge(t, "native startup failed")
+}
+
+func TestRemoteLaunchStageFailuresRetainGenerationAndLease(t *testing.T) {
+	for _, stage := range []string{"transport", "timeout", "stderr", "response decoding",
+		"response validation", "environment inspection", "directory ownership"} {
+		t.Run(stage, func(t *testing.T) { testHostRemoteLaunchBridge(t, "launch failure "+stage) })
+	}
 }
 
 func TestAbandonPartialRemoteLaunchReturnsRealWorktree(t *testing.T) {
@@ -253,6 +286,9 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 			CheckQuiet: func(context.Context, string) error { return nil },
 		},
 	}
+	if strings.HasPrefix(mode, "launch failure ") {
+		runner.launchFailure = strings.TrimPrefix(mode, "launch failure ")
+	}
 	runner.lostContextConfirmation = mode == "context confirmation lost" ||
 		strings.HasPrefix(mode, "partial abandon")
 	runner.lostReturnConfirmation = strings.HasSuffix(mode, "return confirmation lost")
@@ -276,6 +312,37 @@ func testHostRemoteLaunchBridge(t *testing.T, mode string) {
 	script := fmt.Sprintf(remoteLaunchBridgeHerdr, tools)
 	if err := os.WriteFile(server.config.HerdrExecutable, []byte(script), 0700); err != nil {
 		t.Fatal(err)
+	}
+	if runner.launchFailure != "" {
+		var diagnostics bytes.Buffer
+		server.config.Diagnostics = &diagnostics
+		_, launchErr := server.executeInitialLaunch(t.Context(), input, operatorLaunch)
+		if launchErr == nil || !strings.Contains(launchErr.Error(), runner.launchFailure) {
+			t.Fatalf("lost launch stage: %v", launchErr)
+		}
+		current, err := server.store.Read(t.Context(), input.TaskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		intent := current.Snapshot().LaunchIntent
+		if intent == nil || intent.Generation == "" ||
+			intent.Generation != runner.site.Generation ||
+			intent.Lease != runner.site.Lease ||
+			intent.Lease.State != taskstate.LeaseHeld {
+			t.Fatal("failed preparation changed the captured generation or lease")
+		}
+		if current.Snapshot().Worker != nil || runner.secretCopies != 0 ||
+			processes.starts.Load() != 0 {
+			t.Fatal("activated a failed preparation")
+		}
+		if runner.launchFailure == "environment inspection" &&
+			!strings.Contains(diagnostics.String(), "archive HTTP 404") {
+			t.Fatalf("host log lost remote stderr: %s", &diagnostics)
+		}
+		if strings.Contains(diagnostics.String(), "private stdout") {
+			t.Fatal("logged an invalid response body")
+		}
+		return
 	}
 	if mode == "native startup failed" {
 		if err := os.WriteFile(filepath.Join(tools, "fail-native-start"), nil, 0600); err != nil {

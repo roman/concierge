@@ -15,6 +15,7 @@ import (
 
 type WorktreeTransport struct {
 	Runner         sshcommand.Runner
+	Diagnostics    io.Writer
 	MaxResultBytes int64
 }
 

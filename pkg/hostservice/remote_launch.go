@@ -125,7 +125,9 @@ func (server *Server) executeRemoteInitialLaunch(
 		taskops.InitialLaunchConfig{
 			Git: git, Herdr: client, MessageRoot: server.config.MessageRoot,
 			Remote: &taskops.RemoteInitialLaunchConfig{
-				Profile: profile, Worktrees: remoteworker.WorktreeTransport{Runner: runner},
+				Profile: profile, Worktrees: remoteworker.WorktreeTransport{
+					Runner: runner, Diagnostics: preparationDiagnostics{server},
+				},
 				Activate: func(ctx context.Context, taskID, generation string, tools taskops.RemoteWorkerTools) error {
 					return server.activateRemoteWorker(ctx, taskID, generation, profile, tools)
 				},

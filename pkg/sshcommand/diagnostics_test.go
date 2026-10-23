@@ -2,6 +2,7 @@ package sshcommand
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -21,5 +22,21 @@ func TestPreparationDiagnosticsStreamFullLogAndRetainFailureTail(t *testing.T) {
 	}
 	if len(diagnostics) > 4096 || !bytes.HasSuffix(diagnostics, []byte("cache download failed\n")) {
 		t.Fatalf("failure diagnostics are not a bounded tail: %d bytes", len(diagnostics))
+	}
+}
+
+func TestSSHOutputLimitRetainsBoundedDiagnostics(t *testing.T) {
+	for _, command := range []string{"cat >&2", "printf 'remote failure' >&2; cat"} {
+		t.Run(command, func(t *testing.T) {
+			runner := SystemRunner{Executable: "/bin/sh"}
+			_, diagnostics, err := runner.Run(t.Context(), []string{"-c", command},
+				strings.NewReader(strings.Repeat("remote failure\n", 30000)))
+			if !errors.Is(err, ErrOutputLimit) || len(diagnostics) == 0 ||
+				len(
+					diagnostics,
+				) > 256<<10 || !bytes.HasPrefix(diagnostics, []byte("remote failure")) {
+				t.Fatalf("lost bounded failure diagnostics: bytes=%d err=%v", len(diagnostics), err)
+			}
+		})
 	}
 }

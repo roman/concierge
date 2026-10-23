@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"path/filepath"
 
 	"github.com/roman/concierge/pkg/herdr"
@@ -85,13 +86,13 @@ func (site LaunchSite) Validate(request LaunchSiteRequest) error {
 		return err
 	}
 	if site.Lease != request.Lease || site.Tools != tools {
-		return ErrLaunchDirectoryOwnership
+		return ErrLaunchValidation
 	}
 	switch site.Environment {
 	case herdr.PlainWorktree, herdr.DirenvWorktree, herdr.NixWorktree:
 		return nil
 	default:
-		return ErrLaunchDirectoryOwnership
+		return ErrLaunchValidation
 	}
 }
 
@@ -122,7 +123,7 @@ func (manager Worktrees) PrepareLaunchSite(
 		}
 		environment, err := herdr.DetectWorktreeEnvironment(ctx, record.Lease.Path)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %w", ErrLaunchEnvironment, err)
 		}
 		if err := prepareLaunchDirectory(request, tools); err != nil {
 			return err

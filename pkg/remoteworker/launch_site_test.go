@@ -112,6 +112,34 @@ func TestRemoteLaunchSiteDetectsWorktreeEnvironmentAfterAcquisition(t *testing.T
 	}
 }
 
+func TestRemoteLaunchSiteEnvironmentFailureRetainsLease(t *testing.T) {
+	manager, request := launchSiteFixture(t)
+	if err := os.WriteFile(filepath.Join(request.Lease.Path, "flake.nix"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "nix"), []byte("#!/bin/sh\nprintf 'archive HTTP 404\\n' >&2\nexit 1\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	_, err := manager.PrepareLaunchSite(t.Context(), request)
+	if err == nil || !strings.Contains(err.Error(), "environment inspection") ||
+		errors.Is(err, ErrLaunchDirectoryOwnership) {
+		t.Fatalf("environment failure: %v", err)
+	}
+	lease, err := manager.Inspect(t.Context(), request.Worktree)
+	if err != nil || lease != request.Lease {
+		t.Fatalf("changed held lease: %+v %v", lease, err)
+	}
+	tools, err := request.Tools()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(tools.TaskDirectory); !os.IsNotExist(err) {
+		t.Fatal("created launch directory after failed environment inspection")
+	}
+}
+
 func TestRemoteLaunchSiteRejectsUnclaimedOrSymbolicDirectory(t *testing.T) {
 	for _, kind := range []string{"unclaimed", "symbolic"} {
 		t.Run(kind, func(t *testing.T) {
