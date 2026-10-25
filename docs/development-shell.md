@@ -66,6 +66,20 @@ An absolute hook path alone would find the script but skip its work.
 The shell settings check reports the old guarded relative commands as needing
 review. Replace them with the definitions above after updating the pin.
 
+Repositories that share native settings with another supervisor can set
+`concierge.hookGuard` to the exact outer shell condition in their committed
+commands. The default remains `[ -z "${CONCIERGE_WORKER:-}" ]`. For example:
+
+```nix
+concierge.hookGuard = ''[ -z "''${CONCIERGE_WORKER:-}''${PEON_WORKER:-}" ] && [ "''${EXMACHINA_SUPERVISOR:-}" != peon ]'';
+```
+
+Use the same condition between `if` and `; then` in every native Concierge
+hook command. Preserve the Concierge worker exclusion. This option changes
+only the exact settings comparison. It does not execute the condition,
+generate settings, or change hook execution. Command paths, directory changes,
+and the native async, timeout, and failure settings retain their checks.
+
 Codex runs hook commands in the session working directory. Its
 [hook documentation](https://developers.openai.com/codex/hooks) recommends Git
 root resolution for repository hooks. Git root resolution selects the wrong

@@ -63,6 +63,11 @@ in
 {
   options.concierge = {
     enable = lib.mkEnableOption "Concierge root supervision";
+    hookGuard = lib.mkOption {
+      type = lib.types.str;
+      default = ''[ -z "''${CONCIERGE_WORKER:-}" ]'';
+      description = "Exact outer shell condition expected in committed native hook commands. Used only for settings validation; keep the Concierge worker exclusion in any caller-specific guard.";
+    };
     primaryContract = lib.mkOption {
       default = null;
       description = "Reviewed, pinned caller contract printed only for the owning primary session.";
@@ -146,9 +151,9 @@ in
           if [ "$1" = .claude/settings.json ]; then
             project_variable='$CLAUDE_PROJECT_DIR'
           fi
-          if ! ${pkgs.jq}/bin/jq -e --arg event "$2" \
-            --arg command 'if [ -z "''${CONCIERGE_WORKER:-}" ]; then cd "'"$project_variable"'" && ./.agents/hooks/'"$3"'; fi' \
-            'any(.hooks[$event][]?.hooks[]?; .type == "command" and .command == $command and (if ($command | contains("concierge-claude-activity")) then (.async != true and .asyncRewake != true and (if $event == "UserPromptSubmit" then .onFailure == "block" else true end)) elif $event == "Stop" then .asyncRewake == true and (.timeout | type) == "number" and .timeout >= 28800 else true end))' \
+          if ! ${pkgs.jq}/bin/jq -e --arg event "$2" --arg hook "$3" \
+            --arg command 'if '${lib.escapeShellArg cfg.hookGuard}'; then cd "'"$project_variable"'" && ./.agents/hooks/'"$3"'; fi' \
+            'any(.hooks[$event][]?.hooks[]?; .type == "command" and .command == $command and (if $hook == "concierge-claude-activity" then (.async != true and .asyncRewake != true and (if $event == "UserPromptSubmit" then .onFailure == "block" else true end)) elif $event == "Stop" then .asyncRewake == true and (.timeout | type) == "number" and .timeout >= 28800 else true end))' \
             "$CONCIERGE_PROJECT_ROOT/$1" >/dev/null 2>&1; then
             printf 'Concierge hook settings need review: %s (%s)\n' "$1" "$2" >&2
           fi

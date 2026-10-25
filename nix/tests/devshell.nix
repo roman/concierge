@@ -89,20 +89,26 @@ let
     fi
     printf 'status: %s\ncount: 1\n' "$result"
   '';
-  evaluateContract = primaryContract: evaluate {
+  evaluateConcierge = conciergeOptions: evaluate {
     modules = [
       conciergeModule
       {
-        concierge.enable = true;
-        concierge.primaryContract = primaryContract;
-        concierge.codex.enable = true;
-        concierge.codex.package = pkgs.writeShellScriptBin "codex" "exit 0";
-        concierge.package = fakeConcierge;
-        concierge.tincanPackage = fakeTincan;
+        concierge = {
+          enable = true;
+          codex.enable = true;
+          codex.package = pkgs.writeShellScriptBin "codex" "exit 0";
+          package = fakeConcierge;
+          tincanPackage = fakeTincan;
+        } // conciergeOptions;
       }
     ];
   };
+  evaluateContract = primaryContract: evaluateConcierge { inherit primaryContract; };
   result = evaluateContract null;
+  extendedHookGuard = ''[ -z "''${CONCIERGE_WORKER:-}''${PEON_WORKER:-}" ] && [ "''${EXMACHINA_SUPERVISOR:-}" != peon ]'';
+  extendedGuardResult = evaluateConcierge { hookGuard = extendedHookGuard; };
+  activityNamedGuard = extendedHookGuard + '' && [ "''${SUPERVISOR_LABEL:-}" != concierge-claude-activity ]'';
+  activityNamedGuardResult = evaluateConcierge { hookGuard = activityNamedGuard; };
   contractResult = evaluateContract {
     id = "fixture-contract";
     source = ./fixtures/primary-contract.txt;
@@ -146,6 +152,9 @@ pkgs.runCommand "concierge-devshell"
       pkgs.diffutils
     ];
     shellEntry = result.shellHook;
+    extendedGuardShellEntry = extendedGuardResult.shellHook;
+    activityNamedGuardShellEntry = activityNamedGuardResult.shellHook;
+    inherit extendedHookGuard activityNamedGuard;
     contractHook = contractResult.config.files.".agents/hooks/concierge-session-start".source;
     storeStringContractHook = storeStringContractResult.config.files.".agents/hooks/concierge-session-start".source;
     storeFileContractHook = storeFileContractResult.config.files.".agents/hooks/concierge-session-start".source;
@@ -274,6 +283,7 @@ pkgs.runCommand "concierge-devshell"
     run_entry 2>guarded-settings-warning
     if grep -F 'hook settings need review' guarded-settings-warning; then exit 1; fi
     cp .codex/hooks.json guarded-codex-hooks.json
+    ${pkgs.bash}/bin/bash ${./hook-guards.sh}
     ${pkgs.jq}/bin/jq --arg prefix 'cd "$CLAUDE_PROJECT_DIR" && ' \
       'walk(if type == "string" then split($prefix) | join("") else . end)' guarded-settings.json > .claude/settings.json
     ${pkgs.jq}/bin/jq --arg prefix 'cd "$CONCIERGE_PROJECT_ROOT" && ' \
